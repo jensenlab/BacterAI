@@ -81,9 +81,10 @@ if __name__ == "__main__":
 
     for i in range(len(L2O_dataframe)):
         reactions = list(L2O_dataframe.index[i])
-        if len(reactions) == 2:
-            
-        double_rxn = f"{reactions[0]} + {reactions[0]}"
+        if len(reactions) == 2:   
+            double_rxn = f"{reactions[0]} + {reactions[0]}"
+        else:
+            double_rxn = f"{reactions[0]}"            
         if L2O_dataframe["growth"][i] < 0.07*solution.objective_value:
             L2O_growth_defect.append(double_rxn)
         else:
