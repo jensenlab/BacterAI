@@ -6,8 +6,9 @@ import itertools
 import cobra
 import reframed
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
-from tqdm import trange
+from tqdm import tqdm, trange
 
 PP = pprint.PrettyPrinter(indent=4)
 KO_RXN_IDS = ["ac_CDM_exch",
@@ -116,13 +117,13 @@ def random_reagents(num_to_remove=5):
     # remove_arr = np.random.randint(2, size=len(KO_RXN_IDS))
     return remove_reagents(remove_arr, KO_RXN_IDS), remove_reagents(remove_arr, KO_RXN_IDS_RF)
 
-def get_LXO(x=1):
-    all_indexes = np.arange(len(KO_RXN_IDS))
-    combos = itertools.combinations(all_indexes, x)
+def get_LXO(reagents, X=1):
+    all_indexes = np.arange(len(reagents))
+    combos = itertools.combinations(all_indexes, X)
     remove_indexes = [list(c) for c in combos] 
     remove_arrs = list()
     for to_remove in remove_indexes:
-        remove_arr = np.ones(len(KO_RXN_IDS))
+        remove_arr = np.ones(len(reagents))
         remove_arr[to_remove] = 0
         remove_arrs.append(remove_arr)
     # print(remove_arrs)
@@ -133,34 +134,42 @@ def remove_reagents(remove_arr, reagents):
     reagents = np.delete(reagents, ones)
     return reagents
     
+def reaction_knockout_cobra(model, reagents, growth_cutoff):
+    reagent_bounds = dict()
+    for r in reagents:
+        reagent_bounds[r] = model.reactions.get_by_id(r).bounds
+        model.reactions.get_by_id(r).bounds = (0,0)
+    objective_value = modelcb.slim_optimize()
+    for r, bounds in reagent_bounds.items():
+        model.reactions.get_by_id(r).bounds = bounds
+    grow = False if objective_value < growth_cutoff else True
+    return reagents.tolist(), objective_value, grow
+
+def reaction_knockout_reframed(model, reagents):
+    reagent_bounds = dict()
+
+    # solution = reframed.reaction_knockout(model, reagents)
+    # print(solution)
+    for r in reagents:
+        reagent_bounds[r] = (model.reactions[r].lb,
+                             model.reactions[r].ub)
+        model.reactions[r].lb = 0
+        model.reactions[r].ub = 0
+    solution = reframed.FBA(model).fobj
+    for r, bounds in reagent_bounds.items():
+        model.reactions[r].lb = bounds[0]
+        model.reactions[r].ub = bounds[1]   
+    return solution
+    
 def timed_run(model_cobra, model_reframed, c_reagents, r_reagents):
-    # COBRA BENCH
+    # COBRA BENCHMARK
     t_start = time.time()
-    # model_cobra = copy.deepcopy(model_cobra)
-    # model_reframed = copy.deepcopy(model_reframed)
-    
-    c_reagent_bounds = dict()
-    for r in c_reagents:
-        c_reagent_bounds[r] = model_cobra.reactions.get_by_id(r).bounds
-        model_cobra.reactions.get_by_id(r).bounds = (0,0)
-    cobra_solution = modelcb.slim_optimize()
-    
-    for r, bounds in c_reagent_bounds.items():
-        model_cobra.reactions.get_by_id(r).bounds = bounds
+    cobra_solution = reaction_knockout_cobra(model_cobra, c_reagents, 2)
     t1 = time.time()
     
-    #REFRAMED BENCH
-    r_reagent_bounds = dict()
-    for r in r_reagents:
-        r_reagent_bounds[r] = (model_reframed.reactions[r].lb,
-                               model_reframed.reactions[r].ub)
-        model_reframed.reactions[r].lb = 0
-        model_reframed.reactions[r].ub = 0
-    reframed_solution = reframed.FBA(modelrf).fobj
-    
-    for r, bounds in r_reagent_bounds.items():
-        model_reframed.reactions[r].lb = bounds[0]
-        model_reframed.reactions[r].ub = bounds[1]
+    # REFRAMED BENCHMARK
+    reframed_solution = reaction_knockout_reframed(model_reframed, r_reagents)
+    reframed_solution = 0
     t2 = time.time()
     
     cobra_time = t1 - t_start
@@ -181,7 +190,7 @@ if __name__ == "__main__":
     # reframed_time = 0.0
     # plot_points_c = list()
     # plot_points_r = list()
-    # n = 1000
+    # n = 41
     # for i in trange(len(KO_RXN_IDS)):
     #     avg_c = 0
     #     avg_r = 0
@@ -197,7 +206,7 @@ if __name__ == "__main__":
     #     plot_points_r.append(avg_r/n2)
     #     # print(round(cs,6), round(rs,6))
     
-    # print("\nTotal Time for {n} Runs")
+    # print(f"\nTotal Time for {n} Runs")
     # print(f"cobra: {cobra_time}")
     # print(f"reframed: {reframed_time}")
     
@@ -208,22 +217,41 @@ if __name__ == "__main__":
     # plt.ylabel('Time (sec)')
     # plt.xlabel('Number of reagents removed')
     # plt.show()
-
+    
+    
+    max_objective = modelcb.slim_optimize()
+    growth_cutoff = 0.07 * max_objective
     
     cobra_time = 0.0
     reframed_time = 0.0
-    for i in trange(1, 3):
-        runs = get_LXO(i)
-        for j in trange(len(runs)):
+    plot_points_c = list()
+    plot_points_r = list()
+    n = 3
+    no_growth_reagents = list()
+    dataframe_rows = list()
+    for i in range(1, n):
+        runs = get_LXO(KO_RXN_IDS, X=i)
+        nested_no_growth = list()
+        for j in tqdm(range(len(runs)), desc=f"L{i}Os", 
+                      unit=" experiments", dynamic_ncols=True):
             c_reagents = remove_reagents(runs[j], KO_RXN_IDS)
-            r_reagents = remove_reagents(runs[j], KO_RXN_IDS_RF)
-            c, r, cs, rs = timed_run(modelcb, modelrf, c_reagents, r_reagents)
-            cobra_time += c
-            reframed_time += r
+            reagents, objective_value, grow = (
+                reaction_knockout_cobra(modelcb, c_reagents, growth_cutoff))
+            if not grow:
+                nested_no_growth.append((reagents, objective_value))
+            dataframe_rows.append([reagents, f"L{i}Os", objective_value, grow])
+        no_growth_reagents.append(nested_no_growth)
 
-    
-    
+    results = pd.DataFrame(dataframe_rows, 
+                           columns=["Reagents", "Experiment", "Objective Value", "Growth"])
     print(f"cobra: {cobra_time}")
     print(f"reframed: {reframed_time}")
+    print(results)
+    
+    print("\n\nL1O")    
+    print(no_growth_reagents[0])
+    print("\n\nL2O")
+    print(no_growth_reagents[1])
+    
     
 

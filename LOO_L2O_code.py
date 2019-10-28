@@ -58,7 +58,7 @@ if __name__ == "__main__":
     solution = model.optimize()
     
     LOO_dataframe = single_reaction_deletion(model, KO_RXN_IDS)
-    print(LOO_dataframe)
+    # print(LOO_dataframe)
     LOO_growth_defect = []  # This list will include components that if removed there will be no growth
     LOO_no_growth_defect = [] # This list will include components that if removed growth is not affected
 
@@ -85,7 +85,7 @@ if __name__ == "__main__":
             double_rxn = f"{reactions[0]} + {reactions[0]}"
         else:
             double_rxn = f"{reactions[0]}"            
-        if L2O_dataframe["growth"][i] < 0.07*solution.objective_value:
+        if L2O_dataframe["growth"][i] < 0.07 * solution.objective_value:
             L2O_growth_defect.append(double_rxn)
         else:
             L2O_no_growth_defect.append(double_rxn)
