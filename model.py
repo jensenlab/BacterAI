@@ -96,12 +96,15 @@ KO_RXN_IDS_RF = ["R_ac_CDM_exch",
               "R_NaPi_CDM_exch"]
 
 def load_cobra(model_path):
+    # model_path - str: path to model
     model = cobra.io.read_sbml_model(model_path)
     return model
 
 def load_reframed(model_path):
+    # model_path - str: path to model
+    
     model = reframed.load_cbmodel(model_path, 
-                                  flavor='fbc2', 
+                                  flavor="fbc2", 
                                   use_infinity=False, 
                                   load_gprs=False,
                                   reversibility_check=False,
@@ -110,65 +113,78 @@ def load_reframed(model_path):
     return model
     
 
-def random_reagents(num_to_remove=5):
+def random_reactions(num_to_remove=5):
+    # num_to_remove - int: number of reactions to remove (set to 0)
+    
     remove_indexes = np.random.choice(len(KO_RXN_IDS), num_to_remove, replace=False)
     remove_arr = np.ones(len(KO_RXN_IDS))
     remove_arr[remove_indexes] = 0
-    # remove_arr = np.random.randint(2, size=len(KO_RXN_IDS))
-    return remove_reagents(remove_arr, KO_RXN_IDS), remove_reagents(remove_arr, KO_RXN_IDS_RF)
+    return reactions_to_knockout(remove_arr, KO_RXN_IDS), reactions_to_knockout(remove_arr, KO_RXN_IDS_RF)
 
-def get_LXO(reagents, X=1):
-    all_indexes = np.arange(len(reagents))
+def get_LXO(n_reactions, X=1):
+    # n_reactions - int: number of reactions
+    # X - int: number to leave out for leave-X-out experiments
+    
+    all_indexes = np.arange(n_reactions)
     combos = itertools.combinations(all_indexes, X)
     remove_indexes = [list(c) for c in combos] 
     remove_arrs = list()
     for to_remove in remove_indexes:
-        remove_arr = np.ones(len(reagents))
+        remove_arr = np.ones(n_reactions)
         remove_arr[to_remove] = 0
         remove_arrs.append(remove_arr)
     # print(remove_arrs)
     return remove_arrs
 
-def remove_reagents(remove_arr, reagents):
-    ones = np.where(remove_arr == 1)[0]
-    reagents = np.delete(reagents, ones)
-    return reagents
+
+
+def reactions_to_knockout(remove_arr, reactions):
+    # remove_arr - np.array[int]: binary array (0 = remove, 1 = keep)
+    # reactions - [str]: list of reactions
     
-def reaction_knockout_cobra(model, reagents, growth_cutoff):
-    reagent_bounds = dict()
-    for r in reagents:
-        reagent_bounds[r] = model.reactions.get_by_id(r).bounds
+    ones = np.where(remove_arr == 1)[0]
+    reactions = np.delete(reactions, ones)
+    return reactions
+    
+def reaction_knockout_cobra(model, reactions, growth_cutoff):
+    # model - cobrapy.Model: model with reactions to knockout
+    # reactions - [str]: list of reactions to knockout
+    # growth_cutoff - float: grow/no grow cutoff
+    
+    reaction_bounds = dict()
+    for r in reactions:
+        reaction_bounds[r] = model.reactions.get_by_id(r).bounds
         model.reactions.get_by_id(r).bounds = (0,0)
     objective_value = modelcb.slim_optimize()
-    for r, bounds in reagent_bounds.items():
+    for r, bounds in reaction_bounds.items():
         model.reactions.get_by_id(r).bounds = bounds
     grow = False if objective_value < growth_cutoff else True
-    return reagents.tolist(), objective_value, grow
+    return reactions.tolist(), objective_value, grow
 
-def reaction_knockout_reframed(model, reagents):
-    reagent_bounds = dict()
+def reaction_knockout_reframed(model, reactions):
+    reaction_bounds = dict()
 
-    # solution = reframed.reaction_knockout(model, reagents)
+    # solution = reframed.reaction_knockout(model, reactions)
     # print(solution)
-    for r in reagents:
-        reagent_bounds[r] = (model.reactions[r].lb,
+    for r in reactions:
+        reaction_bounds[r] = (model.reactions[r].lb,
                              model.reactions[r].ub)
         model.reactions[r].lb = 0
         model.reactions[r].ub = 0
     solution = reframed.FBA(model).fobj
-    for r, bounds in reagent_bounds.items():
+    for r, bounds in reaction_bounds.items():
         model.reactions[r].lb = bounds[0]
         model.reactions[r].ub = bounds[1]   
     return solution
     
-def timed_run(model_cobra, model_reframed, c_reagents, r_reagents):
+def timed_run(model_cobra, model_reframed, c_reactions, r_reactions):
     # COBRA BENCHMARK
     t_start = time.time()
-    cobra_solution = reaction_knockout_cobra(model_cobra, c_reagents, 2)
+    cobra_solution = reaction_knockout_cobra(model_cobra, c_reactions, 2)
     t1 = time.time()
     
     # REFRAMED BENCHMARK
-    reframed_solution = reaction_knockout_reframed(model_reframed, r_reagents)
+    reframed_solution = reaction_knockout_reframed(model_reframed, r_reactions)
     reframed_solution = 0
     t2 = time.time()
     
@@ -176,12 +192,11 @@ def timed_run(model_cobra, model_reframed, c_reagents, r_reagents):
     reframed_time = t2 - t1
     return cobra_time, reframed_time, cobra_solution, reframed_solution
 
-
 if __name__ == "__main__":
     t_start = time.time()
-    modelcb = load_cobra('models/iSMUv01_CDM_LOO.xml')
+    modelcb = load_cobra("models/iSMUv01_CDM_LOO.xml")
     t1 = time.time()
-    modelrf = load_reframed('models/iSMUv01_CDM_LOO.xml')
+    modelrf = load_reframed("models/iSMUv01_CDM_LOO.xml")
     t2 = time.time()
     print("\nLoad Times")
     print(f"cobra: {t1-t_start}, reframed: {t2-t_start}")
@@ -196,8 +211,8 @@ if __name__ == "__main__":
     #     avg_r = 0
     #     n2 = n//len(KO_RXN_IDS)
     #     for _ in range(n2):
-    #         c_reagents, r_reagents = random_reagents(num_to_remove=i)
-    #         c, r, cs, rs = timed_run(modelcb, modelrf, c_reagents, r_reagents)
+    #         c_reactions, r_reactions = random_reactions(num_to_remove=i)
+    #         c, r, cs, rs = timed_run(modelcb, modelrf, c_reactions, r_reactions)
     #         cobra_time += c
     #         reframed_time += r
     #         avg_c += c
@@ -211,11 +226,11 @@ if __name__ == "__main__":
     # print(f"reframed: {reframed_time}")
     
     # plt.plot(range(len(KO_RXN_IDS)), plot_points_c, range(len(KO_RXN_IDS)), plot_points_r)
-    # plt.title(f"Time vs. number of reagents removed")
+    # plt.title(f"Time vs. number of reactions removed")
     # # plt.title(f"cobra: {round(cobra_time,3)}, reframed: {round(reframed_time,3)}", fontsize=10)
-    # plt.legend(['cobrapy', 'reframed'])
-    # plt.ylabel('Time (sec)')
-    # plt.xlabel('Number of reagents removed')
+    # plt.legend(["cobrapy", "reframed"])
+    # plt.ylabel("Time (sec)")
+    # plt.xlabel("Number of reactions removed")
     # plt.show()
     
     
@@ -227,31 +242,40 @@ if __name__ == "__main__":
     plot_points_c = list()
     plot_points_r = list()
     n = 3
-    no_growth_reagents = list()
-    dataframe_rows = list()
+    no_growth_reactions = list()
+    data_all = list()
+    data_no_growth = list()
     for i in range(1, n):
-        runs = get_LXO(KO_RXN_IDS, X=i)
+        runs = get_LXO(len(KO_RXN_IDS), X=i)
         nested_no_growth = list()
         for j in tqdm(range(len(runs)), desc=f"L{i}Os", 
                       unit=" experiments", dynamic_ncols=True):
-            c_reagents = remove_reagents(runs[j], KO_RXN_IDS)
-            reagents, objective_value, grow = (
-                reaction_knockout_cobra(modelcb, c_reagents, growth_cutoff))
+            knockouts = reactions_to_knockout(runs[j], KO_RXN_IDS)
+            reactions, objective_value, grow = (
+                reaction_knockout_cobra(modelcb, knockouts, growth_cutoff))
             if not grow:
-                nested_no_growth.append((reagents, objective_value))
-            dataframe_rows.append([reagents, f"L{i}Os", objective_value, grow])
-        no_growth_reagents.append(nested_no_growth)
+                nested_no_growth.append((reactions, objective_value))
+                data_no_growth.append([reactions, f"L{i}O", objective_value, grow])
+            data_all.append([reactions, f"L{i}O", objective_value, grow])
+        no_growth_reactions.append(nested_no_growth)
 
-    results = pd.DataFrame(dataframe_rows, 
-                           columns=["Reagents", "Experiment", "Objective Value", "Growth"])
+    results_all = pd.DataFrame(data_all, 
+                               columns=["Reactions", "Experiment", 
+                                        "Objective Value", "Growth"])
+    results_no_growth = pd.DataFrame(data_no_growth, 
+                                     columns=["Reactions", "Experiment", 
+                                              "Objective Value", "Growth"])
+    
+    results_no_growth.to_csv("data/no_growth.csv", index=False)
     print(f"cobra: {cobra_time}")
     print(f"reframed: {reframed_time}")
-    print(results)
+    # print(results_all)
+    
     
     print("\n\nL1O")    
-    print(no_growth_reagents[0])
+    print(no_growth_reactions[0])
     print("\n\nL2O")
-    print(no_growth_reagents[1])
+    print(no_growth_reactions[1])
     
     
 
