@@ -10,6 +10,7 @@ import reframed
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import scipy.stats as sp
 from tqdm import tqdm, trange
 
 PP = pprint.PrettyPrinter(indent=4)
@@ -191,7 +192,7 @@ def reactions_to_knockout(remove_arr, reactions):
     return reactions
     
 def reaction_knockout_cobra(model, reactions, growth_cutoff, dummy=None,
-                            use_media=False):
+                            use_media=False, use_names=True):
     # model - cobrapy.Model: model with reactions to knockout
     # reactions - [str]: list of reactions to knockout
     # growth_cutoff - float: grow/no grow cutoff
@@ -210,11 +211,19 @@ def reaction_knockout_cobra(model, reactions, growth_cutoff, dummy=None,
     else:
         reaction_bounds = dict()
         for r in reactions:
-            reaction_bounds[r] = model.reactions.get_by_id(r).bounds
-            model.reactions.get_by_id(r).bounds = (0,0)
+            if use_names:
+                reaction_bounds[r] = model.reactions.get_by_id(r).bounds
+                model.reactions.get_by_id(r).bounds = (0,0)
+            else:
+                reaction_bounds[r] = r.bounds
+                r.bounds = (0,0)
         objective_value = model.slim_optimize()
         for r, bounds in reaction_bounds.items():
-            model.reactions.get_by_id(r).bounds = bounds
+            if use_names:
+                model.reactions.get_by_id(r).bounds = bounds
+            else:
+                r.bounds = bounds
+                
     
     grow = False if objective_value < growth_cutoff else True
     
@@ -222,6 +231,15 @@ def reaction_knockout_cobra(model, reactions, growth_cutoff, dummy=None,
         model.reactions.get_by_id(dummy.name).remove_from_model()
     
     return objective_value, grow
+
+def reaction_knockout(model, reaction, min_growth):
+    with model:
+        bounds = reaction.bounds
+        reaction.bounds = (0,0)
+        objective_value = model.slim_optimize()
+        reaction.bounds = bounds
+    grow = True if objective_value > min_growth else False
+    return grow
 
 def reaction_knockout_reframed(model, reactions, growth_cutoff):
     reaction_bounds = dict()
@@ -374,35 +392,33 @@ def set_media(model, media_reactions):
     model.medium = medium
     return model
     
-def knockout_walk(model, ignore_reactions=None):
-    n = 50
-    def _poisson(L, K):
-        return math.pow(L, K) * math.exp(-L) / math.factorial(K)
+def knockout_walk(model, valid_reactions):
+    max_objective = model.slim_optimize()
+    growth_cutoff = 0.50 * max_objective
     
-    num_knockouts = 1
-    # while num_knockouts == 0:
-    #     L = random.randint(1, n)
-    #     K = random.randint(1, n)
-    #     num_knockouts = int(_poisson(L, K) * n)
-    # print(num_knockouts)
-
-    all_reactions = set(model.reactions)
-    CDM_reactions = set([model.reactions.get_by_id(id) 
-                         for id in KO_RXN_IDS])
-    valid_reactions = all_reactions.difference(CDM_reactions)
-    if ignore_reactions:
-        valid_reactions = valid_reactions.difference(
-            set(ignore_reactions))
-    valid_reactions = list(valid_reactions)
-    removed_reactions = random.sample(valid_reactions, k=num_knockouts)
-    # print(reactions)
-    for rxn in removed_reactions:
-        print(f"\t{rxn.id}")
-        # rxn.remove_from_model(remove_orphans=False)
-        rxn.bounds = (0, 0)
+    num_knockouts = sp.poisson.rvs(5)
+    print("Number of KOs:", num_knockouts)
+        
+    for _ in range(num_knockouts):
+        candidate_reactions = list()
+        for rxn in list(valid_reactions):
+            grow = reaction_knockout(model, rxn, growth_cutoff)
+            if grow:
+                candidate_reactions.append(rxn)
+        reaction_to_remove = random.choice(candidate_reactions)
+        reaction_to_remove.bounds = (0,0)
+        valid_reactions.remove(reaction_to_remove)
+        print(f"\t{reaction_to_remove.id}")
+            
+    # print(cobra.flux_analysis.single_reaction_deletion(model, valid_reactions))
     
-    all_removed_reactions = removed_reactions + ignore_reactions
-    return model, all_removed_reactions
+    # # removed_reactions = random.sample(valid_reactions, k=num_knockouts)
+    # for rxn in removed_reactions:
+    #     print(f"\t{rxn.id}")
+    #     # rxn.remove_from_model(remove_orphans=False)
+    #     rxn.bounds = (0, 0)
+    
+    return model, valid_reactions
 
 def print_compartments():
     model = load_cobra("models/iSMUv01_CDM_LOO_v2.xml")
@@ -432,13 +448,17 @@ def find_minimal_media():
     max_growth = 0.90 * max_objective
     print("Max growth:", max_growth)
     
-    removed_reactions = list()
+    all_reactions = set(model.reactions)
+    CDM_reactions = set([model.reactions.get_by_id(id) 
+                         for id in KO_RXN_IDS])
+    valid_reactions = all_reactions.difference(CDM_reactions)
+    valid_reactions_backup = copy.deepcopy(valid_reactions)
+    
     previous_length_media = 0
     reactions = list()
     for _ in range(1000):
-        print(removed_reactions)
-        model, removed_reactions = knockout_walk(model, 
-                                                 removed_reactions)
+        model, valid_reactions = knockout_walk(model, 
+                                                 valid_reactions)
         try:
             minimal_medium = cobra.medium.minimal_medium(model, 
                                         max_growth,
@@ -447,7 +467,7 @@ def find_minimal_media():
         except:
             print("Reverting to backup.")
             previous_length_media = 0
-            removed_reactions = list()
+            removed_reactions = valid_reactions_backup
             model = copy.deepcopy(model_backup)
         else:
             if current_length_media > previous_length_media:
