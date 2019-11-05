@@ -5220,3 +5220,175 @@ Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the res
 Read LP format model from file /tmp/tmp7h0b72kd.lp
 Reading time = 0.00 seconds
 : 542 rows, 1308 columns, 5686 nonzeros
+
+Gurobi 8.1.1 (mac64, Python) logging started Mon Nov  4 17:20:49 2019
+
+Academic license - for non-commercial use only
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /var/folders/zb/q1665c511txgcwcssx22l2xm0000gn/T/tmpoy18f4af.lp
+Reading time = 0.01 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+
+Gurobi 8.1.1 (mac64, Python) logging started Mon Nov  4 17:26:07 2019
+
+Academic license - for non-commercial use only
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /var/folders/zb/q1665c511txgcwcssx22l2xm0000gn/T/tmppy3q1y2i.lp
+Reading time = 0.01 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /var/folders/zb/q1665c511txgcwcssx22l2xm0000gn/T/tmphunz0h85.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+
+Gurobi 8.1.1 (mac64, Python) logging started Mon Nov  4 17:29:33 2019
+
+Academic license - for non-commercial use only
+
+Gurobi 8.1.1 (mac64, Python) logging started Mon Nov  4 17:30:28 2019
+
+Academic license - for non-commercial use only
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /var/folders/zb/q1665c511txgcwcssx22l2xm0000gn/T/tmpfis6_6_q.lp
+Reading time = 0.01 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /var/folders/zb/q1665c511txgcwcssx22l2xm0000gn/T/tmpi4ebhynb.lp
+Reading time = 0.01 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+
+Gurobi 8.1.1 (mac64, Python) logging started Mon Nov  4 17:40:59 2019
+
+Academic license - for non-commercial use only
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /var/folders/zb/q1665c511txgcwcssx22l2xm0000gn/T/tmpkg8dzh3y.lp
+Reading time = 0.01 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+
+Gurobi 8.1.1 (mac64, Python) logging started Mon Nov  4 17:43:10 2019
+
+Academic license - for non-commercial use only
+
+Gurobi 8.1.1 (mac64, Python) logging started Mon Nov  4 17:43:48 2019
+
+Academic license - for non-commercial use only
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /var/folders/zb/q1665c511txgcwcssx22l2xm0000gn/T/tmp42mk1f7x.lp
+Reading time = 0.01 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+
+Gurobi 8.1.1 (mac64, Python) logging started Mon Nov  4 17:45:01 2019
+
+Academic license - for non-commercial use only
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /var/folders/zb/q1665c511txgcwcssx22l2xm0000gn/T/tmpxhx0nprd.lp
+Reading time = 0.01 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /var/folders/zb/q1665c511txgcwcssx22l2xm0000gn/T/tmpz9nonzs3.lp
+Reading time = 0.01 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+
+Gurobi 8.1.1 (mac64, Python) logging started Mon Nov  4 17:46:54 2019
+
+Academic license - for non-commercial use only
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /var/folders/zb/q1665c511txgcwcssx22l2xm0000gn/T/tmp12687svz.lp
+Reading time = 0.01 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /var/folders/zb/q1665c511txgcwcssx22l2xm0000gn/T/tmp9hrka0ul.lp
+Reading time = 0.01 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /var/folders/zb/q1665c511txgcwcssx22l2xm0000gn/T/tmp2q7vefdo.lp
+Reading time = 0.01 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+
+Gurobi 8.1.1 (mac64, Python) logging started Mon Nov  4 17:55:57 2019
+
+Academic license - for non-commercial use only
+
+Gurobi 8.1.1 (mac64, Python) logging started Mon Nov  4 17:56:12 2019
+
+Academic license - for non-commercial use only
+
+Gurobi 8.1.1 (mac64, Python) logging started Mon Nov  4 17:56:52 2019
+
+Academic license - for non-commercial use only
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /var/folders/zb/q1665c511txgcwcssx22l2xm0000gn/T/tmpakpre74q.lp
+Reading time = 0.01 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+
+Gurobi 8.1.1 (mac64, Python) logging started Mon Nov  4 17:58:43 2019
+
+Academic license - for non-commercial use only
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /var/folders/zb/q1665c511txgcwcssx22l2xm0000gn/T/tmp_ws9lz7s.lp
+Reading time = 0.01 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+
+Gurobi 8.1.1 (mac64, Python) logging started Mon Nov  4 18:00:33 2019
+
+Academic license - for non-commercial use only
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /var/folders/zb/q1665c511txgcwcssx22l2xm0000gn/T/tmpun_z644d.lp
+Reading time = 0.01 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+
+Gurobi 8.1.1 (mac64, Python) logging started Mon Nov  4 18:01:14 2019
+
+Academic license - for non-commercial use only
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /var/folders/zb/q1665c511txgcwcssx22l2xm0000gn/T/tmp6_nabuy4.lp
+Reading time = 0.01 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /var/folders/zb/q1665c511txgcwcssx22l2xm0000gn/T/tmpqoe546kj.lp
+Reading time = 0.01 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+
+Gurobi 8.1.1 (mac64, Python) logging started Mon Nov  4 18:03:35 2019
+
+Academic license - for non-commercial use only
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /var/folders/zb/q1665c511txgcwcssx22l2xm0000gn/T/tmpoom0t1ar.lp
+Reading time = 0.01 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
