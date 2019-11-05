@@ -234,10 +234,9 @@ def reaction_knockout_cobra(model, reactions, growth_cutoff, dummy=None,
 
 def reaction_knockout(model, reaction, min_growth):
     with model:
-        bounds = reaction.bounds
-        reaction.bounds = (0,0)
+        model.reactions.get_by_id(reaction.id).knock_out()
         objective_value = model.slim_optimize()
-        reaction.bounds = bounds
+
     grow = True if objective_value > min_growth else False
     return grow
 
@@ -385,12 +384,6 @@ def bench():
     print(no_growth_reactions[0])
     print("\n\nL2O")
     print(no_growth_reactions[1])
-
-def set_media(model, media_reactions):
-    medium = model.medium
-    medium.update({rxn: 1000 for rxn in media_reactions})
-    model.medium = medium
-    return model
     
 def knockout_walk(model, valid_reactions):
     max_objective = model.slim_optimize()
@@ -400,13 +393,24 @@ def knockout_walk(model, valid_reactions):
     print("Number of KOs:", num_knockouts)
         
     for _ in range(num_knockouts):
-        candidate_reactions = list()
-        for rxn in list(valid_reactions):
-            grow = reaction_knockout(model, rxn, growth_cutoff)
-            if grow:
-                candidate_reactions.append(rxn)
+        # candidate_reactions = list()
+        # for rxn in list(valid_reactions):
+        #     grow = reaction_knockout(model, rxn, growth_cutoff)
+        #     if grow:
+        #         candidate_reactions.append(rxn)
+                
+        candidate_reactions = [rxn for rxn in valid_reactions 
+                               if reaction_knockout(model, rxn, growth_cutoff)]
+        
+        # deletion_results = (cobra.flux_analysis
+        #                     .single_reaction_deletion(model, list(valid_reactions)))
+        # deletion_results = deletion_results[~(deletion_results == 0).any(axis=1)]
+        # deletion_results = deletion_results[(deletion_results != 0).all(1)]
+        # candidate_reactions = [model.reactions.get_by_id(tuple(r)[0]) 
+        #                        for r in deletion_results.index.values]
+        
         reaction_to_remove = random.choice(candidate_reactions)
-        reaction_to_remove.bounds = (0,0)
+        model.reactions.get_by_id(reaction_to_remove.id).knock_out()
         valid_reactions.remove(reaction_to_remove)
         print(f"\t{reaction_to_remove.id}")
             
@@ -458,7 +462,7 @@ def find_minimal_media():
     reactions = list()
     for _ in range(1000):
         model, valid_reactions = knockout_walk(model, 
-                                                 valid_reactions)
+                                               valid_reactions)
         try:
             minimal_medium = cobra.medium.minimal_medium(model, 
                                         max_growth,
@@ -467,7 +471,7 @@ def find_minimal_media():
         except:
             print("Reverting to backup.")
             previous_length_media = 0
-            removed_reactions = valid_reactions_backup
+            valid_reactions = copy.deepcopy(valid_reactions_backup)
             model = copy.deepcopy(model_backup)
         else:
             if current_length_media > previous_length_media:
