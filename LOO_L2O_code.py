@@ -54,7 +54,7 @@ def load_cobra(model_path):
 
 
 if __name__ == "__main__":
-    model = load_cobra('models/iSMUv01_CDM_LOO.xml')
+    model = load_cobra('models/iSMUv01_CDM_LOO_v2.xml')
     solution = model.optimize()
     
     LOO_dataframe = single_reaction_deletion(model, KO_RXN_IDS)

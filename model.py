@@ -164,7 +164,7 @@ def random_reactions(num_to_remove=5):
     remove_indexes = np.random.choice(len(KO_RXN_IDS), num_to_remove, replace=False)
     remove_arr = np.ones(len(KO_RXN_IDS))
     remove_arr[remove_indexes] = 0
-    return reactions_to_knockout(remove_arr, KO_RXN_IDS), reactions_to_knockout(remove_arr, KO_RXN_IDS_RF)
+    return reactions_to_knockout(remove_arr, KO_RXN_IDS), remove_arr
 
 def get_LXO(n_reactions, X=1):
     # n_reactions - int: number of reactions
@@ -181,7 +181,11 @@ def get_LXO(n_reactions, X=1):
     # print(remove_arrs)
     return remove_arrs
 
-
+def knockout_and_simulate(model, num_to_remove):
+    min_growth = 0.50 * model.slim_optimize()
+    reactions, remove_arr = random_reactions(num_to_remove)
+    grow, objective_value = reaction_knockout(model, reactions, min_growth)
+    return objective_value, remove_arr
 
 def reactions_to_knockout(remove_arr, reactions):
     # remove_arr - np.array[int]: binary array (0 = remove, 1 = keep)
@@ -232,13 +236,14 @@ def reaction_knockout_cobra(model, reactions, growth_cutoff, dummy=None,
     
     return objective_value, grow
 
-def reaction_knockout(model, reaction, min_growth):
+def reaction_knockout(model, reaction_ids, min_growth):
     with model:
-        model.reactions.get_by_id(reaction.id).knock_out()
+        for r_id in reaction_ids:
+            model.reactions.get_by_id(r_id).knock_out()
         objective_value = model.slim_optimize()
 
     grow = True if objective_value > min_growth else False
-    return grow
+    return grow, objective_value
 
 def reaction_knockout_reframed(model, reactions, growth_cutoff):
     reaction_bounds = dict()
@@ -400,7 +405,7 @@ def knockout_walk(model, valid_reactions):
         #         candidate_reactions.append(rxn)
                 
         candidate_reactions = [rxn for rxn in valid_reactions 
-                               if reaction_knockout(model, rxn, growth_cutoff)]
+                               if reaction_knockout(model, [rxn], growth_cutoff)]
         
         # deletion_results = (cobra.flux_analysis
         #                     .single_reaction_deletion(model, list(valid_reactions)))
@@ -461,15 +466,16 @@ def find_minimal_media():
     previous_length_media = 0
     reactions = list()
     for _ in range(1000):
-        model, valid_reactions = knockout_walk(model, 
-                                               valid_reactions)
         try:
+            model, valid_reactions = knockout_walk(model, 
+                                               valid_reactions)
             minimal_medium = cobra.medium.minimal_medium(model, 
                                         max_growth,
                                         minimize_components=True)
             current_length_media = len(minimal_medium)
-        except:
+        except Exception as e:
             print("Reverting to backup.")
+            print("\tError: {}".format(str(e)))
             previous_length_media = 0
             valid_reactions = copy.deepcopy(valid_reactions_backup)
             model = copy.deepcopy(model_backup)
