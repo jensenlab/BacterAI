@@ -113,9 +113,9 @@ class NeuralNetwork:
         
 def generate_training_data():
     m = model.load_cobra("models/iSMUv01_CDM_LOO_v2.xml")
-    with open('CDM_leave_out_training.csv', mode='a') as file:
+    with open('CDM_leave_out_test.csv', mode='a') as file:
         writer = csv.writer(file, delimiter=',')
-        for _ in trange(100000):
+        for _ in trange(1000):
             # n = random.randint(0, len(model.KO_RXN_IDS))
             n = sp.poisson.rvs(5)
             grow, reactions = model.knockout_and_simulate(m, n)
@@ -124,7 +124,7 @@ def generate_training_data():
             writer.writerow(reactions)
             # print(grow, reactions)
         
-        for _ in trange(100000):
+        for _ in trange(1000):
             n = random.randint(0, len(model.KO_RXN_IDS))
             grow, reactions = model.knockout_and_simulate(m, n)
             reactions = list(reactions)
@@ -135,15 +135,15 @@ def generate_training_data():
 if __name__ == "__main__":
     # generate_training_data()
     
-    data = np.genfromtxt('CDM_leave_out_training.csv', delimiter=',')
-    x = data[:10000, :-1]
-    # y = np.reshape(data[:100, -1], (1, -1))
-    y = np.array([[v] for v in data[:10000, -1].tolist()])
-    # print(y)
+    # data = np.genfromtxt('CDM_leave_out_training.csv', delimiter=',')
+    # x = data[:10000, :-1]
+    # # y = np.reshape(data[:100, -1], (1, -1))
+    # y = np.array([[v] for v in data[:10000, -1].tolist()])
+    # # print(y)
 
-    net = NeuralNetwork(x, y)
-    for _ in trange(1000):
-        net.feed_forward()
-        net.back_propogation()
+    # net = NeuralNetwork(x, y)
+    # for _ in trange(1000):
+    #     net.feed_forward()
+    #     net.back_propogation()
         
-    print(net.output)
+    # print(net.output)
