@@ -5,6 +5,7 @@ import math
 import model
 
 import numpy as np
+from sklearn.preprocessing import MinMaxScaler
 import scipy.stats as sp
 from tqdm import trange 
 
@@ -134,15 +135,18 @@ def generate_training_data():
             
 if __name__ == "__main__":
     # generate_training_data()
-    
+    scaler = MinMaxScaler()
+    max_n = 1000
     data = np.genfromtxt('CDM_leave_out_training.csv', delimiter=',')
-    x = data[:10000, :-1]
-    # y = np.reshape(data[:100, -1], (1, -1))
-    y = np.array([[v] for v in data[:10000, -1].tolist()])
-    # print(y)
+    data_train = scaler.fit_transform(data[:max_n, :])
+    print(data_train)
+    x = data_train[:max_n, :-1]
+    y = np.array([[v] for v in data_train[:max_n, -1].tolist()])
+    
+    print(y)
 
     net = NeuralNetwork(x, y)
-    for _ in trange(1000):
+    for _ in trange(100):
         net.feed_forward()
         net.back_propogation()
         
