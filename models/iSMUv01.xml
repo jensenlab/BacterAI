@@ -405,7 +405,6 @@
       <species metaid="C02133__91__c__93__" id="C02133__91__c__93__" name="Acyl phosphate" compartment="c" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false" fbc:charge="-1" fbc:chemicalFormula="CHO5PR"/>
       <species metaid="C02291__91__c__93__" id="C02291__91__c__93__" name="Cystathionine" compartment="c" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false" fbc:charge="0" fbc:chemicalFormula="C7H14N2O4S"/>
       <species metaid="C02323__91__c__93__" id="C02323__91__c__93__" name="Salicyl alcohol" compartment="c" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false" fbc:charge="0" fbc:chemicalFormula="C7H8O2"/>
-      <species metaid="C02362__91__c__93__" id="C02362__91__c__93__" name="2-Oxosuccinamate" compartment="c" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false" fbc:charge="-1" fbc:chemicalFormula="C4H4NO4"/>
       <species metaid="C02430__91__c__93__" id="C02430__91__c__93__" name="L-Methionyl-tRNA" compartment="c" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false" fbc:charge="1" fbc:chemicalFormula="C15H22N6O4RS"/>
       <species metaid="C02504__91__c__93__" id="C02504__91__c__93__" name="2-Isopropylmalate" compartment="c" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false" fbc:charge="-2" fbc:chemicalFormula="C7H10O5"/>
       <species metaid="C02637__91__c__93__" id="C02637__91__c__93__" name="3-Dehydroshikimate" compartment="c" hasOnlySubstanceUnits="false" boundaryCondition="false" constant="false" fbc:charge="-1" fbc:chemicalFormula="C7H7O5"/>
@@ -4636,7 +4635,7 @@
           <fbc:geneProductRef fbc:geneProduct="G_SMU_858"/>
         </fbc:geneProductAssociation>
       </reaction>
-      <reaction metaid="R_R01398" id="R_R01398" name="R01398" reversible="false" fast="false" fbc:lowerFluxBound="FB2N0" fbc:upperFluxBound="FB4N1000">
+      <reaction metaid="R_R01398" id="R_R01398" name="R01398" reversible="true" fast="false" fbc:lowerFluxBound="FB1N1000" fbc:upperFluxBound="FB4N1000">
         <notes>
           <body xmlns="http://www.w3.org/1999/xhtml">
             <p>Confidence Level: 0</p>
@@ -13077,14 +13076,14 @@
           </rdf:RDF>
         </annotation>
         <listOfReactants>
-          <speciesReference species="C00002__91__c__93__" stoichiometry="1" constant="true"/>
-          <speciesReference species="C00011__91__c__93__" stoichiometry="1" constant="true"/>
-          <speciesReference species="C00014__91__c__93__" stoichiometry="1" constant="true"/>
-        </listOfReactants>
-        <listOfProducts>
           <speciesReference species="C00008__91__c__93__" stoichiometry="1" constant="true"/>
           <speciesReference species="C00080__91__c__93__" stoichiometry="2" constant="true"/>
           <speciesReference species="C00169__91__c__93__" stoichiometry="1" constant="true"/>
+        </listOfReactants>
+        <listOfProducts>
+          <speciesReference species="C00002__91__c__93__" stoichiometry="1" constant="true"/>
+          <speciesReference species="C00011__91__c__93__" stoichiometry="1" constant="true"/>
+          <speciesReference species="C00014__91__c__93__" stoichiometry="1" constant="true"/>
         </listOfProducts>
         <fbc:geneProductAssociation>
           <fbc:geneProductRef fbc:geneProduct="G_SMU_265"/>
@@ -13627,64 +13626,6 @@
         </listOfProducts>
         <fbc:geneProductAssociation>
           <fbc:geneProductRef fbc:geneProduct="G_SMU_915c"/>
-        </fbc:geneProductAssociation>
-      </reaction>
-      <reaction metaid="R_R01346" id="R_R01346" name="R01346" reversible="true" fast="false" fbc:lowerFluxBound="FB1N1000" fbc:upperFluxBound="FB4N1000">
-        <notes>
-          <body xmlns="http://www.w3.org/1999/xhtml">
-            <p>Confidence Level: 0</p>
-          </body>
-        </notes>
-        <annotation xmlns:sbml="http://www.sbml.org/sbml/level3/version1/core">
-          <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:vCard="http://www.w3.org/2001/vcard-rdf/3.0#" xmlns:vCard4="http://www.w3.org/2006/vcard/ns#" xmlns:bqbiol="http://biomodels.net/biology-qualifiers/" xmlns:bqmodel="http://biomodels.net/model-qualifiers/">
-            <rdf:Description rdf:about="#R_R01346">
-              <bqbiol:is>
-                <rdf:Bag>
-                  <rdf:li rdf:resource="http://identifiers.org/ec-code/2.6.1.14"/>
-                </rdf:Bag>
-              </bqbiol:is>
-            </rdf:Description>
-          </rdf:RDF>
-        </annotation>
-        <listOfReactants>
-          <speciesReference species="C00026__91__c__93__" stoichiometry="1" constant="true"/>
-          <speciesReference species="C00152__91__c__93__" stoichiometry="1" constant="true"/>
-        </listOfReactants>
-        <listOfProducts>
-          <speciesReference species="C00025__91__c__93__" stoichiometry="1" constant="true"/>
-          <speciesReference species="C02362__91__c__93__" stoichiometry="1" constant="true"/>
-        </listOfProducts>
-        <fbc:geneProductAssociation>
-          <fbc:geneProductRef fbc:geneProduct="G_SMU_1312"/>
-        </fbc:geneProductAssociation>
-      </reaction>
-      <reaction metaid="R_R00348" id="R_R00348" name="R00348" reversible="false" fast="false" fbc:lowerFluxBound="FB2N0" fbc:upperFluxBound="FB4N1000">
-        <notes>
-          <body xmlns="http://www.w3.org/1999/xhtml">
-            <p>Confidence Level: 0</p>
-          </body>
-        </notes>
-        <annotation xmlns:sbml="http://www.sbml.org/sbml/level3/version1/core">
-          <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:vCard="http://www.w3.org/2001/vcard-rdf/3.0#" xmlns:vCard4="http://www.w3.org/2006/vcard/ns#" xmlns:bqbiol="http://biomodels.net/biology-qualifiers/" xmlns:bqmodel="http://biomodels.net/model-qualifiers/">
-            <rdf:Description rdf:about="#R_R00348">
-              <bqbiol:is>
-                <rdf:Bag>
-                  <rdf:li rdf:resource="http://identifiers.org/ec-code/3.5.1.3"/>
-                </rdf:Bag>
-              </bqbiol:is>
-            </rdf:Description>
-          </rdf:RDF>
-        </annotation>
-        <listOfReactants>
-          <speciesReference species="C00001__91__c__93__" stoichiometry="1" constant="true"/>
-          <speciesReference species="C02362__91__c__93__" stoichiometry="1" constant="true"/>
-        </listOfReactants>
-        <listOfProducts>
-          <speciesReference species="C00014__91__c__93__" stoichiometry="1" constant="true"/>
-          <speciesReference species="C00036__91__c__93__" stoichiometry="1" constant="true"/>
-        </listOfProducts>
-        <fbc:geneProductAssociation>
-          <fbc:geneProductRef fbc:geneProduct="G_SMU_1937"/>
         </fbc:geneProductAssociation>
       </reaction>
       <reaction metaid="R_R09524" id="R_R09524" name="R09524" reversible="false" fast="false" fbc:lowerFluxBound="FB2N0" fbc:upperFluxBound="FB4N1000">
@@ -14637,25 +14578,6 @@
           <speciesReference species="C00080__91__c__93__" stoichiometry="1" constant="true"/>
         </listOfProducts>
       </reaction>
-      <reaction metaid="R_fru_ABC_trans" id="R_fru_ABC_trans" name="fru_ABC_trans" reversible="false" fast="false" fbc:lowerFluxBound="FB2N0" fbc:upperFluxBound="FB4N1000">
-        <notes>
-          <body xmlns="http://www.w3.org/1999/xhtml">
-            <p>ECNumbers:Unknown</p>
-            <p>Confidence Level: 0</p>
-          </body>
-        </notes>
-        <listOfReactants>
-          <speciesReference species="C00001__91__c__93__" stoichiometry="1" constant="true"/>
-          <speciesReference species="C00002__91__c__93__" stoichiometry="1" constant="true"/>
-          <speciesReference species="C00095__91__e__93__" stoichiometry="1" constant="true"/>
-        </listOfReactants>
-        <listOfProducts>
-          <speciesReference species="C00008__91__c__93__" stoichiometry="1" constant="true"/>
-          <speciesReference species="C00009__91__c__93__" stoichiometry="1" constant="true"/>
-          <speciesReference species="C00080__91__c__93__" stoichiometry="1" constant="true"/>
-          <speciesReference species="C00095__91__c__93__" stoichiometry="1" constant="true"/>
-        </listOfProducts>
-      </reaction>
       <reaction metaid="R_gal_ABC_trans" id="R_gal_ABC_trans" name="gal_ABC_trans" reversible="false" fast="false" fbc:lowerFluxBound="FB2N0" fbc:upperFluxBound="FB4N1000">
         <notes>
           <body xmlns="http://www.w3.org/1999/xhtml">
@@ -14674,14 +14596,25 @@
           <speciesReference species="C00080__91__c__93__" stoichiometry="1" constant="true"/>
           <speciesReference species="C00124__91__c__93__" stoichiometry="1" constant="true"/>
         </listOfProducts>
-        <fbc:geneProductAssociation>
-          <fbc:and>
-            <fbc:geneProductRef fbc:geneProduct="G_SMU_1568"/>
-            <fbc:geneProductRef fbc:geneProduct="G_SMU_1569"/>
-            <fbc:geneProductRef fbc:geneProduct="G_SMU_1570"/>
-            <fbc:geneProductRef fbc:geneProduct="G_SMU_1571"/>
-          </fbc:and>
-        </fbc:geneProductAssociation>
+      </reaction>
+      <reaction metaid="R_fru_ABC_trans" id="R_fru_ABC_trans" name="fru_ABC_trans" reversible="false" fast="false" fbc:lowerFluxBound="FB2N0" fbc:upperFluxBound="FB4N1000">
+        <notes>
+          <body xmlns="http://www.w3.org/1999/xhtml">
+            <p>ECNumbers:Unknown</p>
+            <p>Confidence Level: 0</p>
+          </body>
+        </notes>
+        <listOfReactants>
+          <speciesReference species="C00001__91__c__93__" stoichiometry="1" constant="true"/>
+          <speciesReference species="C00002__91__c__93__" stoichiometry="1" constant="true"/>
+          <speciesReference species="C00095__91__e__93__" stoichiometry="1" constant="true"/>
+        </listOfReactants>
+        <listOfProducts>
+          <speciesReference species="C00008__91__c__93__" stoichiometry="1" constant="true"/>
+          <speciesReference species="C00009__91__c__93__" stoichiometry="1" constant="true"/>
+          <speciesReference species="C00080__91__c__93__" stoichiometry="1" constant="true"/>
+          <speciesReference species="C00095__91__c__93__" stoichiometry="1" constant="true"/>
+        </listOfProducts>
       </reaction>
       <reaction metaid="R_frun_ABC_trans" id="R_frun_ABC_trans" name="frun_ABC_trans" reversible="false" fast="false" fbc:lowerFluxBound="FB2N0" fbc:upperFluxBound="FB4N1000">
         <notes>
@@ -17966,6 +17899,17 @@
           <speciesReference species="C00244__91__e__93__" stoichiometry="1" constant="true"/>
         </listOfProducts>
       </reaction>
+      <reaction metaid="R_form_exch" id="R_form_exch" name="form_exch" reversible="true" fast="false" fbc:lowerFluxBound="FB1N1000" fbc:upperFluxBound="FB4N1000">
+        <notes>
+          <body xmlns="http://www.w3.org/1999/xhtml">
+            <p>ECNumbers:Unknown</p>
+            <p>Confidence Level: 0</p>
+          </body>
+        </notes>
+        <listOfProducts>
+          <speciesReference species="C00058__91__e__93__" stoichiometry="1" constant="true"/>
+        </listOfProducts>
+      </reaction>
       <reaction metaid="R_SO4_exch" id="R_SO4_exch" name="SO4_exch" reversible="true" fast="false" fbc:lowerFluxBound="FB1N1000" fbc:upperFluxBound="FB4N1000">
         <notes>
           <body xmlns="http://www.w3.org/1999/xhtml">
@@ -18360,6 +18304,18 @@
         </notes>
         <listOfReactants>
           <speciesReference species="C00189__91__c__93__" stoichiometry="1" constant="true"/>
+        </listOfReactants>
+      </reaction>
+      <reaction metaid="R_NH4_dem" id="R_NH4_dem" name="NH4_dem" reversible="false" fast="false" fbc:lowerFluxBound="FB2N0" fbc:upperFluxBound="FB4N1000">
+        <notes>
+          <body xmlns="http://www.w3.org/1999/xhtml">
+            <p>ECNumbers:Unknown</p>
+            <p>Confidence Level: 0</p>
+            <p>NOTES: Required for growth on C00140 as sole carbon source</p>
+          </body>
+        </notes>
+        <listOfReactants>
+          <speciesReference species="C00014__91__c__93__" stoichiometry="1" constant="true"/>
         </listOfReactants>
       </reaction>
       <reaction metaid="R_ACP_sink" id="R_ACP_sink" name="ACP_sink" reversible="true" fast="false" fbc:lowerFluxBound="FB1N1000" fbc:upperFluxBound="FB4N1000">
@@ -18839,7 +18795,6 @@
       <fbc:geneProduct metaid="G_SMU_916c" fbc:id="G_SMU_916c" fbc:label="SMU_916c"/>
       <fbc:geneProduct metaid="G_SMU_919c" fbc:id="G_SMU_919c" fbc:label="SMU_919c"/>
       <fbc:geneProduct metaid="G_SMU_915c" fbc:id="G_SMU_915c" fbc:label="SMU_915c"/>
-      <fbc:geneProduct metaid="G_SMU_1937" fbc:id="G_SMU_1937" fbc:label="SMU_1937"/>
       <fbc:geneProduct metaid="G_SMU_127" fbc:id="G_SMU_127" fbc:label="SMU_127"/>
       <fbc:geneProduct metaid="G_SMU_128" fbc:id="G_SMU_128" fbc:label="SMU_128"/>
       <fbc:geneProduct metaid="G_SMU_129" fbc:id="G_SMU_129" fbc:label="SMU_129"/>
@@ -18881,14 +18836,14 @@
       <fbc:geneProduct metaid="G_SMU_1958c" fbc:id="G_SMU_1958c" fbc:label="SMU_1958c"/>
       <fbc:geneProduct metaid="G_SMU_1960c" fbc:id="G_SMU_1960c" fbc:label="SMU_1960c"/>
       <fbc:geneProduct metaid="G_SMU_1961c" fbc:id="G_SMU_1961c" fbc:label="SMU_1961c"/>
-      <fbc:geneProduct metaid="G_SMU_1568" fbc:id="G_SMU_1568" fbc:label="SMU_1568"/>
-      <fbc:geneProduct metaid="G_SMU_1569" fbc:id="G_SMU_1569" fbc:label="SMU_1569"/>
-      <fbc:geneProduct metaid="G_SMU_1570" fbc:id="G_SMU_1570" fbc:label="SMU_1570"/>
-      <fbc:geneProduct metaid="G_SMU_1571" fbc:id="G_SMU_1571" fbc:label="SMU_1571"/>
       <fbc:geneProduct metaid="G_SMU_878" fbc:id="G_SMU_878" fbc:label="SMU_878"/>
       <fbc:geneProduct metaid="G_SMU_879" fbc:id="G_SMU_879" fbc:label="SMU_879"/>
       <fbc:geneProduct metaid="G_SMU_880" fbc:id="G_SMU_880" fbc:label="SMU_880"/>
       <fbc:geneProduct metaid="G_SMU_882" fbc:id="G_SMU_882" fbc:label="SMU_882"/>
+      <fbc:geneProduct metaid="G_SMU_1568" fbc:id="G_SMU_1568" fbc:label="SMU_1568"/>
+      <fbc:geneProduct metaid="G_SMU_1569" fbc:id="G_SMU_1569" fbc:label="SMU_1569"/>
+      <fbc:geneProduct metaid="G_SMU_1570" fbc:id="G_SMU_1570" fbc:label="SMU_1570"/>
+      <fbc:geneProduct metaid="G_SMU_1571" fbc:id="G_SMU_1571" fbc:label="SMU_1571"/>
       <fbc:geneProduct metaid="G_SMU_138" fbc:id="G_SMU_138" fbc:label="SMU_138"/>
       <fbc:geneProduct metaid="G_SMU_1013c" fbc:id="G_SMU_1013c" fbc:label="SMU_1013c"/>
       <fbc:geneProduct metaid="G_SMU_396" fbc:id="G_SMU_396" fbc:label="SMU_396"/>

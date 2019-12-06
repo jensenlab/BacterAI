@@ -181,11 +181,14 @@ def get_LXO(n_reactions, X=1):
     # print(remove_arrs)
     return remove_arrs
 
-def knockout_and_simulate(model, num_to_remove):
+def knockout_and_simulate(model, num_to_remove, return_boolean=False):
     min_growth = 0.50 * model.slim_optimize()
     reactions, remove_arr = random_reactions(num_to_remove)
     grow, objective_value = reaction_knockout(model, reactions, min_growth)
+    if return_boolean:
+        return int(grow), remove_arr
     return objective_value, remove_arr
+        
 
 def reactions_to_knockout(remove_arr, reactions):
     # remove_arr - np.array[int]: binary array (0 = remove, 1 = keep)

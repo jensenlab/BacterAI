@@ -1,153 +1,129 @@
 import csv
-import random
 import math
+import os
+import random
+
+import numpy as np
+import scipy.stats as sp
+from sklearn.preprocessing import MinMaxScaler
+import tensorflow as tf
+from tensorflow.keras.layers import Dense, Flatten, Conv2D
+from tensorflow.keras import Model
 
 import model
 
-import numpy as np
-from sklearn.preprocessing import MinMaxScaler
-import scipy.stats as sp
-from tqdm import trange 
+class PredictNet():
+    def __init__(self):
+        self.model = tf.keras.models.Sequential([
+            tf.keras.layers.Dense(128, activation='relu'),
+            tf.keras.layers.Dense(64, activation='relu'),
+            tf.keras.layers.Dense(1, activation='elu')
+            ])
 
-
-import numpy as np
-
-# def sigmoid(x):
-#     return 1.0/(1+ np.exp(-x))
-
-# def sigmoid_derivative(x):
-#     return x * (1.0 - x)
-
-# class NeuralNetwork:
-#     def __init__(self, x, y):
-#         self.input      = x
-#         self.weights1   = np.random.rand(self.input.shape[1],4) 
-#         self.weights2   = np.random.rand(4,1)                 
-#         self.y          = y
-#         self.output     = np.zeros(self.y.shape)
-
-#     def feedforward(self):
-#         self.layer1 = sigmoid(np.dot(self.input, self.weights1))
-#         self.output = sigmoid(np.dot(self.layer1, self.weights2))
-
-#     def backprop(self):
-#         # application of the chain rule to find derivative of the loss function with respect to weights2 and weights1
-#         d_weights2 = np.dot(self.layer1.T, (2*(self.y - self.output) * sigmoid_derivative(self.output)))
-#         d_weights1 = np.dot(self.input.T,  (np.dot(2*(self.y - self.output) * sigmoid_derivative(self.output), self.weights2.T) * sigmoid_derivative(self.layer1)))
-
-#         # update the weights with the derivative (slope) of the loss function
-#         self.weights1 += d_weights1
-#         self.weights2 += d_weights2
-
-
-# if __name__ == "__main__":
-#     X = np.array([[0,0,1],
-#                   [0,1,1],
-#                   [1,0,1],
-#                   [1,1,1]])
-#     y = np.array([[0],[1],[1],[0]])
-#     nn = NeuralNetwork(X,y)
-
-#     for i in range(1500):
-#         nn.feedforward()
-#         nn.backprop()
-
-#     print(nn.output)
-
-
-
-class NeuralNetwork:
-    def __init__(self, x, y):
-        self.input = x
-        self.weights1 = np.random.rand(self.input.shape[1], self.input.shape[0]) 
-        self.weights2 = np.random.rand(self.input.shape[0], 1)                 
-        self.y = y
-        self.output = np.zeros(self.y.shape)
-
-    # def sigmoid(x):
-    #     def _f(x):
-    #         return 1/(1+math.exp(-x))
-    #     f = np.vectorize(_f) 
-    #     return f(x)
-      
-    # def sigmoid_derivative(x):
-    #     def _f(x):
-    #         return math.exp(-x)/((1+math.exp(-x))**2)
-    #     f = np.vectorize(_f) 
-    #     return f(x)
-    def sigmoid(x):
-        return 1.0/(1 + np.exp(-x))
-
-    def sigmoid_derivative(x):
-        return x * (1.0 - x)
+        self.model.compile(optimizer=tf.keras.optimizers.Adam(),
+                           loss=tf.keras.losses.MeanSquaredError(),
+                           metrics=['accuracy'])
     
-    def feed_forward(self):
-        self.layer1 = NeuralNetwork.sigmoid(np.dot(self.input, self.weights1))
-        self.output = NeuralNetwork.sigmoid(np.dot(self.layer1, self.weights2))
+    def train(self, data, data_labels, epochs):
+        self.model.fit(data, data_labels, epochs=epochs)
+    
+    def evaluate(self, data, data_labels):
+        self.model.evaluate(data, data_labels, verbose=2)
+    
+    def predict(self, data):
+        return self.model.predict(data)
+                    
 
-    def back_propogation(self):
-        # application of the chain rule to find derivative of the loss function with respect to weights2 and weights1
-        d_weights2 = np.dot(self.layer1.T, (2*(self.y - self.output) * NeuralNetwork.sigmoid_derivative(self.output)))
-        d_weights1 = np.dot(self.input.T,  (np.dot(2*(self.y - self.output) * NeuralNetwork.sigmoid_derivative(self.output), self.weights2.T) * NeuralNetwork.sigmoid_derivative(self.layer1)))
-
-        # print(0, self.layer1.T.shape, (2*(self.y - self.output) * NeuralNetwork.sigmoid_derivative(self.output)).shape)
-        # application of the chain rule to find derivative of the loss function with respect to weights2 and weights1
-        # d_weights2 = np.dot(self.layer1.T, (2*(self.y - self.output) * NeuralNetwork.sigmoid_derivative(self.output)))
-        # temp = np.dot(2*(self.y - self.output) * NeuralNetwork.sigmoid_derivative(self.output), self.weights2.T)
-        # # print(temp)
-        # d_weights1 = np.dot(self.input.T,  (temp * NeuralNetwork.sigmoid_derivative(self.layer1)))
-        # print(2, (2*(self.y - self.output) * NeuralNetwork.sigmoid_derivative(self.output)).shape, self.weights2.shape)
-        
-        # print(1, self.input.T.shape, (np.dot(2*(self.y - self.output) * NeuralNetwork.sigmoid_derivative(self.output), 
-                                    # self.weights2) * NeuralNetwork.sigmoid_derivative(self.layer1)).shape)
-        
-        # d_weights1 = np.dot(self.input.T,  
-        #                     (np.dot(2* (self.y - self.output) * NeuralNetwork.sigmoid_derivative(self.output), 
-        #                             self.weights2) * NeuralNetwork.sigmoid_derivative(self.layer1)))
-        
-        # update the weights with the derivative (slope) of the loss function
-        # print(3, self.weights1.shape, d_weights1.shape)
-        # print(4, self.weights2.shape, d_weights2.shape)
-        self.weights1 += d_weights1
-        self.weights2 += d_weights2
-        
-        
 def generate_training_data():
     m = model.load_cobra("models/iSMUv01_CDM_LOO_v2.xml")
-    with open('CDM_leave_out_test.csv', mode='a') as file:
+    max_n = 10000
+    with open('CDM_leave_out_validation_01.csv', mode='a') as file:
         writer = csv.writer(file, delimiter=',')
-        for _ in trange(1000):
+        for _ in trange(max_n):
             # n = random.randint(0, len(model.KO_RXN_IDS))
             n = sp.poisson.rvs(5)
-            grow, reactions = model.knockout_and_simulate(m, n)
+            grow, reactions = model.knockout_and_simulate(
+                m, n, return_boolean=True)
             reactions = list(reactions)
             reactions.append(grow)
             writer.writerow(reactions)
             # print(grow, reactions)
         
-        for _ in trange(1000):
+        for _ in trange(max_n):
             n = random.randint(0, len(model.KO_RXN_IDS))
-            grow, reactions = model.knockout_and_simulate(m, n)
+            grow, reactions = model.knockout_and_simulate(
+                m, n, return_boolean=True)                
             reactions = list(reactions)
             reactions.append(grow)
             writer.writerow(reactions)
             # print(grow, reactions)
-            
-if __name__ == "__main__":
-    # generate_training_data()
-    scaler = MinMaxScaler()
-    max_n = 1000
-    data = np.genfromtxt('CDM_leave_out_training.csv', delimiter=',')
-    data_train = scaler.fit_transform(data[:max_n, :])
-    print(data_train)
-    x = data_train[:max_n, :-1]
-    y = np.array([[v] for v in data_train[:max_n, -1].tolist()])
-    
-    print(y)
+   
+   
+def load_data(mode='train', max_n=None):
+    """
+    Function to (download and) load the MNIST data
+    :param mode: train or test
+    :return: data and the corresponding labels
+    """
+    print(f"\nMode: {mode}")
+    if mode == 'train':
+        raw_train = np.genfromtxt('CDM_leave_out_training_01.csv', delimiter=',')
+        raw_validation = np.genfromtxt('CDM_leave_out_validation_01.csv', delimiter=',')
+        
+        data_train = raw_train[:max_n,:-1] if max_n else raw_train[:,:-1]
+        data_validation = raw_validation[:max_n,:-1] if max_n else raw_validation[:,:-1]
+        
+        data_train_labels = raw_train[:max_n,-1] if max_n else raw_train[:,-1]
+        data_validation_labels = raw_validation[:max_n,-1] if max_n else raw_validation[:,-1]
+        
+        x_train, y_train, x_valid, y_valid = data_train, data_train_labels, \
+                                             data_validation, data_validation_labels
+        return x_train, y_train, x_valid, y_valid
+    elif mode == 'test':
+        raw_test = np.genfromtxt('CDM_leave_out_test_01.csv', delimiter=',')
+        data_test = raw_test[:max_n,:-1] if max_n else raw_test[:,:-1]
+        data_test_labels = raw_test[:max_n,-1] if max_n else raw_test[:,-1]
+        
+        x_test, y_test = data_test, data_test_labels
+        return x_test, y_test
+        
 
-    net = NeuralNetwork(x, y)
-    for _ in trange(100):
-        net.feed_forward()
-        net.back_propogation()
+if __name__ == "__main__":
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
+    x_train, y_train, x_valid, y_valid = load_data(max_n=10000)
+    x_test, y_test = load_data(mode='test')
+    
+    train_dataset = tf.data.Dataset.from_tensor_slices((x_train, y_train)).shuffle(1000).batch(1000)
+    # test_dataset = tf.data.Dataset.from_tensor_slices((x_test, y_test))
+
+    
+    model = PredictNet()
+    
+    for x, y in train_dataset:  # only take first element of dataset
+        model.train(x, y, epochs=5)
+    
+    # for x, y in test_dataset:
+    model.evaluate(x_test, y_test)
+    
+    results = model.predict(x_test)
+    print(results)
+    
+
+    # generate_training_data()
+    
+    # scaler = MinMaxScaler()
+    # max_n = 1000
+    # data = np.genfromtxt('CDM_leave_out_training.csv', delimiter=',')
+    # data_train = scaler.fit_transform(data[:max_n, :])
+    # print(data_train)
+    # x = data_train[:max_n, :-1]
+    # y = np.array([[v] for v in data_train[:max_n, -1].tolist()])
+    
+    # print(y)
+
+    # net = NeuralNetwork(x, y)
+    # for _ in trange(100):
+    #     net.feed_forward()
+    #     net.back_propogation()
         
     # print(net.output)
