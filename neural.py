@@ -17,21 +17,24 @@ class PredictNet():
         self.model = tf.keras.models.Sequential([
             tf.keras.layers.Dense(128, activation='relu'),
             tf.keras.layers.Dense(64, activation='relu'),
-            tf.keras.layers.Dense(1, activation='elu')
+            tf.keras.layers.Dense(1, activation='sigmoid')
             ])
 
         self.model.compile(optimizer=tf.keras.optimizers.Adam(),
-                           loss=tf.keras.losses.MeanSquaredError(),
+                           loss='binary_crossentropy',
                            metrics=['accuracy'])
     
     def train(self, data, data_labels, epochs):
         self.model.fit(data, data_labels, epochs=epochs)
     
     def evaluate(self, data, data_labels):
-        self.model.evaluate(data, data_labels, verbose=2)
+        return self.model.evaluate(data, data_labels, verbose=2)
     
-    def predict(self, data):
-        return self.model.predict(data)
+    def predict_probability(self, data):
+        return self.model.predict_proba(data)
+    
+    def predict_class(self, data):
+        return self.model.predict_classes(data)
                     
 
 def generate_training_data():
@@ -101,6 +104,9 @@ if __name__ == "__main__":
     
     for x, y in train_dataset:  # only take first element of dataset
         model.train(x, y, epochs=5)
+        predictions = model.model.predict_proba(x_test)
+        print(predictions)
+        
     
     # for x, y in test_dataset:
     model.evaluate(x_test, y_test)
