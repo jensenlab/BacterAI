@@ -5,6 +5,7 @@ import random
 
 import numpy as np
 import scipy.stats as sp
+from sklearn.naive_bayes import GaussianNB
 from sklearn.preprocessing import MinMaxScaler
 import tensorflow as tf
 from tensorflow.keras.layers import Dense, Flatten, Conv2D
@@ -23,10 +24,18 @@ class PredictNet():
         self.model.compile(optimizer=tf.keras.optimizers.Adam(),
                            loss='binary_crossentropy',
                            metrics=['accuracy'])
-    
+        
+        self.model_bayes = GaussianNB()
+        
     def train(self, data, data_labels, epochs):
         self.model.fit(data, data_labels, epochs=epochs)
     
+    def train_bayes(self, data, data_labels):
+        self.model_bayes.fit(data, data_labels)
+    
+    def predict_bayes(self, data):
+        return self.model_bayes.predict(data)
+        
     def evaluate(self, data, data_labels):
         return self.model.evaluate(data, data_labels, verbose=2)
     

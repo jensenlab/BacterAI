@@ -56,9 +56,13 @@ class Rule(object):
                 raise NotImplementedError
             
             number_of_groups = sp.poisson.rvs(poisson_mu_OR)
+            while number_of_groups == 0:
+                number_of_groups = sp.poisson.rvs(poisson_mu_OR) 
             definition = list()
             for i in range(number_of_groups):
-                n = sp.poisson.rvs(poisson_mu_AND)
+                n = sp.poisson.rvs(poisson_mu_AND)                
+                while n == 0 or n >= data_length:
+                    n = sp.poisson.rvs(poisson_mu_AND)
                 and_group = random.sample(range(data_length), n)
                 definition.append(and_group)
         
@@ -72,7 +76,7 @@ class Rule(object):
         """Base class for other exceptions"""
         pass
     
-    def evaluate(self, data):
+    def evaluate(self, data, use_bool=True):
         """Evaluates the DNF rule with a given a dataset.
     
         Inputs
@@ -109,21 +113,51 @@ class Rule(object):
             def __init__(self, l1, l2):
                 self.message = (
                     f"Input data length ({l1}) does not match with the rule ({l2}).")
-                
+        
+        class DimensionError(self.Error):
+            """Raised when the number of dimensions of the input data is not 1 or 2.
+            
+            Inputs
+            ------
+            shape: tuple
+                Shape of input data.
+            """
+            def __init__(self, shape):
+                self.message = (f"Input data needs to be 1-D or 2-D: {shape}")
+
         try:
-            if len(data) != self.data_length:
-                raise DataLengthMismatchError(len(data), self.data_length)
+            if data.ndim == 1:
+                if data.shape[0] != self.data_length:
+                    raise DataLengthMismatchError(len(data), self.data_length)
+                n_rows = 1
+            elif data.ndim == 2:
+                if data.shape[1] != self.data_length:
+                    raise DataLengthMismatchError(len(data), self.data_length)
+                n_rows = data.shape[0]          
+            else:
+                raise DimensionError(data.shape)
         except DataLengthMismatchError as e:
             print(f"DataLengthMismatchError: {e.message}")
         else:
-            definition = copy.deepcopy(self.definition)
-            for ands_index, ands in enumerate(definition):
-                for ors_index, ors in enumerate(ands):
-                    definition[ands_index][ors_index] = (
-                        data[definition[ands_index][ors_index]])
-                definition[ands_index] = np.all(definition[ands_index])
-            result = np.any(definition)
-            return result
+            
+            definition = self.definition
+            results = np.empty(n_rows)
+            for d in range(n_rows):
+                ors = list()
+                for or_index, or_ in enumerate(definition):
+                    ands = list()
+                    for and_index, and_ in  enumerate(or_):
+                        if data.ndim == 1:
+                            ands.append(data[and_])
+                        else:  
+                             ands.append(data[d, and_])
+                    and_value = np.all(ands)
+                    ors.append(and_value)
+                result = np.any(ors)
+                if not use_bool:
+                    result = int(result)
+                results[d] = result
+            return results
     
     def generate_data_csv(self, output_filename, save_rule=True,
                           quantity=None, repeat=16):
@@ -141,16 +175,16 @@ class Rule(object):
                 for i in range(quantity):
                     data = np.random.choice(a=[0, 1], 
                                             size=(self.data_length,)).tolist()
-                    result = int(self.evaluate(data))
+                    result = self.evaluate(data, use_bool=False)[0]
                     data.append(result)
                     writer.writerow(data)
             else:
-                data = list(itertools.product((0,1), repeat=repeat))
-                for d in data:
-                    d = list(d)
-                    result = int(self.evaluate(d))
-                    d.append(result)
-                    writer.writerow(d)
+                data = np.array(list(itertools.product((0,1), repeat=repeat)), dtype=np.int8)
+                result = self.evaluate(data, use_bool=False)
+                print(f"T: {result[result == 1].size}, F: {result[result == 0].size}")
+                data = np.hstack((data, np.array([result]).T))
+                print(data)
+                np.savetxt(file, data, delimiter=',', fmt='%i')
                 
     def to_pickle(self, filename):
         """Saves Rule object to pickle file."""
@@ -158,6 +192,14 @@ class Rule(object):
         with open(filename, "wb" ) as f: 
             pickle.dump(self, f)
     
+    def minimum_rule(self):
+        minimum = float('Inf')
+        for i in self.definition:
+            length = len(i)
+            if length < minimum:
+                minimum = length
+        return minimum
+            
     @classmethod
     def from_pickle(cls, filename):
         """Creates Rule object from a pickled Rule."""
@@ -170,10 +212,11 @@ class Rule(object):
 
 if __name__ == "__main__":
     # Testing
-    # data = np.random.choice(a=[0, 1], size=(41,))
-    # rule = Rule(41)
-    # print("Should give T/F:", rule.evaluate(data))
-    # data = np.random.choice(a=[0, 1], size=(4,))
-    # print("Should give error and None:", rule.evaluate(data))
-    pass
+    data = np.random.choice(a=[0, 1], size=(2,8))
+    rule = Rule(8, poisson_mu_OR=2, poisson_mu_AND=2)
+    print(rule.definition)
+    print(data)
+    print("Should give T/F:", rule.evaluate(data))
+    data = np.random.choice(a=[0, 1], size=(4,))
+    print("Should give error and None:", rule.evaluate(data))
     

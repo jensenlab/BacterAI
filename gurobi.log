@@ -5998,3 +5998,635 @@ Academic license - for non-commercial use only
 Gurobi 8.1.1 (linux64, Python) logging started Tue 03 Dec 2019 01:54:28 PM CST
 
 Academic license - for non-commercial use only
+
+Gurobi 8.1.1 (linux64, Python) logging started Wed 18 Dec 2019 03:39:07 PM CST
+
+Academic license - for non-commercial use only
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmp0s_wg52w.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmp7jxwfs62.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmpq8loy68m.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmp6nmk25a6.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmpnz60tawd.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmp3prw7yqm.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmpu96jafb_.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmpq6i6i0_i.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmpj65k2el3.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmptp8augw4.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmpmd4ae7rz.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmpwagesilp.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmphn809h9_.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmp42btv_zp.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmpl4daau_1.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmp13yfdkeg.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmprce1m8t_.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmplgd0yr1l.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmpd37m9_tf.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmpm671uxzf.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmpdq8p1qdw.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmpebl9c_vh.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmpnvixc7gz.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmppby7yi49.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmp9pm_n_5r.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmp5aet5d32.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmpq0as7jwr.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmp_jkzh822.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmp9xa26whc.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmph9k6elyd.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmpft0irmw0.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmp2dxxjtu_.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmpj6kexj65.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmpowau94xe.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+
+Gurobi 8.1.1 (linux64, Python) logging started Wed 18 Dec 2019 03:39:48 PM CST
+
+Academic license - for non-commercial use only
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmpt6cru8qp.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmpghctb2pi.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+
+Gurobi 8.1.1 (linux64, Python) logging started Wed 18 Dec 2019 03:40:54 PM CST
+
+Academic license - for non-commercial use only
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmpz7i6muir.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmp9wu0l0o3.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmpdx7lrur_.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmp5r8_iel5.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmpvxcfrjtc.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmpf3db_ftv.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmpebgsuk7s.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmpdw92yyti.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmp2wpelyax.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmp9_q8zsst.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmpwmvz3ppy.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmpq012iuj6.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmp0n27mt82.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmp53w2mq33.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmp7gcurlue.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmp_1x0syze.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmpgt1icql3.lp
+Reading time = 0.00 seconds
+: 542 rows, 1308 columns, 5686 nonzeros
+
+Gurobi 8.1.1 (linux64, Python) logging started Wed 18 Dec 2019 03:47:03 PM CST
+
+Academic license - for non-commercial use only
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmpylxvykf8.lp
+Reading time = 0.00 seconds
+: 534 rows, 1302 columns, 5622 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmptmzx5jka.lp
+Reading time = 0.00 seconds
+: 534 rows, 1302 columns, 5622 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmpaxoqjrh3.lp
+Reading time = 0.00 seconds
+: 534 rows, 1302 columns, 5622 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmpt3kyvw5f.lp
+Reading time = 0.00 seconds
+: 534 rows, 1302 columns, 5622 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmp4n1oeeyc.lp
+Reading time = 0.00 seconds
+: 534 rows, 1302 columns, 5622 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmpd9pgkmyh.lp
+Reading time = 0.00 seconds
+: 534 rows, 1302 columns, 5622 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmpaz_2i_az.lp
+Reading time = 0.00 seconds
+: 534 rows, 1302 columns, 5622 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmpz_hsi8n6.lp
+Reading time = 0.00 seconds
+: 534 rows, 1302 columns, 5622 nonzeros
+
+Gurobi 8.1.1 (linux64, Python) logging started Wed 18 Dec 2019 03:49:20 PM CST
+
+Academic license - for non-commercial use only
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmp9bk7u1in.lp
+Reading time = 0.00 seconds
+: 534 rows, 1302 columns, 5622 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmpqbaxgvtb.lp
+Reading time = 0.00 seconds
+: 534 rows, 1302 columns, 5622 nonzeros
+
+Gurobi 8.1.1 (linux64, Python) logging started Wed 18 Dec 2019 03:50:32 PM CST
+
+Academic license - for non-commercial use only
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmp_xgq68gq.lp
+Reading time = 0.00 seconds
+: 534 rows, 1302 columns, 5622 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmp22t82wa8.lp
+Reading time = 0.00 seconds
+: 534 rows, 1302 columns, 5622 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmpiphvihny.lp
+Reading time = 0.00 seconds
+: 534 rows, 1302 columns, 5622 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmp8bdpnxhf.lp
+Reading time = 0.00 seconds
+: 534 rows, 1302 columns, 5622 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmpet0jwi9f.lp
+Reading time = 0.00 seconds
+: 534 rows, 1302 columns, 5622 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmpuhegkxzg.lp
+Reading time = 0.00 seconds
+: 534 rows, 1302 columns, 5622 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmpcvemp0sp.lp
+Reading time = 0.00 seconds
+: 534 rows, 1302 columns, 5622 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmpmkhsf2cy.lp
+Reading time = 0.00 seconds
+: 534 rows, 1302 columns, 5622 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmp71h4ajrj.lp
+Reading time = 0.00 seconds
+: 534 rows, 1302 columns, 5622 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmpcp15tnr_.lp
+Reading time = 0.00 seconds
+: 534 rows, 1302 columns, 5622 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmpssmko7rf.lp
+Reading time = 0.00 seconds
+: 534 rows, 1302 columns, 5622 nonzeros
+
+Gurobi 8.1.1 (linux64, Python) logging started Wed 18 Dec 2019 03:53:04 PM CST
+
+Academic license - for non-commercial use only
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmprqmow7vb.lp
+Reading time = 0.00 seconds
+: 534 rows, 1302 columns, 5622 nonzeros
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmpaiezdhic.lp
+Reading time = 0.00 seconds
+: 534 rows, 1302 columns, 5622 nonzeros
+
+Gurobi 8.1.1 (linux64, Python) logging started Wed 18 Dec 2019 03:53:37 PM CST
+
+Academic license - for non-commercial use only
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmpcs9v3yr5.lp
+Reading time = 0.00 seconds
+: 534 rows, 1302 columns, 5622 nonzeros
+
+Gurobi 8.1.1 (linux64, Python) logging started Wed 18 Dec 2019 04:16:44 PM CST
+
+Academic license - for non-commercial use only
+
+Gurobi 8.1.1 (linux64, Python) logging started Wed 18 Dec 2019 04:16:55 PM CST
+
+Academic license - for non-commercial use only
+
+Gurobi 8.1.1 (linux64, Python) logging started Wed 18 Dec 2019 04:18:40 PM CST
+
+Academic license - for non-commercial use only
+
+Gurobi 8.1.1 (linux64, Python) logging started Wed 18 Dec 2019 04:21:25 PM CST
+
+Academic license - for non-commercial use only
+
+Gurobi 8.1.1 (linux64, Python) logging started Wed 18 Dec 2019 04:25:13 PM CST
+
+Academic license - for non-commercial use only
+
+Gurobi 8.1.1 (linux64, Python) logging started Wed 18 Dec 2019 04:26:03 PM CST
+
+Academic license - for non-commercial use only
+
+Gurobi 8.1.1 (linux64, Python) logging started Wed 18 Dec 2019 04:29:51 PM CST
+
+Academic license - for non-commercial use only
+
+Gurobi 8.1.1 (linux64, Python) logging started Wed 18 Dec 2019 04:30:08 PM CST
+
+Academic license - for non-commercial use only
+
+Gurobi 8.1.1 (linux64, Python) logging started Wed 18 Dec 2019 04:32:17 PM CST
+
+Academic license - for non-commercial use only
+
+Gurobi 8.1.1 (linux64, Python) logging started Wed 18 Dec 2019 04:34:49 PM CST
+
+Academic license - for non-commercial use only
+
+Gurobi 8.1.1 (linux64, Python) logging started Wed 18 Dec 2019 04:36:18 PM CST
+
+Academic license - for non-commercial use only
+Warning: Numeric variable name in LP file ('4abz_symport_trans') - often the result
+         of a constant term in the left-hand side of a constraint.
+
+Read LP format model from file /tmp/tmpejexztdn.lp
+Reading time = 0.00 seconds
+: 534 rows, 1302 columns, 5622 nonzeros
+
+Gurobi 8.1.1 (linux64, Python) logging started Wed 18 Dec 2019 04:43:43 PM CST
+
+Academic license - for non-commercial use only
+
+Gurobi 8.1.1 (linux64, Python) logging started Wed 18 Dec 2019 04:59:21 PM CST
+
+Academic license - for non-commercial use only
+
+Gurobi 8.1.1 (linux64, Python) logging started Wed 18 Dec 2019 05:01:05 PM CST
+
+Academic license - for non-commercial use only
+
+Gurobi 8.1.1 (linux64, Python) logging started Wed 18 Dec 2019 05:01:26 PM CST
+
+Academic license - for non-commercial use only
+
+Gurobi 8.1.1 (linux64, Python) logging started Thu 19 Dec 2019 10:21:12 AM CST
+
+Academic license - for non-commercial use only
+
+Gurobi 8.1.1 (linux64, Python) logging started Thu 19 Dec 2019 10:33:14 AM CST
+
+Academic license - for non-commercial use only
+
+Gurobi 8.1.1 (linux64, Python) logging started Thu 19 Dec 2019 10:37:38 AM CST
+
+Academic license - for non-commercial use only
+
+Gurobi 8.1.1 (linux64, Python) logging started Thu 19 Dec 2019 11:00:10 AM CST
+
+Academic license - for non-commercial use only
+
+Gurobi 8.1.1 (linux64, Python) logging started Thu 19 Dec 2019 11:02:07 AM CST
+
+Academic license - for non-commercial use only
+
+Gurobi 8.1.1 (linux64, Python) logging started Thu 19 Dec 2019 12:03:55 PM CST
+
+Academic license - for non-commercial use only
+
+Gurobi 8.1.1 (linux64, Python) logging started Thu 19 Dec 2019 12:04:21 PM CST
+
+Academic license - for non-commercial use only
+
+Gurobi 8.1.1 (linux64, Python) logging started Thu 19 Dec 2019 02:15:04 PM CST
+
+Academic license - for non-commercial use only
+
+Gurobi 8.1.1 (linux64, Python) logging started Thu 19 Dec 2019 02:50:11 PM CST
+
+Academic license - for non-commercial use only
+
+Gurobi 8.1.1 (linux64, Python) logging started Thu 19 Dec 2019 02:51:04 PM CST
+
+Academic license - for non-commercial use only
+
+Gurobi 8.1.1 (linux64, Python) logging started Thu 19 Dec 2019 02:51:26 PM CST
+
+Academic license - for non-commercial use only
+
+Gurobi 8.1.1 (linux64, Python) logging started Thu 19 Dec 2019 02:52:14 PM CST
+
+Academic license - for non-commercial use only
+
+Gurobi 8.1.1 (linux64, Python) logging started Thu 19 Dec 2019 02:53:39 PM CST
+
+Academic license - for non-commercial use only
+
+Gurobi 8.1.1 (linux64, Python) logging started Thu 19 Dec 2019 02:54:35 PM CST
+
+Academic license - for non-commercial use only
+
+Gurobi 8.1.1 (linux64, Python) logging started Thu 19 Dec 2019 02:56:58 PM CST
+
+Academic license - for non-commercial use only
+
+Gurobi 8.1.1 (linux64, Python) logging started Thu 19 Dec 2019 03:09:48 PM CST
+
+Academic license - for non-commercial use only
+
+Gurobi 8.1.1 (linux64, Python) logging started Thu 19 Dec 2019 03:10:20 PM CST
+
+Academic license - for non-commercial use only
+
+Gurobi 8.1.1 (linux64, Python) logging started Thu 19 Dec 2019 03:42:21 PM CST
+
+Academic license - for non-commercial use only
