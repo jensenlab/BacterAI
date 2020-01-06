@@ -16,16 +16,37 @@ import sklearn.metrics
 
 import dnf
 import neural
+import utils
 
 parser = argparse.ArgumentParser(description='Run learn.py')
 parser.add_argument('-n', '--new_rule', action='store_true',
                     help='Make new rule rather than reading from file.')
 args = parser.parse_args()
 
-
+class Agent(rule, predictor, data):
+    self.rule = rule
+    self.data = data
+    
+    self.data_history
+    self.minimum_cardinality
+    
+    def learn(K=1000, threshold=0.5, add):
+        
+        
+    
+    
+     
+     
+     
+     
+     
+     
+     
+     
+     
 def new_batch(rule, predict_net, inputs, current_min, K=1000, threshold=0.5, add_random=None):
     
-    def _get_min_K(result):
+    def _get_min_K(result, explore_cardinality=None):
          # Get indexes that have result above a threshold
         threshold_candidate_indexes = np.where(result > threshold)[0] #OG INDEXES
         print("threshold_candidate_indexes\n", threshold_candidate_indexes)
@@ -34,41 +55,41 @@ def new_batch(rule, predict_net, inputs, current_min, K=1000, threshold=0.5, add
         cardinality = np.sum(inputs, axis=1).astype(int)
         print("candidate_cardinality\n",cardinality.shape, "\n",  cardinality)
         
-        # if explore_cardinality is not None:
+        if explore_cardinality is not None:
         
-        #     # Get indexes of cardinalities equal to the current min
-        #     cardinality_candidate_indexes = np.where(
-        #         cardinality == current_min + explore_cardinality)[0]
+            # Get indexes of cardinalities equal to the current min
+            cardinality_candidate_indexes = np.where(
+                cardinality == current_min + explore_cardinality)[0]
             
-        #     # print("cardinality_candidate_indexes\n",
-        #     #       cardinality_candidate_indexes.shape, "\n",  
-        #     #       cardinality_candidate_indexes)
+            print("cardinality_candidate_indexes\n",
+                  cardinality_candidate_indexes.shape, "\n",  
+                  cardinality_candidate_indexes)
             
-        #     # # Get corresponding input array    
-        #     # array_candidates = inputs[cardinality_candidate_indexes, :]
-        #     # print("array candidates", array_candidates)
-        #     # # Get cardinality candidates indexes in order of decreasing 
-        #     # # Hamming distance to incumbant solution
-        #     # print("Incumbant", current_min_solution)
-        #     # print("inputs", inputs)
-        #     # def _hamming_dist(x):
-        #     #     return -1 * np.count_nonzero(current_min_solution != x)
+            # Get corresponding input array    
+            array_candidates = inputs[cardinality_candidate_indexes, :]
+            print("array candidates", array_candidates)
+            # Get cardinality candidates indexes in order of decreasing 
+            # Hamming distance to incumbant solution
+            print("Incumbant", current_min_solution)
+            print("inputs", inputs)
+            def _hamming_dist(x):
+                return -1 * np.count_nonzero(current_min_solution != x)
             
-        #     # hamming_distance = np.apply_along_axis(_hamming_dist, axis=1, arr=array_candidates)
-        #     # print("hamming distance", hamming_distance)
+            hamming_distance = np.apply_along_axis(_hamming_dist, axis=1, arr=array_candidates)
+            print("hamming distance", hamming_distance)
             
-        #     # sorted_cardinality_indexes = np.argsort(array_candidates)
+            sorted_cardinality_indexes = np.argsort(array_candidates)
             
-        #     # print("cardinality_candidate_indexes\n",
-        #     #       cardinality_candidate_indexes.shape, "\n",  
-        #     #       cardinality_candidate_indexes)
+            print("cardinality_candidate_indexes\n",
+                  cardinality_candidate_indexes.shape, "\n",  
+                  cardinality_candidate_indexes)
             
-        #     # # Reorder cardinality candidate indexes by candidate length 
-        #     # cardinality_candidate_indexes = (
-        #     #     cardinality_candidate_indexes[sorted_cardinality_indexes])
-        #     # print("sorted_cardinality_indexes\n", 
-        #     #       sorted_cardinality_indexes.shape, "\n",  
-        #     #       sorted_cardinality_indexes)
+            # Reorder cardinality candidate indexes by candidate length 
+            cardinality_candidate_indexes = (
+                cardinality_candidate_indexes[sorted_cardinality_indexes])
+            print("sorted_cardinality_indexes\n", 
+                  sorted_cardinality_indexes.shape, "\n",  
+                  sorted_cardinality_indexes)
 
         # Get indexes of cardinalities less than current min
         cardinality_candidate_indexes = np.where(cardinality < current_min)[0]
@@ -199,25 +220,13 @@ def get_metrics(model, data, data_labels, use_bayes=False):
     print(f"Precision: {precision}, Accuracy: {accuracy}, Recall: {recall}")
     return precision, accuracy, recall
 
-def get_LXO(n_reagents, X=1):
-    # n_reactions - int: number of reactions
-    # X - int: number to leave out for leave-X-out experiments
-    
-    all_indexes = np.arange(n_reagents)
-    combos = itertools.combinations(all_indexes, X)
-    remove_indexes = [list(c) for c in combos] 
-    remove_arrs = np.empty((len(remove_indexes), n_reagents))
-    for i, to_remove in enumerate(remove_indexes):
-        remove_arr = np.ones(n_reagents)
-        remove_arr[to_remove] = 0
-        remove_arrs[i, :] = remove_arr
-    return remove_arrs
+
 
 def get_starting_data(rule):
     #Initialize with L1O and L2O data
-    L1O_exp = get_LXO(rule.data_length, 1)
-    L2O_exp = get_LXO(rule.data_length, 2)
-    L3O_exp = get_LXO(rule.data_length, 3)
+    L1O_exp = utils.get_LXO(rule.data_length, 1)
+    L2O_exp = utils.get_LXO(rule.data_length, 2)
+    L3O_exp = utils.get_LXO(rule.data_length, 3)
     
     n = 300
     subset_indexes = random.sample(range(L3O_exp.shape[0]), n)
