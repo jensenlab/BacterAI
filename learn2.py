@@ -46,22 +46,42 @@ class Agent():
             print("candidate_cardinality\n",cardinality.shape, "\n",  cardinality)
             
             if explore_cardinality is not None:
-                # Get indexes of cardinalities equal to the current min
+                # Get indexes of cardinalities equal to the current min + exploration parameter
                 cardinality_candidate_indexes = np.where(
                     cardinality == self.minimum_cardinality + explore_cardinality)[0]
-                
                 print("cardinality_candidate_indexes\n",
                     cardinality_candidate_indexes.shape, "\n",  
                     cardinality_candidate_indexes)
-                
                 # Get corresponding input array    
                 array_candidates = self.data[cardinality_candidate_indexes, :]
                 print("array candidates", array_candidates)
+                
                 # Get cardinality candidates indexes in order of decreasing 
                 # Hamming distance to incumbant solution
                 print("Incumbant", self.minimum_cardinality)
+                
+                
+                
+                
+                # Compute cardinality of already tested 
+                cardinality_tested = np.sum(self.data_history, axis=1).astype(int)      
+                # Get indexes of already tested cardinalities equal to the current min + exploration parameter
+                cardinality_candidate_indexes_tested = np.where(
+                    cardinality == self.minimum_cardinality + explore_cardinality)[0]
+                print("cardinality_tested\n",cardinality_tested.shape, "\n",  cardinality_tested)
+                # Get corresponding input array    
+                tested_candidates = self.data_history[cardinality_candidate_indexes_tested, :]
+                print("tested_candidates", tested_candidates)
+            
+            
+            
+            
+            
+            
                 print("inputs", self.data)
-                def _hamming_dist(x):
+                def _avg_hamming_dist(x):
+                    for i in x.shape[0]:
+                        
                     return -1 * np.count_nonzero(self.minimum_cardinality != x)
                 
                 hamming_distance = np.apply_along_axis(_hamming_dist, axis=1, arr=array_candidates)
