@@ -194,13 +194,13 @@ class Agent():
         min_K_indexes = min_K_indexes.astype(int)
         return result, min_K_indexes, batch_min_cardinality, valid_batch_min_indexes
 
-    def get_metrics(self, model, data, data_labels, use_bayes=False):
+    def get_metrics(self, data, data_labels, use_bayes=False):
         if use_bayes:
-            predictions = model.predict_bayes(data)
+            predictions = self.predictor.predict_bayes(data)
             predictions[predictions >= 0.5] = 1
             predictions[predictions < 0.5] = 0
         else:
-            predictions = model.predict_class(data)
+            predictions = self.predictor.predict_class(data)
 
         precision = sklearn.metrics.precision_score(data_labels, predictions)
         accuracy = sklearn.metrics.accuracy_score(data_labels, predictions)
@@ -256,10 +256,10 @@ class Agent():
         self.minimum_cardinality = self.rule.data_length
         
         batch_train_data, batch_train_data_labels = self.get_starting_data()
-        print(batch_train_data)
         print(batch_train_data_labels)
         self.data_history = np.copy(batch_train_data)
         self.data_labels_history = np.copy(batch_train_data_labels)
+        print("batch train data:\n", self.data_history)
         #Random initialization
         # batch_train_data = np.random.choice([0, 1], size=(batch_size, self.rule.data_length))
         # batch_train_data_labels = np.random.choice([0, 1], size=(batch_size, 1))
@@ -371,18 +371,17 @@ class Agent():
         # plt.ylim(0, 1.1)
         # plt.xlim(0, n_cycles+1)
         
-        model = None    
         for cycle in range(n_cycles):
             print(f"\nCYCLE {cycle}")
             ## TRAIN g_(x)
             # use MDN? neural net
             # x -> g_ -> P(g(x) = 1)
             
-            if model is not None and batch_train_data.size > 0:
+            if cycle > 0 and self.data_history.size > 0:
                 _, accuracy, _ = self.get_metrics(
-                    model, batch_train_data, batch_train_data_labels)
+                    batch_train_data, batch_train_data_labels)
                 _, accuracy_bayes, _ = self.get_metrics(
-                    model, batch_train_data, batch_train_data_labels, 
+                    batch_train_data, batch_train_data_labels, 
                     use_bayes=True)
                 accuracy_NN_pred[cycle] = accuracy
                 accuracy_bayes_pred[cycle] = accuracy_bayes
@@ -390,9 +389,10 @@ class Agent():
                 line10.set_ydata(accuracy_bayes_pred)
                 
             # Retrain a new model every time
-            model = neural.PredictNet()
-            model.train(self.data_history, self.data_labels_history, epochs=5)
-            model.train_bayes(self.data_history, self.data_labels_history)
+            self.predictor = neural.PredictNet()
+            print('fitting predictors')
+            self.predictor.train(self.data_history, self.data_labels_history, epochs=5)
+            self.predictor.train_bayes(self.data_history, self.data_labels_history)
             
             
             ## PREDICT
@@ -408,7 +408,7 @@ class Agent():
             add_random = max(0, n_cycles - (cycle**2))
             
             result, new_batch_indexes, batch_min_cardinality, batch_min_indexes = (
-                self.new_batch(model, K=batch_size, threshold=0.5))
+                self.new_batch(K=batch_size, threshold=0.5))
             
             # if new_batch_indexes.size == 0:
             #     break
@@ -439,14 +439,14 @@ class Agent():
                 # Precision (tp / (tp + fp))
                 # Recall (tp / (tp + fn))
                 # Accuracy (tp + tn) / (tp + tn + fp + fn)
-            precision, accuracy, recall = self.get_metrics(model, test_data_x, 
+            precision, accuracy, recall = self.get_metrics(test_data_x, 
                                                            test_data_y)
             precision_values[cycle] = precision
             accuracy_values[cycle] = accuracy
             recall_values[cycle] = recall
             
             precision_answer_space, accuracy_answer_space, recall_answer_space = (
-                self.get_metrics(model, minimum_rule_data_x, minimum_rule_data_y))
+                self.get_metrics(minimum_rule_data_x, minimum_rule_data_y))
             precision_values_answer_space[cycle] = precision_answer_space
             accuracy_values_answer_space[cycle] = accuracy_answer_space
             recall_values_answer_space[cycle] = recall_answer_space
@@ -467,7 +467,7 @@ class Agent():
             index_subset = np.random.choice(range(test_data_x.shape[0]), 
                                             size=int(0.1*test_data_x.shape[0]), 
                                             replace=False)
-            test_set_predictions = model.predict_probability(test_data_x[index_subset])
+            test_set_predictions = self.predictor.predict_probability(test_data_x[index_subset])
             ax3.cla()
             _, _, _, im1 = ax3.hist2d(test_set_predictions.flatten(), 
                                     test_data_y[index_subset], 
@@ -476,7 +476,7 @@ class Agent():
                                     norm=colors.LogNorm())
             # plt.xlabel(f'Predicted Value')
             # plt.ylabel(f'True Value')
-            minimum_rule_set_predictions = model.predict_probability(minimum_rule_data_x)
+            minimum_rule_set_predictions = self.predictor.predict_probability(minimum_rule_data_x)
             ax6.cla()
             _, _, _, im2 = ax6.hist2d(minimum_rule_set_predictions.flatten(), 
                                     minimum_rule_data_y, 
