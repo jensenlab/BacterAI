@@ -29,7 +29,7 @@ class Agent():
         self.predictor = predictor
         self.data = data[:, :-1]
         self.data_labels = data[:, -1]
-        self.minimum_cardinality = rule.data_length
+        self.minimum_cardinality = 14 #rule.data_length
         
         self.data_history = None
         self.data_labels_history = None
@@ -67,7 +67,7 @@ class Agent():
                 cardinality_tested = np.sum(self.data_history, axis=1).astype(int)      
                 # Get indexes of already tested cardinalities equal to the current min + exploration parameter
                 cardinality_candidate_indexes_tested = np.where(
-                    cardinality == self.minimum_cardinality + explore_cardinality)[0]
+                    cardinality_tested == self.minimum_cardinality + explore_cardinality)[0]
                 print("cardinality_tested\n",cardinality_tested.shape, "\n",  cardinality_tested)
                 # Get corresponding input array    
                 tested_candidates = self.data_history[cardinality_candidate_indexes_tested, :]
@@ -80,40 +80,43 @@ class Agent():
             
                 print("inputs", self.data)
                 def _avg_hamming_dist(x):
-                    for i in x.shape[0]:
-                        
-                    return -1 * np.count_nonzero(self.minimum_cardinality != x)
+                    # x is one row of untested data
+                    hamming_total = 0
+                    for t in tested_candidates:
+                        value = np.count_nonzero(t != x)
+                        hamming_total += value
+                        # print(value, '  ->  ', t)
+                    hamming_avg = hamming_total/tested_candidates.shape[0]
+                    # print("hamming total:", hamming_total, "Avg:", hamming_avg)
+                    return hamming_avg
                 
-                hamming_distance = np.apply_along_axis(_hamming_dist, axis=1, arr=array_candidates)
-                print("hamming distance", hamming_distance)
                 
-                sorted_cardinality_indexes = np.argsort(array_candidates)
+                # Get cardinality candidates indexes in order of increasing avg hamming dist     
+                hamming_distances = np.apply_along_axis(_avg_hamming_dist, axis=1, arr=array_candidates)
+                print("hamming distance", hamming_distances)
+                sorted_hamming_indexes = np.argsort(hamming_distances)
+                print("sorted_hamming_indexes\n", 
+                    sorted_hamming_indexes.shape, "\n",  
+                    sorted_hamming_indexes)
+                # Reorder cardinality candidate indexes by candidate length 
+                cardinality_candidate_indexes = (
+                    cardinality_candidate_indexes[sorted_hamming_indexes])
                 
-                print("cardinality_candidate_indexes\n",
-                    cardinality_candidate_indexes.shape, "\n",  
-                    cardinality_candidate_indexes)
+            else:
+                # Get indexes of cardinalities less than current min
+                cardinality_candidate_indexes = np.where(cardinality < self.minimum_cardinality)[0]
+                
+                # Get cardinality values less than current min    
+                cardinality_candidates = cardinality[cardinality_candidate_indexes]
+                
+                # Get cardinality candidates indexes in order of increasing cardinality     
+                sorted_cardinality_indexes = cardinality_candidates.argsort()
                 
                 # Reorder cardinality candidate indexes by candidate length 
                 cardinality_candidate_indexes = (
                     cardinality_candidate_indexes[sorted_cardinality_indexes])
-                print("sorted_cardinality_indexes\n", 
-                    sorted_cardinality_indexes.shape, "\n",  
-                    sorted_cardinality_indexes)
-
-            # Get indexes of cardinalities less than current min
-            cardinality_candidate_indexes = np.where(cardinality < self.minimum_cardinality)[0]
-            
-            # Get cardinality values less than current min    
-            cardinality_candidates = cardinality[cardinality_candidate_indexes]
-            
-            # Get cardinality candidates indexes in order of increasing cardinality     
-            sorted_cardinality_indexes = cardinality_candidates.argsort()
-            print("cardinality_candidate_indexes\n",cardinality_candidate_indexes.shape, "\n",  cardinality_candidate_indexes)
-            
-            # Reorder cardinality candidate indexes by candidate length 
-            cardinality_candidate_indexes = cardinality_candidate_indexes[sorted_cardinality_indexes]
-            
-            print("sorted_cardinality_indexes\n", sorted_cardinality_indexes.shape, "\n",  sorted_cardinality_indexes)
+                
+                print("sorted_cardinality_indexes\n", sorted_cardinality_indexes.shape, "\n",  sorted_cardinality_indexes)
             
             # All valid candidate indexes after growth threshold and cardinality filters
             all_candidate_indexes = np.array([el for el in 
@@ -144,7 +147,7 @@ class Agent():
         
         print(f"Num <= 0.50: {result[result <= 0.5].shape[0]}, Num > 0.50: {result[result >= 0.5].shape[0]}")
         
-        threshold_candidate_indexes, cardinality, all_candidate_indexes, min_K_indexes = _get_min_K(result, 0)
+        threshold_candidate_indexes, cardinality, all_candidate_indexes, min_K_indexes = _get_min_K(result)#, explore_cardinality=0)
         
         # ununsed_card_cand_indexes = np.setdiff1d(cardinality_candidate_indexes,
         #                                          min_K_indexes)
@@ -258,22 +261,14 @@ class Agent():
         
         minimum_rule = self.rule.minimum_rule()
         
-        data_dims = self.data.shape
-        
         cardinality = np.sum(self.data, axis=1)
         minimum_rule_indexes = np.where(cardinality == minimum_rule)[0]
         minimum_rule_data_x = np.take(self.data, minimum_rule_indexes, axis=0)
         minimum_rule_data_y = np.take(self.data_labels, minimum_rule_indexes, axis=0)
         
-        test_indexes = np.random.choice(range(data_dims[0]), 
-                                            size=int(0.1*data_dims[0]), 
-                                            replace=False)
-        test_data_x = self.data[test_indexes, :]
-        test_data_y = self.data_labels[test_indexes]
-        
         batch_size = 300    
-        n_cycles = data_dims[0]//batch_size    
-        self.minimum_cardinality = self.rule.data_length
+        n_cycles = self.data.shape[0]//batch_size    
+        # self.minimum_cardinality = self.rule.data_length
         
         batch_train_data, batch_train_data_labels = self.get_starting_data()
         print(batch_train_data_labels)
@@ -393,23 +388,27 @@ class Agent():
         
         for cycle in range(n_cycles):
             print(f"\nCYCLE {cycle}")
+            print(f"Data history:  {self.data_history.shape[0]} {self.data_labels_history.shape[0]}")
             ## TRAIN g_(x)
             # use MDN? neural net
             # x -> g_ -> P(g(x) = 1)
-            
-            if cycle > 0 and self.data_history.size > 0:
+            print(f"Batch train data: \n{batch_train_data}")
+            print(f"Batch train data labels: \n{batch_train_data_labels}")
+            if cycle > 0 and batch_train_data.shape[0] > 0:
                 _, accuracy, _ = self.get_metrics(
                     batch_train_data, batch_train_data_labels)
                 _, accuracy_bayes, _ = self.get_metrics(
                     batch_train_data, batch_train_data_labels, 
                     use_bayes=True)
+                
                 accuracy_NN_pred[cycle] = accuracy
                 accuracy_bayes_pred[cycle] = accuracy_bayes
                 line9.set_ydata(accuracy_NN_pred)
                 line10.set_ydata(accuracy_bayes_pred)
-                
+        
+            
             # Retrain a new model every time
-            self.predictor = neural.PredictNet()
+            self.predictor = type(self.predictor)()
             print('fitting predictors')
             self.predictor.train(self.data_history, self.data_labels_history, epochs=5)
             self.predictor.train_bayes(self.data_history, self.data_labels_history)
@@ -451,14 +450,14 @@ class Agent():
             self.data = np.delete(self.data, new_batch_indexes, axis=0)
             self.data_labels = np.delete(self.data_labels, new_batch_indexes)
             
-            
-            ## OUTPUT
-                # lowest |x| found
-                # Accuracy??: g_(x) > 0.5 + g(x) = 1
-                
-                # Precision (tp / (tp + fp))
-                # Recall (tp / (tp + fn))
-                # Accuracy (tp + tn) / (tp + tn + fp + fn)
+            #Get a subset of data to get stats
+            data_dims = self.data.shape
+            test_indexes = np.random.choice(range(data_dims[0]), 
+                                            size=int(0.1*data_dims[0]), 
+                                            replace=False)
+            test_data_x = self.data[test_indexes, :]
+            test_data_y = self.data_labels[test_indexes]
+        
             precision, accuracy, recall = self.get_metrics(test_data_x, 
                                                            test_data_y)
             precision_values[cycle] = precision

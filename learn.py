@@ -22,27 +22,6 @@ parser = argparse.ArgumentParser(description='Run learn.py')
 parser.add_argument('-n', '--new_rule', action='store_true',
                     help='Make new rule rather than reading from file.')
 args = parser.parse_args()
-
-class Agent(rule, predictor, data):
-    self.rule = rule
-    self.data = data
-    
-    self.data_history
-    self.minimum_cardinality
-    
-    def learn(K=1000, threshold=0.5, add):
-        
-        
-    
-    
-     
-     
-     
-     
-     
-     
-     
-     
      
 def new_batch(rule, predict_net, inputs, current_min, K=1000, threshold=0.5, add_random=None):
     
@@ -56,7 +35,6 @@ def new_batch(rule, predict_net, inputs, current_min, K=1000, threshold=0.5, add
         print("candidate_cardinality\n",cardinality.shape, "\n",  cardinality)
         
         if explore_cardinality is not None:
-        
             # Get indexes of cardinalities equal to the current min
             cardinality_candidate_indexes = np.where(
                 cardinality == current_min + explore_cardinality)[0]

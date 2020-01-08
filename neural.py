@@ -26,7 +26,7 @@ class PredictNet():
                            metrics=['accuracy'])
         
         self.model_bayes = GaussianNB()
-        
+    
     def train(self, data, data_labels, epochs):
         self.model.fit(data, data_labels, epochs=epochs)
     
