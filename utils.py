@@ -16,3 +16,13 @@ def get_LXO(n_reagents, X=1):
         remove_arr[to_remove] = 0
         remove_arrs[i, :] = remove_arr
     return remove_arrs
+
+
+def parse_data_map(name_mappings_csv):
+    # col 1         -> col 2
+    # contains str  -> new value
+    pass
+
+def fitness_from_data_map(binary=False):
+    pass
+

@@ -45,6 +45,10 @@ class PredictNet():
     
     def predict_class(self, data):
         return self.model.predict_classes(data)
+    
+    # TODO: implement this function:
+    def save_model(self):
+        return NotImplementedError
                     
 
 def generate_training_data():
