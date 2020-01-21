@@ -165,15 +165,12 @@ class Agent():
                     heuristic to choose new samples which are more unlike 
                     previously tested data.
                     """
-                    hamming_total = 0
+
                     if data_tested.shape[0] == 0:
                         return 0
-                    for t in data_tested:
-                        value = np.count_nonzero(t != x)
-                        hamming_total += value
-                        # print(value, '  ->  ', t)
-                    hamming_avg = hamming_total/data_tested.shape[0]
-                    # print("hamming total:", hamming_total, "Avg:", hamming_avg)
+                    distances = [np.count_nonzero(a != x) for x in b]
+                    hamming_total = sum(distances)
+                    hamming_avg = hamming_total/len(distances)
                     return hamming_avg
                 
                 if data.shape[0] > 0:
