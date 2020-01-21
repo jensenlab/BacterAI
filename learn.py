@@ -39,17 +39,17 @@ class Agent():
         self.data = pd.DataFrame(data[1:, :-1])
         self.data_labels = pd.DataFrame(data[1:, -1])
         self.minimum_cardinality = self.model.num_components
-        self.current_solution = None
         
+        self.current_solution = None
         self.data_history = None
         self.data_labels_history = None
     
-    def new_batch(self, K=1000, threshold=0.5, use_neural_net=True):
+    def new_batch(self, K, threshold=0.5, use_neural_net=True):
         
         
         def _get_random(data, n):
             random_indexes = random.sample(data.index.to_list(),
-                                            min(n, data.index.shape[0]))
+                                           min(n, data.index.shape[0]))
             data_random = data.loc[random_indexes, :]
             data = data.drop(random_indexes)
             print("Random Data\n", data_random)
@@ -95,8 +95,6 @@ class Agent():
                 data = data[data.cardinality == target_cardinality]
                 print("Target card filter\n", data)
                 
-                # # Sort by cardinality then prediction confidence
-                # data = data.sort_values(by=['cardinality', 'prediction_nn'], ascending=[True, False])
                 data_tested = self.data_history.copy()
                 data_tested['cardinality'] = data_tested.sum(axis=1)
                 data_tested = data_tested[data_tested.cardinality == target_cardinality]
@@ -152,12 +150,8 @@ class Agent():
 
         # Exhaustive evaluation
         # TODO: Replace with search function
-
-        
         min_K_indexes, batch_min_cardinality, valid_batch_min_indexes = _get_min_K(K=K, add_random=0.10)#, explore_cardinality=0)
-        # threshold_candidate_indexes, cardinality, all_candidate_indexes, min_K_indexes = _get_min_K()#, explore_cardinality=0)
-        
-        
+
         n_needed = K - min_K_indexes.shape[0]
         explore_var = 0
         add_random = 0.0
@@ -184,74 +178,7 @@ class Agent():
                 print("Cannot explore any further...choosing random")
                 add_random = 1.0
                 stop = True
-            
-            
-        # # ununsed_card_cand_indexes = np.setdiff1d(cardinality_candidate_indexes,
-        # #                                          min_K_indexes)
-        # # ununsed_sorted_cardinality_indexes = np.setdiff1d(sorted_cardinality_indexes,
-        # #                                                   min_K_indexes)
-        # n_found = min_K_indexes.size
-        # # print(results)
 
-        # n_needed = K - n_found
-        # if n_needed > 0:
-        #     _, _, additional_candidate_indexes, additional_indexes = _get_min_K(result_bayes)[:n_needed]
-        #     min_K_indexes = np.concatenate([min_K_indexes, additional_indexes], 
-        #                                     axis=None)
-        #     print(f"Added {additional_indexes.size} indexes using Bayes")
-        #     print("BEFORE", all_candidate_indexes)
-        #     print("ADDTL", additional_candidate_indexes)
-        #     all_candidate_indexes = np.concatenate([all_candidate_indexes, 
-        #                                             additional_candidate_indexes], 
-        #                                             axis=None)
-        #     print("AFTER ADDING", all_candidate_indexes)
-            
-            
-        # # if n_needed > 0 and add_random:
-        # #     # Find random n_needed that have cardinalities less than self.minimum_cardinality
-        # #     # if ununsed_sorted_cardinality_indexes.size > 0:
-        # #     #     additional_indexes = ununsed_sorted_cardinality_indexes[:n_needed]
-        # #     #     ununsed_sorted_cardinality_indexes = (
-        # #     #         ununsed_sorted_cardinality_indexes[additional_indexes.size:])
-        # #     #     # print(additional_indexes)
-        # #     #     print(f"Added {additional_indexes.size} valid cardinality indexes")
-                
-        # #     # elif ununsed_card_cand_indexes.size > 0:
-        # #     #     additional_indexes = ununsed_card_cand_indexes[:n_needed]
-        # #     #     ununsed_card_cand_indexes = (
-        # #     #         ununsed_card_cand_indexes[additional_indexes.size:])
-        # #     #     # print(random_indexes)
-        # #     #     min_K_indexes = np.concatenate([min_K_indexes, random_indexes], 
-        # #     #                                 axis=None)
-        # #     #     print(f"Added {additional_indexes.size} valid threshold indexes")
-        # #     # else:
-        # #     additional_indexes = np.random.choice(range(result.shape[0]), size=(add_random,))
-        # #     print(f"Added {additional_indexes.size} random indexes")
-                
-            
-        # #     min_K_indexes = np.concatenate([min_K_indexes, additional_indexes], 
-        # #                                     axis=None)
-            
-        # #     # n_needed = K - min_K_indexes.size
-        
-            
-        # print(min_K_indexes)
-        # batch_min_cardinality = None
-        # valid_batch_min_indexes = None
-        # if all_candidate_indexes.size > 0:
-        #     batch_min_cardinality = (
-        #         cardinality[all_candidate_indexes[0]])
-        #     # batch_min_index = all_candidate_indexes[0]
-        #     all_batch_min_indexes = np.where(cardinality == batch_min_cardinality)[0]
-        #     valid_batch_min_indexes = (
-        #         np.intersect1d(all_batch_min_indexes, 
-        #                     threshold_candidate_indexes))
-        # # elif ununsed_sorted_cardinality_indexes.size > 0:
-        # #     batch_min_cardinality = (
-        # #         cardinality[
-        # #             ununsed_sorted_cardinality_indexes[0]])
-        
-        # min_K_indexes = min_K_indexes.astype(int)
         print("indexes:", min_K_indexes)
         print("Valid batch min:\n", valid_batch_min_indexes)
         
@@ -300,32 +227,23 @@ class Agent():
                                                    use_multiprocessing=False))
         return pd.DataFrame(data), pd.DataFrame(data_labels)
     
-    # @classmethod
-    def learn(self, save_models=False):
+    def learn(self, batch_size=300, save_models=False):
         # generate all xi
-            # length 16 to start 
-        
+
         answer = self.model.minimal_components
         
         cardinality = self.data.sum(axis=1)
         minimum_rule_indexes = self.data[cardinality == len(answer)].index
-        # cardinality = np.sum(self.data, axis=1)
-        # minimum_rule_indexes = np.where(cardinality == answer)[0]
         minimum_rule_data_x = self.data.loc[minimum_rule_indexes, :]
         minimum_rule_data_y = self.data_labels.loc[minimum_rule_indexes]
         
-        batch_size = 300    
         n_cycles = self.data.shape[0]//batch_size    
-        # self.minimum_cardinality = self.model.num_components
         
         batch_train_data, batch_train_data_labels = self.get_starting_data()
         print(batch_train_data_labels)
         self.data_history = batch_train_data.copy()
         self.data_labels_history = batch_train_data_labels.copy()
         print("batch train data:\n", self.data_history)
-        #Random initialization
-        # batch_train_data = np.random.choice([0, 1], size=(batch_size, self.model.num_components))
-        # batch_train_data_labels = np.random.choice([0, 1], size=(batch_size, 1))
         #TEST a set xi
         
         ############### GRAPHING #################
@@ -416,31 +334,32 @@ class Agent():
         plt.ylim(0, 1.1)
         plt.xlim(0, n_cycles)
         
-        # # Graph 8
+        # Graph 8
         grow_proportion = np.zeros((2, n_cycles))
         
         ax8 = fig.add_subplot(424)
         line11 = ax8.stackplot(x_values, grow_proportion, 
                                 labels=["Grow", "No Grow"])
-        # line12, = ax8.plot(x_values, no_grow_proportion)
-        # ax8.fill_between(x_values, 0, grow_proportion, facecolor="#1DACD6", alpha=.7)
-        # ax8.fill_between(x_values, grow_proportion, no_grow_proportion, facecolor="#6E5160", alpha=.7)
         plt.title('Grow/No Grow Counts')
         plt.xlabel(f'Cycle')
         plt.ylabel(f'Proportion')
-        # plt.legend(['No Grow', 'Grow'])
         plt.ylim(0, 1.1)
         plt.xlim(0, n_cycles)
         already_found = False
+        ############### END GRAPHING #################
+        
         for cycle in range(n_cycles):
             print(f"\nCYCLE {cycle}")
             print(f"Data history:  {self.data_history.shape[0]} {self.data_labels_history.shape[0]}")
             ## TRAIN g_(x)
-            # use MDN? neural net
             # x -> g_ -> P(g(x) = 1)
             print(f"Batch train data: \n{batch_train_data}")
             print(f"Batch train data labels: \n{batch_train_data_labels}")
             use_neural_net = True
+            
+            
+            #### GRAPHING #### Get predictive accuracy
+            # Accuracy of NN(n-1) on batch(n-1)
             if cycle > 0 and batch_train_data.shape[0] > 0:
                 _, accuracy, _ = self.get_metrics(
                     batch_train_data.to_numpy(), 
@@ -457,51 +376,39 @@ class Agent():
                 # use_neural_net = accuracy >= accuracy_bayes
         
             
-            # Retrain a new model every time
+            # Reset predictor to train a new model every time
             self.predictor = type(self.predictor)()
-            print('fitting predictors')
             
-            # print("XXXXX\n", self.data_history.to_numpy(), '\n', self.data_labels_history.to_numpy())
             self.predictor.train(self.data_history.to_numpy(), 
                                  self.data_labels_history.to_numpy(), epochs=5)
             self.predictor.train_bayes(self.data_history.to_numpy(), 
                                        self.data_labels_history.to_numpy())
             
+            # Export models every cycle
             if save_models:
                 model_name = f"NN_{self.model.num_components}_C{cycle}.h5"
                 output_path = os.path.join("models", save_models, model_name)
                 self.predictor.model.save(output_path)
             
-            ## PREDICT
-            # get g_(x)
-            
-            # evaluate function
-                # for now, evaluate g_(x) at all xi (brute force)
-                # eventually use search algo to explore search space
-            # choose batch size K
-            # find the K samples with smallest |x| that meet criteria:
-                # g_(x) > 0.5
-            
-            
-            add_random = max(0, n_cycles - (cycle**2))
-            
+            # Get next batch
             new_batch_indexes, batch_min_cardinality, batch_min_indexes = (
                 self.new_batch(K=batch_size, threshold=0.5, 
                                use_neural_net=use_neural_net))
             
-            # if new_batch_indexes.size == 0:
-            #     break
-            # Set new training data after picking new batch
+            # Get batch from data set using new batch indexes
             batch_train_data = self.data.loc[new_batch_indexes, :]
             batch_train_data_labels = self.data_labels.loc[new_batch_indexes]
             print("BATCH TRAIN DATA", batch_train_data.shape, batch_train_data)
+            
+            # Add batch to data history
             self.data_history = pd.concat([self.data_history, batch_train_data])
             print("DATA HISTORY", self.data_history.shape, self.data_history)
             
             self.data_labels_history = pd.concat(
                 [self.data_labels_history, batch_train_data_labels])
             
-            # filter new batch results
+            # Filter new batch results
+            # Only include cardinalities < current min that are known to grow
             cardinality = batch_train_data.sum(axis=1)
             labels = batch_train_data_labels.rename(columns={0: 'labels'})
             batch = pd.concat([cardinality, labels], axis=1)
@@ -518,39 +425,41 @@ class Agent():
                 self.current_solution = self.data.loc[minimum_index, :]
                 print(f"INPUT FOR NEW MIN ({self.minimum_cardinality}): {self.current_solution}")
             
-            # for proportion stats
+            #### GRAPHING ####  Find proportion stats
             predictions = self.predictor.predict_class(
                 self.data.loc[new_batch_indexes, :].to_numpy())
             
-            # Remove used experiments from "experiment set"
+            # Remove used experiments from data set
             self.data.drop(new_batch_indexes, inplace=True)
             self.data_labels.drop(new_batch_indexes, inplace=True)
             
-            #Get a subset of data to get stats
+            #### GRAPHING #### Set batch and overall cardinality
+            batch_cardinality_values[cycle] = batch_min_cardinality
+            min_cardinality_values[cycle] = self.minimum_cardinality
+            
+            #### GRAPHING #### Get a subset of data to speed up stats
             test_indexes = np.random.choice(self.data.index, 
                                             size=int(0.001*self.data.shape[0]), 
                                             replace=False)
-
             test_data_x = self.data.loc[test_indexes, :]
             test_data_y = self.data_labels.loc[test_indexes]  
 
+            #### GRAPHING #### Get NN prediction stats for data set
             precision, accuracy, recall = self.get_metrics(
                 test_data_x.to_numpy(), test_data_y.to_numpy())
             precision_values[cycle] = precision
             accuracy_values[cycle] = accuracy
             recall_values[cycle] = recall
             
+            #### GRAPHING #### Get NN prediction stats for answer space in data set
             precision_answer_space, accuracy_answer_space, recall_answer_space = (
                 self.get_metrics(minimum_rule_data_x.to_numpy(), 
                                  minimum_rule_data_y.to_numpy()))
             precision_values_answer_space[cycle] = precision_answer_space
             accuracy_values_answer_space[cycle] = accuracy_answer_space
             recall_values_answer_space[cycle] = recall_answer_space
-
-            batch_cardinality_values[cycle] = batch_min_cardinality
-            min_cardinality_values[cycle] = self.minimum_cardinality
-
             
+            #### GRAPHING #### Set values for proportion graph
             grow_proportion[0, cycle] = (
                 predictions[predictions == 1].shape[0]/batch_size)
             grow_proportion[1, cycle] = (
@@ -563,7 +472,7 @@ class Agent():
             plt.ylabel(f'Proportion')
             plt.xlim(0, n_cycles)
             
-            
+            #### GRAPHING #### Set all cycle values
             line1.set_ydata(precision_values)
             line2.set_ydata(accuracy_values)
             line3.set_ydata(recall_values)
@@ -573,7 +482,7 @@ class Agent():
             line7.set_ydata(accuracy_values_answer_space)
             line8.set_ydata(recall_values_answer_space)
 
-        
+            #### GRAPHING #### Display "Found! (n)" when the answer is found
             if self.minimum_cardinality == len(answer) and not already_found:
                 already_found = True
                 ax4.annotate(
@@ -583,13 +492,15 @@ class Agent():
                     bbox=dict(boxstyle='round,pad=0.5', fc='white', alpha=0.5),
                     arrowprops=dict(arrowstyle = '->', connectionstyle='arc3,rad=0'))
             
+            #### GRAPHING #### Display red + when batch card. = answer length
             if batch_min_cardinality == len(answer):
                 ax2.plot([cycle], [len(answer)], 'r+', markersize=6)
 
             index_subset = np.random.choice(test_data_x.index, 
                                             size=int(0.001*test_data_x.shape[0]), 
                                             replace=False)
-           
+
+            #### GRAPHING #### Histogram of prediction distribution
             test_set_predictions = self.predictor.predict_probability(
                 test_data_x.loc[index_subset, :].to_numpy())
 
@@ -603,6 +514,7 @@ class Agent():
             plt.xlabel(f'Predicted Value')
             plt.ylabel(f'True Value')
             
+            #### GRAPHING #### Histogram of prediction distribution in answer space
             minimum_rule_set_predictions = self.predictor.predict_probability(
                 minimum_rule_data_x.to_numpy())
             
@@ -616,6 +528,7 @@ class Agent():
             plt.title(f'Answer Space (n = {len(answer)})')
             plt.xlabel(f'Predicted Value')
             plt.ylabel(f'True Value')
+            #### GRAPHING #### Histogram color scales
             if cycle is 0:
                 plt.colorbar(im1, ax=ax3) 
                 plt.colorbar(im2, ax=ax6)
@@ -623,10 +536,10 @@ class Agent():
             
             print(f"ACCURACY: {accuracy}, BATCH MIN CARDINALITY: {batch_min_cardinality}, OVERALL MIN CARDINALITY: {self.minimum_cardinality}")
             cycle += 1
-            
-            ## REPEAT
+
+        # Output findings and real solution
         print("################ DONE! #################")
-        print("CORRECT MINIMUM:", len(answer), "SET:", answer) 
+        print("CORRECT MINIMUM:", len(answer), "SET:", answer)
         found_solution = list()
         for idx, c in enumerate(self.current_solution):
             if c == 1:
@@ -634,9 +547,6 @@ class Agent():
         
         print("FOUND MINIMUM:", self.minimum_cardinality, "SET:", found_solution)
         plt.show()
-        # return minimum_rule
-    
-    
 
 
 if __name__ == "__main__":
@@ -655,72 +565,21 @@ if __name__ == "__main__":
         model_path = os.path.join(folder_path, model_filename)
         data_path = os.path.join(folder_path, f"data_{args.num_components}.csv")
    
-    print(model_path)
-    
     m = model.Model(model_path, num_components=args.num_components,
                     new_data=args.generate_new_data)
 
-    # print(m.print_compartments())
-    
     if args.generate_new_data:
         m.generate_data_csv(use_multiprocessing=True)
         
+    print("Model:", model_path)
     print(f"MIN ({len(m.minimal_components)}): {m.minimal_components}")
-    # m.print_compartments()
-    # with m.model as mod:
-    #     import cobra
-    #     minimal_medium = cobra.medium.minimal_medium(
-    #         mod, m.growth_cutoff, minimize_components=True,
-    #         media_components=m.media_ids)
-    #     print("\nMINIMAL MEDIA:", minimal_medium.index.to_list())
-    #     reaction_ids = [rxn.id for rxn in mod.exchanges]
-    #     # reaction_ids = [rxn.id for rxn in mod.reactions if "exch" in rxn.id]
-    #     non_media_exchanges = set(reaction_ids) - set(m.media_ids)
-    #     print("\nNONMEDIA RXNs:", non_media_exchanges)
-    #     components_of_interest = set(minimal_medium.index) - non_media_exchanges
-    #     print("\nRXN TO KEEP:", components_of_interest)
-        
-    #     print('\nBEFORE REMOVAL:', mod.slim_optimize())
-    #     reactions = list(set(m.media_ids) - components_of_interest)
-    #     print('\nRXN TO REMOVE:', reactions)
-    #     reactions_remove = [mod.reactions.get_by_id(rxn) for rxn in reactions]
-    #     result, result2 = m.reaction_knockout(reactions_remove, m.growth_cutoff)
-    #     print('\nAFTER REMOVAL:', result, result2)
-    #     # mod.reactions.get_by_id('NADP_exch').knock_out()
-    #     # print('1', mod.slim_optimize())
-    # with m.model as mod:
-    #     mod.reactions.get_by_id('ribflv_exch').knock_out()
-    #     print('2', mod.slim_optimize())
-    #     mod.reactions.get_by_id('NADP_exch').knock_out()
-    #     print('after', mod.slim_optimize())
-        
-        
+            
     data = np.genfromtxt(data_path, delimiter=",")
-    # data = np.genfromtxt("fours.csv", delimiter=",")
-    
-    # data = pd.DataFrame(data[1:, :])
-    # data["card"] = data.sum(axis=1)
-    # data = data[data["card"] < 4].drop(columns=["card"]).to_numpy()
-    # np.savetxt("fours.csv", data, delimiter=',', fmt='%i')
-    
-    # print(data.shape)
-    # # # s = data.iloc[:, 0].sum()
-    # # # print(s)
-    
-    # import tensorflow as tf
-    # new_model = tf.keras.models.load_model("models/iSMUv01_CDM_2020-01-17T153130538/12/NN_22_C2.h5")
-    # # results = new_model.predict_classes(data[1:, :])
-    # # print(np.sum(results))
-    # results = new_model.evaluate(data[1:, :-1], data[1:, -1], verbose=2)
-    # print(results)
-    
     predictor = neural.PredictNet()
     agent = Agent(m, predictor, data, args.num_components)
     
     if args.save_models:
-        agent.learn(save_models=model_folder)
+        agent.learn(batch_size=300, save_models=model_folder)
     else:
-        agent.learn()
-        
-    # install command: pip3 install --upgrade --user ../cobrapy/
+        agent.learn(batch_size=300)
     
