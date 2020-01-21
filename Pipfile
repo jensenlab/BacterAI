@@ -1,0 +1,19 @@
+[[source]]
+name = "pypi"
+url = "https://pypi.org/simple"
+verify_ssl = true
+
+[dev-packages]
+
+[packages]
+numpy = "*"
+pandas = "*"
+matplotlib = "*"
+tqdm = "*"
+sklearn = "*"
+scipy = "*"
+cobra = {path = "./../cobrapy"}
+tensorflow = "*"
+
+[requires]
+python_version = "3.7.6"
