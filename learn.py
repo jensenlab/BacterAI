@@ -45,9 +45,50 @@ class Agent():
         self.data_labels_history = None
     
     def new_batch(self, K, threshold=0.5, use_neural_net=True):
+        """Predicts a new batch of size `K` from the growth media data set 
+        `self.data`. Filters batch based on a growth threshold of a neural 
+        net's predictions in addition to the cardinality of the growth medias.
+        The new batches represent the Agent's predictions for minimal growth
+        medias.
+    
+        Inputs
+        ------
+        K: int
+            Batch size to return.
+        threshold: float, default=0.5
+            Threshold to determine if prediction from `self.predictor` is 'grow'
+            or 'no grow'.
+        use_neural_net: Boolean, default=True
+            If 'True' use neural net to predict growth, otherwise use Naive 
+            Bayes predictor.
+            
+        Returns
+        -------
+        min_K_indexes: np.ndarray()
+            Indexes of `self.data` that correspond to the new batch.
+        batch_min_cardinality: int
+            The batch minimum cardinality.
         
+        """
         
         def _get_random(data, n):
+            """Gets random media combinations from `data`.
+        
+            Inputs
+            ------
+            data: pd.DataFrame()
+                The data from which to sample from.
+            n: int
+                The number of random data to find.
+                
+            Returns
+            -------
+            data: pd.DataFrame
+                The original data minus the samples chosen.
+            data_random: pd.DataFrame
+                The samples chosen.
+            
+            """
             random_indexes = random.sample(data.index.to_list(),
                                            min(n, data.index.shape[0]))
             data_random = data.loc[random_indexes, :]
@@ -55,28 +96,46 @@ class Agent():
             print("Random Data\n", data_random)
             return data, data_random
         
-        def _get_min_K(K, explore_cardinality=None, add_random=False):
-            # # Convert to pd.DataFrame
+        def _get_min_K(explore_cardinality=None, add_random=False):
+            """Filters `self.data` to return `K` samples.
+        
+            Inputs
+            ------
+            explore_cardinality: int, default=None
+                Exploration variable.
+            add_random: float, default=False
+                The proportion of batch which will be random samples.
+                
+            Returns
+            -------
+            min_K_indexes: np.ndarray()
+                Indexes of `self.data` that correspond to the new batch.
+            batch_min_cardinality: int
+                The batch minimum cardinality.
+            
+            """
+            # Make copy of data to manipulate
             data = self.data.copy()
-            # # Calculate cardinality
+            # Calculate cardinality
             data['cardinality'] = data.sum(axis=1)
             print("Added cardinality\n", data)
             
             if use_neural_net:
                 print("USING NEURAL NET")
-                # Get probability of grow
+                # Get probability of grow using NN
                 result = self.predictor.predict_probability(
                     data.drop(columns=['cardinality']).to_numpy())
             else:
                 print("USING NAIVE BAYES")
+                # Get probability of grow using Naive Bayes
                 result = self.predictor.predict_bayes(data.drop(
                     columns=['cardinality']).to_numpy())
             
             # Append neural net/naive Bayes predictions
             data['prediction'] = result
             
+            # Add random samples to for exploration 
             if add_random > 0:
-                # Added 10% random
                 data, data_random = _get_random(data, int(K*add_random))
             
             # Take only data that have a prediction > threshold
@@ -84,13 +143,11 @@ class Agent():
                 
             print("results\n", result)
             print(f"Num <= 0.50: {result[result <= 0.5].shape[0]}, Num > 0.50: {result[result >= 0.5].shape[0]}")
-            
             print("Threshold filter\n", data)
             
-            
-            
             if explore_cardinality is not None:
-                
+                # Exploration of search space, helpful for getting out of local 
+                # minima
                 target_cardinality = self.minimum_cardinality + explore_cardinality
                 data = data[data.cardinality == target_cardinality]
                 print("Target card filter\n", data)
@@ -103,7 +160,11 @@ class Agent():
                 data_tested = data_tested.drop(columns=['cardinality']).to_numpy()
                 
                 def _avg_hamming_dist(x):
-                    # x is one row of untested data
+                    """Compute average Hamming distance of input `x` against
+                    all of the samples in `data_tested`. Used as an exploration
+                    heuristic to choose new samples which are more unlike 
+                    previously tested data.
+                    """
                     hamming_total = 0
                     if data_tested.shape[0] == 0:
                         return 0
@@ -117,11 +178,11 @@ class Agent():
                 
                 if data.shape[0] > 0:
                     hamming_distances = np.apply_along_axis(_avg_hamming_dist, axis=1, arr=data.to_numpy()[:, :self.model.num_components])
-                    
                     data['hamming dist'] = hamming_distances
                     data = data.sort_values(by=['hamming dist', 'cardinality', 'prediction'], ascending=[False, True, False])
                 
             else:
+                # Default condition:
                 # Take only data that have cardinality < current minimum 
                 data = data[data.cardinality < self.minimum_cardinality]
                 print("Card filter\n", data)
@@ -129,6 +190,7 @@ class Agent():
                 # Sort by cardinality then prediction confidence
                 data = data.sort_values(by=['cardinality', 'prediction'], ascending=[True, False])
             
+            # Only add on random samples if add_random is specified
             if (isinstance(add_random, float) 
                 and add_random < 1.0 and add_random > 0.0):
                 data = pd.concat([data_random, data])
@@ -138,39 +200,37 @@ class Agent():
                 
             current_min_cardinality = data.cardinality.min()
             print("BATCH MIN:", current_min_cardinality)
-            
-            valid_batch_min_indexes = data[data.cardinality == current_min_cardinality].index.to_numpy()
+    
             print("DATA DataFrame:\n", data)
-                
+              
             # Take only the first K indexes        
             min_K_indexes = data.index.to_numpy()[:K]
             
-            return min_K_indexes, current_min_cardinality, valid_batch_min_indexes
+            return min_K_indexes, current_min_cardinality
         
 
-        # Exhaustive evaluation
-        # TODO: Replace with search function
-        min_K_indexes, batch_min_cardinality, valid_batch_min_indexes = _get_min_K(K=K, add_random=0.10)#, explore_cardinality=0)
+        # Get new batch
+        min_K_indexes, batch_min_cardinality = _get_min_K(add_random=0.10)#, explore_cardinality=0)
 
+        # Start exploration if there are not enough samples in the batch
+        # `explore_var` will be incremented until explore_var + current 
+        # minimum cardinality > the number of media components. When this 
+        # occurs, it will fill the remaining spaces in the batch with random
+        # data.
         n_needed = K - min_K_indexes.shape[0]
         explore_var = 0
         add_random = 0.0
         stop = False
         while n_needed > 0 and not stop:
             print(f"Exploring ({explore_var})...", f"Number needed: {n_needed}")
-            (min_K_indexes_new, batch_min_cardinality_new, 
-                valid_batch_min_indexes_new) = (
-                    _get_min_K(K=K, explore_cardinality=explore_var, add_random=add_random))
+            min_K_indexes_new, batch_min_cardinality_new = (
+                    _get_min_K(explore_cardinality=explore_var, add_random=add_random))
             
             min_K_indexes = np.concatenate([min_K_indexes, min_K_indexes_new], 
                                            axis=None)
             if (batch_min_cardinality_new <= batch_min_cardinality 
                 or math.isnan(batch_min_cardinality)):
                 batch_min_cardinality = batch_min_cardinality_new
-                valid_batch_min_indexes = np.concatenate(
-                    [valid_batch_min_indexes, valid_batch_min_indexes_new],
-                    axis=None)
-                
                 
             n_needed = K - min_K_indexes.shape[0]
             explore_var += 1
@@ -180,9 +240,7 @@ class Agent():
                 stop = True
 
         print("indexes:", min_K_indexes)
-        print("Valid batch min:\n", valid_batch_min_indexes)
-        
-        return min_K_indexes, batch_min_cardinality, valid_batch_min_indexes
+        return min_K_indexes, batch_min_cardinality
 
     def get_metrics(self, data, data_labels, use_bayes=False):
         if data.size == 0 or data_labels.size == 0:
@@ -204,7 +262,7 @@ class Agent():
 
 
     def get_starting_data(self):
-        #Initialize with L1O and L2O data
+        # Initialize with L1O and L2O data
         L1O_exp = utils.get_LXO(self.model.num_components, 1)
         L2O_exp = utils.get_LXO(self.model.num_components, 2)
         L3O_exp = utils.get_LXO(self.model.num_components, 3)
@@ -213,7 +271,7 @@ class Agent():
         subset_indexes = random.sample(range(L3O_exp.shape[0]), 
                                        min(n, L3O_exp.shape[0]))
         additional_exp = L3O_exp[subset_indexes]
-        # semi random inputs based on L3Os
+        # Semi random inputs based on L3Os
         # for x in additional_exp:
         #     n = sp.poisson.rvs(1)
         #     candidates_indexes = np.where(x == 1)[0]
@@ -391,7 +449,7 @@ class Agent():
                 self.predictor.model.save(output_path)
             
             # Get next batch
-            new_batch_indexes, batch_min_cardinality, batch_min_indexes = (
+            new_batch_indexes, batch_min_cardinality = (
                 self.new_batch(K=batch_size, threshold=0.5, 
                                use_neural_net=use_neural_net))
             
@@ -439,7 +497,7 @@ class Agent():
             
             #### GRAPHING #### Get a subset of data to speed up stats
             test_indexes = np.random.choice(self.data.index, 
-                                            size=int(0.001*self.data.shape[0]), 
+                                            size=int(0.1*self.data.shape[0]), 
                                             replace=False)
             test_data_x = self.data.loc[test_indexes, :]
             test_data_y = self.data_labels.loc[test_indexes]  
@@ -497,7 +555,7 @@ class Agent():
                 ax2.plot([cycle], [len(answer)], 'r+', markersize=6)
 
             index_subset = np.random.choice(test_data_x.index, 
-                                            size=int(0.001*test_data_x.shape[0]), 
+                                            size=int(0.1*test_data_x.shape[0]), 
                                             replace=False)
 
             #### GRAPHING #### Histogram of prediction distribution
@@ -550,6 +608,7 @@ class Agent():
 
 
 if __name__ == "__main__":
+    # Silence some Tensorflow outputs
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
     
     model_folder = "iSMUv01_CDM_2020-01-17T153130538/12"

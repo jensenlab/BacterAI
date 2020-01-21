@@ -12,10 +12,10 @@ class Rule(object):
     """DNF Rule Object using only ANDs and ORs.
     
     definition: list[list[int]]
-        A list of lists, where the inside lists correspond to the "AND" \
-        groups and the outside list corresponds to the "OR" groups. The \
-        length of the groups are genereated randomly and depend on the min \
-        or max if specified. "AND" groups sample from `range(data_length)` \
+        A list of lists, where the inside lists correspond to the "AND"
+        groups and the outside list corresponds to the "OR" groups. The
+        length of the groups are genereated randomly and depend on the min
+        or max if specified. "AND" groups sample from `range(data_length)`
         with replacement.
     data_length: int
         The length of data that the rule can accept.
