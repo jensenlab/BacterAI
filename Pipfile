@@ -14,7 +14,9 @@ tqdm = "*"
 sklearn = "*"
 scipy = "*"
 cobra = {path = "./../cobrapy"}
-tensorflow = "*"
+black = "*"
+mongoengine = "*"
+deepphenotyping = {editable = true,path = "./../DeepPhenotyping/module/deepphenotyping"}
 
 [requires]
 python_version = "3.7.6"
