@@ -112,12 +112,12 @@ CDM_RXN_IDS = [
 
 
 class Model:
-    def __init__(self, path, num_components, new_data=False):
+    def __init__(self, path, num_components=None, new_data=False, components=None):
         self.model_path = path
-        self.num_components = num_components
+        self.num_components = num_components if num_components else len(components)
         self.model = self.load_cobra(self.model_path)
         self.growth_cutoff = self.get_growth_cutoff()
-        self.media_ids = self.get_media_ids(new_data)
+        self.media_ids = components if components else self.get_media_ids(new_data)
         self.minimal_components = self.get_minimal_components()
 
     def reload_model(self):
@@ -443,8 +443,7 @@ class Model:
 
         pass
 
-    def _f(self, row):
-        # L, row, t = args
+    def _reaction_result_mp(self, row):
         reactions_to_knockout = list()
         for idx, val in enumerate(row):
             if val == 0:
@@ -455,9 +454,6 @@ class Model:
             self.reaction_knockout(reactions_to_knockout, self.growth_cutoff)[0]
         )
         return result
-        # combined = np.append(row, result)
-        # L.append(combined)
-        # t.update()
 
     def evaluate(self, inputs, use_bool=True, use_multiprocessing=True):
         """Evaluates the model with a given media input.
@@ -503,11 +499,8 @@ class Model:
             print(f"DataLengthMismatchError: {e.message}")
         else:
             if use_multiprocessing:
-                # results = np.array(p_map(self._f, [row for row in inputs]))
-                # print(results)
-                # return results
                 with multiprocessing.Pool(processes=30) as p:
-                    results = p.map(self._f, inputs)
+                    results = p.map(self._reaction_result_mp, inputs)
                     results = np.array(results)
                     return results
             else:
