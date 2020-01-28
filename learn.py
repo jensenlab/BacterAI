@@ -21,7 +21,7 @@ import neural
 import utils
 
 
-parser = argparse.ArgumentParser(description="Run learn.py")
+parser = argparse.ArgumentParser(description="Run agent.py")
 parser.add_argument(
     "-c",
     "--num_components",
@@ -50,16 +50,79 @@ args = parser.parse_args()
 
 
 class Agent:
-    def __init__(self, model, predictor, data, num_components):
+    def __init__(
+        self,
+        model,
+        predictor,
+        data,
+        data_labels,
+        minimum_cardinality,
+        cycle=0,
+        current_solution=None,
+        data_history=None,
+        data_labels_history=None,
+    ):
         self.model = model
         self.predictor = predictor
-        self.data = pd.DataFrame(data[1:, :-1])
-        self.data_labels = pd.DataFrame(data[1:, -1])
-        self.minimum_cardinality = self.model.num_components
+        self.data = pd.DataFrame(data)
+        self.data_labels = pd.DataFrame(data_labels)
+        self.minimum_cardinality = (
+            minimum_cardinality if minimum_cardinality else self.model.num_components
+        )
 
+        self.cycle = 0
         self.current_solution = None
         self.data_history = None
         self.data_labels_history = None
+
+    def __getstate__(self):
+        state = dict(self.__dict__)
+        state["predictor"] = type(state["predictor"])
+        return state
+
+    def __setstate__(self, state):
+        state["predictor"] = state["predictor"]()
+        self.__dict__.update(state)
+        return state
+
+    def save(self, path):
+        with open(path, "wb") as f:
+            pickle.dump(self, f)
+
+    @classmethod
+    def load(cls, path):
+        with open(path, "rb") as f:
+            agent = pickle.load(f)
+        return agent
+
+    def initialize_learning(self, batch_size, save_location):
+        starting_data, starting_labels = self.get_starting_data()
+
+        self.data_history = starting_data.copy()
+        self.data_labels_history = starting_labels.copy()
+
+        print("DATA HISTORY:\n", self.data_history)
+
+        self._perform_cycle(
+            batch_train_data=starting_data,
+            batch_train_data_labels=starting_labels,
+            batch_size=batch_size,
+            save_location=save_location,
+        )
+
+    def continue_learning(
+        self, name_mappings_path, batch_data_path, batch_size, save_location
+    ):
+        batch, batch_labels = utils.parse_data_map(
+            name_mappings_path, batch_data_path, self.model.media_ids
+        )
+        batch, batch_labels = utils.match_original_data(self.data, batch, batch_labels)
+        self._perform_cycle(
+            batch_train_data=batch,
+            batch_train_data_labels=batch_labels,
+            batch_size=batch_size,
+            save_location=save_location,
+        )
 
     def new_batch(self, K, threshold=0.5, use_neural_net=True):
         """Predicts a new batch of size `K` from the growth media data set 
@@ -114,8 +177,10 @@ class Agent:
             print("Random Data\n", data_random)
             return data, data_random
 
-        def _get_min_K(explore_cardinality=None, add_random=False):
-            """Filters `self.data` to return `K` samples.
+        def _get_min_K(
+            n_needed, explore_cardinality=None, add_random=False, used_indexes=None
+        ):
+            """Filters `self.data` to return `n_needed` samples.
         
             Inputs
             ------
@@ -134,6 +199,11 @@ class Agent:
             """
             # Make copy of data to manipulate
             data = self.data.copy()
+
+            # Drop used indexes
+            if used_indexes is not None:
+                data = data.drop(index=used_indexes)
+
             # Calculate cardinality
             data["cardinality"] = data.sum(axis=1)
             print("Added cardinality\n", data)
@@ -156,7 +226,7 @@ class Agent:
 
             # Add random samples to for exploration
             if add_random > 0:
-                data, data_random = _get_random(data, int(K * add_random))
+                data, data_random = _get_random(data, int(n_needed * add_random))
 
             # Take only data that have a prediction > threshold
             data = data[data.prediction >= threshold]
@@ -190,7 +260,7 @@ class Agent:
 
                     if data_tested.shape[0] == 0:
                         return 0
-                    distances = [np.count_nonzero(a != x) for x in b]
+                    distances = [np.count_nonzero(t != x) for t in data_tested]
                     hamming_total = sum(distances)
                     hamming_avg = hamming_total / len(distances)
                     return hamming_avg
@@ -225,19 +295,21 @@ class Agent:
             elif add_random >= 1.0:
                 data = data_random
 
+            data = data.drop(data.index[n_needed:])
+
             current_min_cardinality = data.cardinality.min()
             print("BATCH MIN:", current_min_cardinality)
 
             print("DATA DataFrame:\n", data)
 
-            # Take only the first K indexes
-            min_K_indexes = data.index.to_numpy()[:K]
+            # Take only the first n_needed indexes
+            min_K_indexes = data.index.to_numpy()
 
             return min_K_indexes, current_min_cardinality
 
         # Get new batch
         min_K_indexes, batch_min_cardinality = _get_min_K(
-            add_random=0.10
+            n_needed=K, add_random=0.10
         )  # , explore_cardinality=0)
 
         # Start exploration if there are not enough samples in the batch
@@ -252,7 +324,10 @@ class Agent:
         while n_needed > 0 and not stop:
             print(f"Exploring ({explore_var})...", f"Number needed: {n_needed}")
             min_K_indexes_new, batch_min_cardinality_new = _get_min_K(
-                explore_cardinality=explore_var, add_random=add_random
+                n_needed=n_needed,
+                explore_cardinality=explore_var,
+                add_random=add_random,
+                used_indexes=min_K_indexes,
             )
 
             min_K_indexes = np.concatenate(
@@ -315,9 +390,14 @@ class Agent:
         data_labels = np.array(
             self.model.evaluate(data, use_bool=False, use_multiprocessing=False)
         )
-        return pd.DataFrame(data), pd.DataFrame(data_labels)
+        data = pd.DataFrame(data)
+        data_labels = pd.DataFrame(data_labels)
 
-    def learn(self, batch_size=300, save_models=False):
+        data, data_labels = utils.match_original_data(self.data, data, data_labels)
+
+        return data, data_labels
+
+    def find_minimal_media(self, batch_size=300, save_models=False):
         # generate all xi
 
         answer = self.model.minimal_components
@@ -489,6 +569,7 @@ class Agent:
                 K=batch_size, threshold=0.5, use_neural_net=use_neural_net
             )
 
+            #### CALL TO REAL WORLD EXPERIMENT ####
             # Get batch from data set using new batch indexes
             batch_train_data = self.data.loc[new_batch_indexes, :]
             batch_train_data_labels = self.data_labels.loc[new_batch_indexes]
@@ -667,6 +748,125 @@ class Agent:
         print("FOUND MINIMUM:", self.minimum_cardinality, "SET:", found_solution)
         plt.show()
 
+    def _perform_cycle(
+        self, batch_train_data, batch_train_data_labels, batch_size, save_location,
+    ):
+        self.cycle += 1
+        answer = self.model.minimal_components
+
+        print(f"Batch train data: \n{batch_train_data}")
+        print(f"Batch train data labels: \n{batch_train_data_labels}")
+
+        # Add batch to data history
+        self.data_history = pd.concat([self.data_history, batch_train_data])
+        print("DATA HISTORY", self.data_history.shape, self.data_history)
+        batch_train_data_labels.columns = self.data_labels_history.columns
+        self.data_labels_history = pd.concat(
+            [self.data_labels_history, batch_train_data_labels]
+        )
+
+        # Filter new batch results
+        # Only include cardinalities < current min that are known to grow
+        cardinality = batch_train_data.sum(axis=1)
+        batch = pd.concat([cardinality, batch_train_data_labels], axis=1)
+        batch.columns = ["cardinality", "labels"]
+        batch = batch[
+            (batch["cardinality"] < self.minimum_cardinality) & (batch["labels"] == 1)
+        ]
+        print("BATCH\n", batch)
+
+        # Evaluate new batch to check for growth & new min solutions
+        if batch.size > 0:
+            self.minimum_cardinality = batch.cardinality.min()
+            minimum_index = batch[
+                batch["cardinality"] == self.minimum_cardinality
+            ].index[0]
+            self.current_solution = self.data.loc[minimum_index, :]
+            print(
+                f"INPUT FOR NEW MIN ({self.minimum_cardinality}): {self.current_solution}"
+            )
+
+        # Remove used experiments from data set
+        self.data.drop(batch_train_data.index, inplace=True)
+        self.data_labels.drop(batch_train_data.index, inplace=True)
+
+        # Reset predictor to train a new model every time
+        self.predictor = type(self.predictor)()
+
+        self.predictor.train(
+            self.data_history.to_numpy(), self.data_labels_history.to_numpy(), epochs=5,
+        )
+        self.predictor.train_bayes(
+            self.data_history.to_numpy(), self.data_labels_history.to_numpy()
+        )
+
+        # Export models every cycle
+
+        model_name = f"NN_{self.model.num_components}_C{self.cycle}.h5"
+        model_output_folder = os.path.join(save_location, "neural_nets")
+        model_output_path = os.path.join(model_output_folder, model_name)
+        if not os.path.exists(model_output_folder):
+            os.makedirs(model_output_folder)
+        self.predictor.model.save(model_output_path)
+
+        # Get next batch
+        new_batch_indexes, batch_min_cardinality = self.new_batch(
+            K=batch_size, threshold=0.3
+        )
+
+        batch_name = f"batch_C{self.cycle}.csv"
+        batch_output_folder = os.path.join(save_location, "batches")
+        batch_output_path = os.path.join(batch_output_folder, batch_name)
+        if not os.path.exists(batch_output_folder):
+            os.makedirs(batch_output_folder)
+
+        batch_output_df = self.data.loc[new_batch_indexes, :]
+        batch_output_df.to_csv(batch_output_path)
+
+        agent_name = f"agent_state_C{self.cycle}.pkl"
+        agent_output_folder = os.path.join(save_location, "agents")
+        agent_output_path = os.path.join(agent_output_folder, agent_name)
+        if not os.path.exists(agent_output_folder):
+            os.makedirs(agent_output_folder)
+        self.save(agent_output_path)
+
+        # Get a subset of data to speed up stats
+        test_indexes = np.random.choice(
+            self.data.index, size=int(0.1 * self.data.shape[0]), replace=False
+        )
+        test_data_x = self.data.loc[test_indexes, :]
+        test_data_y = self.data_labels.loc[test_indexes]
+
+        # Get NN prediction stats for data set
+        precision, accuracy, recall = self.get_metrics(
+            test_data_x.to_numpy(), test_data_y.to_numpy()
+        )
+
+        # Output findings and real solution
+        print(f"\n\n################ CYCLE {self.cycle} COMPLETE! #################")
+        found_solution = set()
+        for idx, c in enumerate(self.current_solution):
+            if c == 1:
+                found_solution.add(self.model.media_ids[idx])
+
+        print(
+            f"ACCURACY: {accuracy}, BATCH MIN CARDINALITY: {batch_min_cardinality}, OVERALL MIN CARDINALITY: {self.minimum_cardinality}"
+        )
+        print("CORRECT MINIMUM:", len(answer), "\tCORRECT SET:", answer)
+        print(
+            "FOUND MINIMUM:",
+            int(self.minimum_cardinality),
+            "\tFOUND SET:",
+            found_solution,
+        )
+
+        utils.batch_to_deep_phenotyping_protocol(
+            f"BacterAI-SMU-C{self.cycle}",
+            batch_output_df,
+            self.model.media_ids,
+            "files/name_mappings_aa.csv",
+        )
+
 
 if __name__ == "__main__":
     # Silence some Tensorflow outputs
@@ -686,8 +886,33 @@ if __name__ == "__main__":
         model_path = os.path.join(folder_path, model_filename)
         data_path = os.path.join(folder_path, f"data_{args.num_components}.csv")
 
+    components = [
+        "ala_exch",
+        "gly_exch",
+        "arg_exch",
+        "asn_exch",
+        "asp_exch",
+        "cys_exch",
+        "glu_exch",
+        "gln_exch",
+        "his_exch",
+        "ile_exch",
+        "leu_exch",
+        "lys_exch",
+        "met_exch",
+        "phe_exch",
+        "ser_exch",
+        "thr_exch",
+        "trp_exch",
+        "tyr_exch",
+        "val_exch",
+        "pro_exch",
+    ]
     m = model.Model(
-        model_path, num_components=args.num_components, new_data=args.generate_new_data
+        model_path,
+        num_components=args.num_components,
+        new_data=args.generate_new_data,
+        components=components[: args.num_components],
     )
 
     if args.generate_new_data:
@@ -698,9 +923,38 @@ if __name__ == "__main__":
 
     data = np.genfromtxt(data_path, delimiter=",")
     predictor = neural.PredictNet()
-    agent = Agent(m, predictor, data, args.num_components)
+    agent = Agent(m, predictor, data[1:, :-1], data[1:, -1], args.num_components)
 
-    if args.save_models:
-        agent.learn(batch_size=300, save_models=model_folder)
-    else:
-        agent.learn(batch_size=300)
+    # if args.save_models:
+    #     agent.find_minimal_media_2(batch_size=300, save_models=model_folder)
+    # else:
+    #     agent.find_minimal_media_2(batch_size=300)
+
+    # agent.initialize_learning(batch_size=378, save_location="intialize_learning_test/")
+    agent_cont = Agent.load("intialize_learning_test/agents/agent_state_C1.pkl")
+    agent_cont.continue_learning(
+        name_mappings_path="name_mappings_aa.csv",
+        batch_data_path="intialize_learning_test/mapped_data_dp_test.csv",
+        batch_size=378,
+        save_location="data/testing_cycles/",
+    )
+
+    # agent_d = agent.__dict__
+    # for k, v in agent_d.items():
+    #     print("\nKEY:\n", k)
+    #     print("\nVAL:\n", v)
+
+    # # del agent_d["model"]
+    # del agent_d["predictor"]
+    # with open("test_agent.pkl", "wb") as f:
+    #     pickle.dump(agent_d, f)
+
+    # with open("intialize_learning_test/agents/agent_state_C1.pkl", "rb") as f:
+    #     agent = pickle.load(f)
+    #     agent_d = agent.__dict__
+    #     for k, v in agent_d.items():
+    #         print("\nKEY:\n", k)
+    #         print("\nVAL:\n", v)
+    #         # if k=="predictor":
+    #         #     p = v()
+    #         #     print(p)
