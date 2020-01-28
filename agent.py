@@ -931,10 +931,10 @@ if __name__ == "__main__":
     #     agent.find_minimal_media_2(batch_size=300)
 
     # agent.initialize_learning(batch_size=378, save_location="intialize_learning_test/")
-    agent_cont = Agent.load("intialize_learning_test/agents/agent_state_C1.pkl")
+    agent_cont = Agent.load("data/testing_cycles/agents/agent_state_C1.pkl")
     agent_cont.continue_learning(
-        name_mappings_path="name_mappings_aa.csv",
-        batch_data_path="intialize_learning_test/mapped_data_dp_test.csv",
+        name_mappings_path="files/name_mappings_aa.csv",
+        batch_data_path="data/testing_cycles/mapped_data_dp_test.csv",
         batch_size=378,
         save_location="data/testing_cycles/",
     )

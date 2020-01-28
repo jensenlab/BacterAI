@@ -7,7 +7,7 @@ import sys
 import numpy as np
 import pandas as pd
 
-import CDM
+from protocols import CDM
 
 
 def get_LXO(n_reagents, X=1):

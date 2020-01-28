@@ -125,7 +125,7 @@ def make_CDM():
     amino_acid_final_concentrations = dict()
     molecular_weights = dict()
 
-    parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "."))
+    parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     file_path = os.path.join(parent_dir, "files", "CDM_reagents_2x_base.csv")
     with open(file_path, newline="", encoding="utf-8-sig") as csvfile:
         reader = csv.DictReader(csvfile)
