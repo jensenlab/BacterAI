@@ -3,3 +3,4 @@ img/
 models/
 __pycache__/
 gurobi.log
+.vscode/

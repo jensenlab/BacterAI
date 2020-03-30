@@ -4,6 +4,7 @@ url = "https://pypi.org/simple"
 verify_ssl = true
 
 [dev-packages]
+black = "*"
 
 [packages]
 numpy = "*"
@@ -12,8 +13,13 @@ matplotlib = "*"
 tqdm = "*"
 sklearn = "*"
 scipy = "*"
-cobra = {path = "./../cobrapy"}
-tensorflow = "*"
+cobra = {editable = true,path = "./../cobrapy"}
+black = "*"
+mongoengine = "*"
+deepphenotyping = {editable = true,path = "./../DeepPhenotyping/module/deepphenotyping"}
 
 [requires]
 python_version = "3.7.6"
+
+[pipenv]
+allow_prereleases = true
