@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import r2_score
 import tensorflow as tf
@@ -13,10 +14,10 @@ import utils
 
 
 class COBRAnet:
-    def __init__(self, media_names):
+    def __init__(self, model_filepath, media_names):
 
         # FBA model initialization
-        self.fba_model = model.Model("models/iSMUv01_CDM.xml", 20)
+        self.fba_model = model.Model(model_filepath, components=media_names)
         self.non_essential_genes = self.fba_model.get_non_essential_genes()
         self.n_genes = len(self.non_essential_genes)
         self.obj_value = self.fba_model.model.slim_optimize()
@@ -241,8 +242,8 @@ class COBRAnet:
 
 
 if __name__ == "__main__":
-    name_mappings_csv = "files/name_mappings_aa.csv"
-    mapped_data_csv = "data/iSMU-012920/initial_data/mapped_data_SMU_combined.csv"
+    # name_mappings_csv = "files/name_mappings_aa.csv"
+    # mapped_data_csv = "data/iSMU-012920/initial_data/mapped_data_SMU_combined.csv"
     components = [
         "ala_exch",
         "gly_exch",
@@ -265,23 +266,24 @@ if __name__ == "__main__":
         "val_exch",
         "pro_exch",
     ]
-    experiments, data_growth = utils.parse_data_map(
-        name_mappings_csv, mapped_data_csv, components
-    )
+    # experiments, data_growth = utils.parse_data_map(
+    #     name_mappings_csv, mapped_data_csv, components
+    # )
 
-    media_names = experiments.columns.to_list()[:-1]  # exclude "aerobic" from names
     # data_growth[data_growth >= 0.25] = 1
     # data_growth[data_growth < 0.25] = 0
+    # aerobic_indexes = experiments["aerobic"] == "5% CO2 @ 37 C"
+    # experiments.loc[aerobic_indexes, "aerobic"] = 1
+    # experiments.loc[~aerobic_indexes, "aerobic"] = 0
+    # experiments.to_csv("experiments_df.csv")
+    # data_growth.to_csv("growth_data_df.csv")
+    # media_names = experiments.columns.to_list()[:-1]  # exclude "aerobic" from names
 
-    aerobic_indexes = experiments["aerobic"] == "5% CO2 @ 37 C"
-    experiments.loc[aerobic_indexes, "aerobic"] = 1
-    experiments.loc[~aerobic_indexes, "aerobic"] = 0
-    experiments.to_csv("experiments_df.csv")
-    data_growth.to_csv("growth_data_df.csv")
+    # print(experiments)
+    # print(data_growth)
 
-    print(experiments)
-    print(data_growth)
-
+    experiments = pd.read_csv("experiments_df.csv", index_col=0)
+    data_growth = pd.read_csv("growth_data_df.csv", index_col=0)
     experiments = experiments.to_numpy()
     data_growth = data_growth.to_numpy()
 
@@ -296,6 +298,6 @@ if __name__ == "__main__":
         tf.convert_to_tensor(y_test, dtype=tf.float32),
     )
 
-    nn = COBRAnet(media_names)
+    nn = COBRAnet("models/iSMUv01_CDM.xml", components)
     epochs = 10
     nn.train(epochs, x_train, x_test, y_train, y_test)

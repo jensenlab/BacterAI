@@ -185,7 +185,7 @@ class Model:
         # (threshold * default objective value)
         obj_value = self.model.slim_optimize()
         deletion_results = cobra.flux_analysis.deletion.single_gene_deletion(self.model)
-        print(deletion_results)
+
         non_essential_genes = deletion_results[
             deletion_results["growth"] >= threshold * obj_value
         ]
