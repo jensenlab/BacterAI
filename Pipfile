@@ -13,7 +13,7 @@ matplotlib = "*"
 tqdm = "*"
 sklearn = "*"
 scipy = "*"
-cobra = {path = "./../cobrapy"}
+cobra = {editable = true,path = "./../cobrapy"}
 black = "*"
 mongoengine = "*"
 deepphenotyping = {editable = true,path = "./../DeepPhenotyping/module/deepphenotyping"}
