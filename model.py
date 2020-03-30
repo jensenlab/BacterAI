@@ -15,6 +15,32 @@ import matplotlib.pyplot as plt
 import scipy.stats as sp
 from tqdm import tqdm, trange
 
+
+CDM_AA_RXN_IDS = [
+    "ala_exch",
+    "gly_exch",
+    "arg_exch",
+    "asn_exch",
+    "asp_exch",
+    "cys_exch",
+    "glu_exch",
+    "gln_exch",
+    "his_exch",
+    "ile_exch",
+    "leu_exch",
+    "lys_exch",
+    "met_exch",
+    "phe_exch",
+    "ser_exch",
+    "thr_exch",
+    "trp_exch",
+    "tyr_exch",
+    "val_exch",
+    "pro_exch",
+]
+
+CDM_O2_RXN_IDS = ["O2_exch", "O2s_exch"]
+
 CDM_RXN_IDS = [
     "glc_exch",
     "ac_exch",
@@ -141,6 +167,31 @@ class Model:
         remove_arr = np.ones(len(CDM_RXN_IDS))
         remove_arr[remove_indexes] = 0
         return reactions_to_knockout(remove_arr, CDM_RXN_IDS), remove_arr
+
+    def get_reactions_of_interest(self):
+        # Return a list of reactions and their bounds
+        # exluding exchange and biomass reactions
+        reactions = list()
+        bounds = list()
+        for rxn in self.model.reactions:
+            if "exch" not in rxn.id and rxn.id is not "R_bio00001":
+                reactions.append(rxn)
+                bounds.append(rxn.bounds)
+        return reactions, bounds
+
+    def get_non_essential_genes(self, threshold=0.50):
+        # Return a list of genes that are nonessential, such that when removed
+        # individually, do not cause the objective value to fall below
+        # (threshold * default objective value)
+        obj_value = self.model.slim_optimize()
+        deletion_results = cobra.flux_analysis.deletion.single_gene_deletion(self.model)
+        print(deletion_results)
+        non_essential_genes = deletion_results[
+            deletion_results["growth"] >= threshold * obj_value
+        ]
+        non_essential_genes = non_essential_genes.index.to_list()
+        non_essential_genes = [list(idx)[0] for idx in non_essential_genes]
+        return non_essential_genes
 
     # def knockout_and_simulate(self, num_to_remove, return_boolean=False):
     #     min_growth = 0.50 * self.model.slim_optimize()
@@ -523,6 +574,9 @@ class Model:
                 return results
 
     def get_media_ids(self, new_data):
+        """Retrieves a list of the media component ids from file if the data exists
+        already. If not, it generates the list de novo.
+        """
         data_path = os.path.join(
             os.path.split(self.model_path)[0], f"data_{self.num_components}.csv"
         )
@@ -567,6 +621,13 @@ class Model:
             print(f"T: {results[results == 1].size}, F: {results[results == 0].size}")
             data = np.hstack((data, np.array([results]).T))
             np.savetxt(file, data, delimiter=",", fmt="%i")
+
+    def evaluate_bounds(self, lb, ub):
+        with self.model as m:
+            for idx, (lb, ub) in zip(lb, ub):
+                m.reactions[idx] = (lb, ub)
+                v = m.slim_optimize()
+            return v
 
 
 if __name__ == "__main__":
