@@ -8,13 +8,13 @@ import os
 import pickle
 import random
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import scipy.stats as sp
 import sklearn.metrics
 from matplotlib import colors
 from scipy.spatial import distance
+import tensorflow as tf
 
 import model
 import neural
@@ -46,6 +46,23 @@ parser.add_argument(
     default=False,
     help="Save NN model every cycle.",
 )
+
+parser.add_argument(
+    "-p",
+    "--production",
+    action="store_true",
+    default=False,
+    help="Output to production server.",
+)
+
+parser.add_argument(
+    "-o",
+    "--output_batch",
+    action="store_true",
+    default=False,
+    help="Generate DP experiment.",
+)
+
 args = parser.parse_args()
 
 
@@ -90,13 +107,27 @@ class Agent:
             pickle.dump(self, f)
 
     @classmethod
-    def load(cls, path):
-        with open(path, "rb") as f:
+    def load(cls, agent_path, predictor_path):
+        with open(agent_path, "rb") as f:
             agent = pickle.load(f)
+        agent.predictor.model = tf.keras.models.load_model(predictor_path)
         return agent
 
-    def initialize_learning(self, batch_size, save_location):
-        starting_data, starting_labels = self.get_starting_data()
+    def initialize_learning(
+        self,
+        batch_size,
+        save_location,
+        data_path,
+        exp_name,
+        growth_threshold=0.25,
+        binary_threshold=False,
+        output_batch=False,
+    ):
+        starting_data, starting_labels = self.get_starting_data(
+            name_mappings_path="files/name_mappings_aa.csv",
+            batch_data_path=data_path,
+            binary_threshold=binary_threshold,
+        )
 
         self.data_history = starting_data.copy()
         self.data_labels_history = starting_labels.copy()
@@ -108,23 +139,51 @@ class Agent:
             batch_train_data_labels=starting_labels,
             batch_size=batch_size,
             save_location=save_location,
+            growth_threshold=growth_threshold,
+            development=not args.production,
+            exp_name=exp_name,
+            output_batch=output_batch,
         )
 
     def continue_learning(
-        self, name_mappings_path, batch_data_path, batch_size, save_location
+        self,
+        name_mappings_path,
+        batch_data_path,
+        batch_size,
+        save_location,
+        exp_name,
+        growth_threshold=0.25,
+        output_batch=False,
     ):
         batch, batch_labels = utils.parse_data_map(
             name_mappings_path, batch_data_path, self.model.media_ids
         )
+
+        batch = batch.drop(columns=["aerobic"])
         batch, batch_labels = utils.match_original_data(self.data, batch, batch_labels)
         self._perform_cycle(
             batch_train_data=batch,
             batch_train_data_labels=batch_labels,
             batch_size=batch_size,
             save_location=save_location,
+            growth_threshold=growth_threshold,
+            development=not args.production,
+            exp_name=exp_name,
+            output_batch=output_batch,
         )
 
-    def new_batch(self, K, threshold=0.5, use_neural_net=True):
+    def get_starting_data(
+        self, name_mappings_path, batch_data_path, binary_threshold=False
+    ):
+        batch, batch_labels = utils.parse_data_map(
+            name_mappings_path, batch_data_path, self.model.media_ids, binary_threshold
+        )
+        batch = batch.drop(columns=["aerobic"])
+        batch, batch_labels = utils.match_original_data(self.data, batch, batch_labels)
+        print(batch)
+        return batch, batch_labels
+
+    def new_batch(self, K, threshold, use_neural_net=True):
         """Predicts a new batch of size `K` from the growth media data set 
         `self.data`. Filters batch based on a growth threshold of a neural 
         net's predictions in addition to the cardinality of the growth medias.
@@ -135,7 +194,7 @@ class Agent:
         ------
         K: int
             Batch size to return.
-        threshold: float, default=0.5
+        threshold: float
             Threshold to determine if prediction from `self.predictor` is 'grow'
             or 'no grow'.
         use_neural_net: Boolean, default=True
@@ -366,39 +425,16 @@ class Agent:
         print(f"Precision: {precision}, Accuracy: {accuracy}, Recall: {recall}")
         return precision, accuracy, recall
 
-    def get_starting_data(self):
-        # Initialize with L1O and L2O data
-        L1O_exp = utils.get_LXO(self.model.num_components, 1)
-        L2O_exp = utils.get_LXO(self.model.num_components, 2)
-        L3O_exp = utils.get_LXO(self.model.num_components, 3)
-
-        n = 300
-        subset_indexes = random.sample(
-            range(L3O_exp.shape[0]), min(n, L3O_exp.shape[0])
-        )
-        additional_exp = L3O_exp[subset_indexes]
-        # Semi random inputs based on L3Os
-        # for x in additional_exp:
-        #     n = sp.poisson.rvs(1)
-        #     candidates_indexes = np.where(x == 1)[0]
-        #     set_to_zero = np.random.choice(candidates_indexes, size=n)
-        #     x[set_to_zero] = 0
-
-        # random_inputs = np.random.choice([0, 1], size=(1000, self.model.num_components))
-
-        data = np.concatenate([L1O_exp, L2O_exp, additional_exp])
-        data_labels = np.array(
-            self.model.evaluate(data, use_bool=False, use_multiprocessing=False)
-        )
-        data = pd.DataFrame(data)
-        data_labels = pd.DataFrame(data_labels)
-
-        data, data_labels = utils.match_original_data(self.data, data, data_labels)
-
-        return data, data_labels
-
     def _perform_cycle(
-        self, batch_train_data, batch_train_data_labels, batch_size, save_location,
+        self,
+        batch_train_data,
+        batch_train_data_labels,
+        batch_size,
+        save_location,
+        growth_threshold,
+        development,
+        exp_name,
+        output_batch,
     ):
         self.cycle += 1
         answer = self.model.minimal_components
@@ -420,7 +456,8 @@ class Agent:
         batch = pd.concat([cardinality, batch_train_data_labels], axis=1)
         batch.columns = ["cardinality", "labels"]
         batch = batch[
-            (batch["cardinality"] < self.minimum_cardinality) & (batch["labels"] == 1)
+            (batch["cardinality"] < self.minimum_cardinality)
+            & (batch["labels"] >= growth_threshold)
         ]
         print("BATCH\n", batch)
 
@@ -445,9 +482,9 @@ class Agent:
         self.predictor.train(
             self.data_history.to_numpy(), self.data_labels_history.to_numpy(), epochs=5,
         )
-        self.predictor.train_bayes(
-            self.data_history.to_numpy(), self.data_labels_history.to_numpy()
-        )
+        # self.predictor.train_bayes(
+        #     self.data_history.to_numpy(), self.data_labels_history.to_numpy()
+        # )
 
         # Export models every cycle
 
@@ -460,7 +497,7 @@ class Agent:
 
         # Get next batch
         new_batch_indexes, batch_min_cardinality = self.new_batch(
-            K=batch_size, threshold=0.3
+            K=batch_size, threshold=growth_threshold
         )
 
         batch_name = f"batch_C{self.cycle}.csv"
@@ -509,30 +546,41 @@ class Agent:
             found_solution,
         )
 
-        utils.batch_to_deep_phenotyping_protocol(
-            f"BacterAI-SMU-C{self.cycle}",
-            batch_output_df,
-            self.model.media_ids,
-            "files/name_mappings_aa.csv",
-        )
+        if output_batch:
+            utils.batch_to_deep_phenotyping_protocol(
+                f"{exp_name}-C{self.cycle}",
+                batch_output_df,
+                self.model.media_ids,
+                "files/name_mappings_aa.csv",
+                development=development,
+            )
+
+        print("CURRENT SOLN", self.current_solution)
+        print(self.model.media_ids)
 
 
 if __name__ == "__main__":
     # Silence some Tensorflow outputs
     os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 
-    model_folder = "iSMUv01_CDM_2020-01-17T153130538/12"
+    # RENAME THESE FOR EXPERIMENT
+    model_folder = "iSMU-test"
+    model_name = "iSMUv01_CDM.xml"
+    data_folder = "iSMU-test"
+    data_filename = "bacterAI_SMU_C1.csv"
+    # data_filename = "L1L2_inout_SMU_NH4.csv"
+    # data_filename = "mapped_data_SMU_(-)rescale_(+)NH4.csv"
+    exp_name = "BacterAI-SMU"
 
     if args.new_model:
-        m = model.Model("models/iSMUv01_CDM.xml", 16)
+        m = model.Model(f"models/{model_name}", 20)
         model_path = m.make_minimal_media_models(max_n=1)
         data_path = os.path.join(
             "/".join(model_path.split("/")[:-1]), f"data_{args.num_components}.csv"
         )
     else:
         folder_path = os.path.join("models", model_folder)
-        model_filename = "iSMUv01_CDM_12.xml"
-        model_path = os.path.join(folder_path, model_filename)
+        model_path = os.path.join(folder_path, model_name)
         data_path = os.path.join(folder_path, f"data_{args.num_components}.csv")
 
     components = [
@@ -574,36 +622,38 @@ if __name__ == "__main__":
     predictor = neural.PredictNet()
     agent = Agent(m, predictor, data[1:, :-1], data[1:, -1], args.num_components)
 
-    # if args.save_models:
-    #     agent.find_minimal_media_2(batch_size=300, save_models=model_folder)
-    # else:
-    #     agent.find_minimal_media_2(batch_size=300)
+    save_location = os.path.join("data", data_folder)
+    data_path = os.path.join(save_location, "initial_data", data_filename)
 
-    # agent.initialize_learning(batch_size=378, save_location="intialize_learning_test/")
-    agent_cont = Agent.load("data/testing_cycles/agents/agent_state_C1.pkl")
-    agent_cont.continue_learning(
-        name_mappings_path="files/name_mappings_aa.csv",
-        batch_data_path="data/testing_cycles/mapped_data_dp_test.csv",
+    agent.initialize_learning(
         batch_size=378,
-        save_location="data/testing_cycles/",
+        save_location=save_location,
+        data_path=data_path,
+        exp_name=exp_name,
+        growth_threshold=0.25,
+        binary_threshold=0.25,
+        output_batch=args.output_batch,
     )
 
-    # agent_d = agent.__dict__
-    # for k, v in agent_d.items():
-    #     print("\nKEY:\n", k)
-    #     print("\nVAL:\n", v)
+    # agent_cont = Agent.load(
+    #     agent_path=os.path.join(save_location, "agents/agent_state_C1.pkl"),
+    #     predictor_path=os.path.join(save_location, "neural_nets/NN_20_C1.h5"),
+    # )
+    agent.predictor.evaluate(data[1:, :-1], data[1:, -1])
+    predictions = agent.predictor.predict_class(data[1:, :-1])
+    np.savetxt("predictions_new_loss.csv", predictions, delimiter=",")
+    np.savetxt("media_combos.csv", data[1:, :-1], delimiter=",")
+    from analyze_cycle import analyze
 
-    # # del agent_d["model"]
-    # del agent_d["predictor"]
-    # with open("test_agent.pkl", "wb") as f:
-    #     pickle.dump(agent_d, f)
-
-    # with open("intialize_learning_test/agents/agent_state_C1.pkl", "rb") as f:
-    #     agent = pickle.load(f)
-    #     agent_d = agent.__dict__
-    #     for k, v in agent_d.items():
-    #         print("\nKEY:\n", k)
-    #         print("\nVAL:\n", v)
-    #         # if k=="predictor":
-    #         #     p = v()
-    #         #     print(p)
+    analyze(agent.predictor.model.loss)
+    # print(agent_cont.current_solution)
+    # print(agent_cont.model.media_ids)
+    # agent_cont.continue_learning(
+    #     name_mappings_path="files/name_mappings_aa.csv",
+    #     batch_data_path=os.path.join(save_location, "batches/mapped_data_C1.csv"),
+    #     batch_size=378,
+    #     save_location=save_location,
+    #     exp_name=exp_name,
+    #     growth_threshold=0.25,
+    #     output_batch=False
+    # )
