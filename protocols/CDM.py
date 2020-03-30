@@ -449,8 +449,11 @@ def schedule_CDM_l2o(
     )
 
 
-def from_batch_list(batch_name, batch_removals):
-    mongoengine.connect(db="mongo-development", port=27017)
+def from_batch_list(batch_name, batch_removals, development=True):
+    if development:
+        mongoengine.connect(db="mongo-development", port=27017)
+    else:
+        mongoengine.connect(db="mongo-production", port=27020)
 
     (
         CDM_reagents,
@@ -469,7 +472,6 @@ def from_batch_list(batch_name, batch_removals):
         molecular_weights,
     )
 
-    layout.to_csv("test.csv")
     # DWP96 pipetting
     # plates, instructions, layout = schedule_CDM_l2o(CDM, list(CDM_stocks.values())) # DWP96 pipetting
     # OpenTrons manual add
@@ -550,9 +552,15 @@ def from_batch_list(batch_name, batch_removals):
         instruction_set.to_mongo()
 
     if export:
-        filepath = os.path.join(
-            "/home/lab/Documents/github/DeepPhenotyping/website/data"
-        )
+        if development:
+            filepath = os.path.join(
+                "/home/lab/Documents/github/DeepPhenotyping/website/data"
+            )
+        else:
+            filepath = os.path.join(
+                "/home/lab/DeepPhenotypingServer/DeepPhenotyping/website/data"
+            )
+
         # filepath = os.path.join(settings.BASE_DIR, "data/")
         mantis.generate_experiment_files(
             instruction_set, layout, "2 ul", path_to_worklists=filepath
