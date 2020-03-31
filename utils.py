@@ -194,8 +194,8 @@ def convex_extrapolation(data_filepaths, inputs_filepath, output_filepath):
                 ascending = False
             elif direction == "down":
                 ascending = True
-            data = data.sort_values(by=["card"], ascending=ascending)
 
+            data = data.sort_values(by=["card"], ascending=ascending)
             unique_cards = pd.unique(data["card"])
             for card in unique_cards:
                 combos = [
@@ -205,11 +205,14 @@ def convex_extrapolation(data_filepaths, inputs_filepath, output_filepath):
                     )
                 ]
                 for c in combos:
-                    grow_result = data[data[c].eq(0).all(axis=1)]["grow"].to_list()[0]
+                    remaining = list(set(media_components) - set(c))
+                    grow_result = data[
+                        data[c].eq(0).all(axis=1) & data[remaining].eq(1).all(axis=1)
+                    ]["grow"].to_list()[0]
                     matches = inputs[c].eq(0).all(1)
                     inputs.loc[matches, "grow"] = grow_result
 
-    inputs.to_csv(output_filepath)
+    inputs.to_csv(output_filepath, index=False)
 
 
 if __name__ == "__main__":
@@ -246,5 +249,5 @@ if __name__ == "__main__":
             "down": ["data/iSMU-test/initial_data/train_set_L1IL2I.csv"],
         },
         "models/iSMU-test/data_20_clean.csv",
-        "models/iSMU-test/data_20_extrapolated.csv.zip",
+        "models/iSMU-test/data_20_extrapolated.csv",
     )

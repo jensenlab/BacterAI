@@ -166,45 +166,21 @@ def generate_training_data():
             # print(grow, reactions)
 
 
-def load_data(filepath, mode="train", max_n=None):
+def load_data(filepath, starting_index=1, max_n=None):
     """
     Function to (download and) load the MNIST data
     :param mode: train or test
     :return: data and the corresponding labels
     """
-    print(f"\nMode: {mode}")
-    if mode == "train":
-        raw_train = np.genfromtxt(filepath, delimiter=",")
 
-        data_train = raw_train[1:max_n, :-1] if max_n else raw_train[1:, :-1]
-
-        data_train_labels = raw_train[1:max_n, -1] if max_n else raw_train[1:, -1]
-
-        x_train, y_train = (
-            data_train,
-            data_train_labels,
-        )
-        return x_train, y_train
-    elif mode == "validation":
-        raw_validation = np.genfromtxt(filepath, delimiter=",")
-        data_validation = (
-            raw_validation[1:max_n, :-1] if max_n else raw_validation[1:, :-1]
-        )
-        data_validation_labels = (
-            raw_validation[1:max_n, -1] if max_n else raw_validation[1:, -1]
-        )
-        x_valid, y_valid = (
-            data_validation,
-            data_validation_labels,
-        )
-        return x_valid, y_valid
-    elif mode == "test":
-        raw_test = np.genfromtxt(filepath, delimiter=",")
-        data_test = raw_test[1:max_n, :-1] if max_n else raw_test[1:, :-1]
-        data_test_labels = raw_test[1:max_n, -1] if max_n else raw_test[1:, -1]
-
-        x_test, y_test = data_test, data_test_labels
-        return x_test, y_test
+    raw_data = np.genfromtxt(filepath, delimiter=",")
+    if max_n:
+        raw_data = raw_data[
+            np.random.choice(raw_data.shape[0], size=max_n, replace=False), :
+        ]
+    data = raw_data[starting_index:, :-1]
+    data_labels = raw_data[starting_index:, -1]
+    return data, data_labels
 
 
 def get_stats(results, epoch, loss_name):
@@ -248,22 +224,29 @@ if __name__ == "__main__":
     os.environ["TF_CPP_MIN_LOG_LEVEL"] = "1"
 
     names = [
-        "L1IL2I",
-        "L1OL2O",
-        "L1OL2OL1IL2I",
+        # "L1IL2I",
+        # "L1OL2O",
+        # "L1OL2OL1IL2I",
+        "in",
+        "out",
+        "both",
     ]
     for name in names:
-        # x_train, y_train = load_data(
-        #     filepath=f"data/iSMU-test/initial_data/train_set_{name}.csv"
-        # )
+        x_train, y_train = load_data(
+            filepath=f"data/iSMU-extrapolated/initial_data/train_set_{name}.csv"
+        )
         # # x_valid, y_valid = load_data(filepath, max_n=10000)
 
-        # x_test, y_test = load_data(
-        #     filepath=f"data/iSMU-test/initial_data/test_set_{name}.csv", mode="test",
+        x_test, y_test = load_data(
+            filepath=f"models/iSMU-test/data_20_extrapolated.csv",
+            max_n=100000,
+            starting_index=0,
+        )
+        # x, y = load_data(
+        #     filepath=f"data/iSMU-extrapolated/initial_data/train_set_{name}.csv"
         # )
-        x, y = load_data(filepath=f"data/iSMU-test/initial_data/train_set_{name}.csv")
 
-        x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.25)
+        # x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.25)
 
         train_dataset = (
             tf.data.Dataset.from_tensor_slices((x_train, y_train))
@@ -281,7 +264,8 @@ if __name__ == "__main__":
         ]
         df_out_acc = pd.DataFrame()
         df_out_dist = pd.DataFrame()
-        epochs = [5, 10, 20, 100, 1000]
+        # epochs = [5, 10, 20, 100, 1000]
+        epochs = [10, 100]
         for e in epochs:
             model_custom_batched = PredictNet(loss="custom")
             model_bc_batched = PredictNet(loss="binary_crossentropy")

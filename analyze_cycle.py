@@ -1,72 +1,72 @@
 import pandas as pd
 import utils
 
-############ Analyzing which ones grew ###############
+# ############ Analyzing which ones grew ###############
 
-batch, batch_labels = utils.parse_data_map(
-    "files/name_mappings_aa.csv",
-    "data/iSMU-test/initial_data/bacterAI_SMU_C1.csv",
-    [
-        "ala_exch",
-        "gly_exch",
-        "arg_exch",
-        "asn_exch",
-        "asp_exch",
-        "cys_exch",
-        "glu_exch",
-        "gln_exch",
-        "his_exch",
-        "ile_exch",
-        "leu_exch",
-        "lys_exch",
-        "met_exch",
-        "phe_exch",
-        "ser_exch",
-        "thr_exch",
-        "trp_exch",
-        "tyr_exch",
-        "val_exch",
-        "pro_exch",
-    ],
-)
+# batch, batch_labels = utils.parse_data_map(
+#     "files/name_mappings_aa.csv",
+#     "data/iSMU-test/initial_data/bacterAI_SMU_C1.csv",
+#     [
+#         "ala_exch",
+#         "gly_exch",
+#         "arg_exch",
+#         "asn_exch",
+#         "asp_exch",
+#         "cys_exch",
+#         "glu_exch",
+#         "gln_exch",
+#         "his_exch",
+#         "ile_exch",
+#         "leu_exch",
+#         "lys_exch",
+#         "met_exch",
+#         "phe_exch",
+#         "ser_exch",
+#         "thr_exch",
+#         "trp_exch",
+#         "tyr_exch",
+#         "val_exch",
+#         "pro_exch",
+#     ],
+# )
 
 
-batch = batch.drop(columns=["aerobic"])
-batch["grow"] = batch_labels
-# batch["card"] = batch.sum(axis=1)
-# batch = batch[batch["card"] <= 2]
-# batch = batch.drop(columns=["aerobic", "card"])
+# batch = batch.drop(columns=["aerobic"])
+# batch["grow"] = batch_labels
+# # batch["card"] = batch.sum(axis=1)
+# # batch = batch[batch["card"] <= 2]
+# # batch = batch.drop(columns=["aerobic", "card"])
 
-batch = batch.groupby(
-    by=[
-        "ala_exch",
-        "gly_exch",
-        "arg_exch",
-        "asn_exch",
-        "asp_exch",
-        "cys_exch",
-        "glu_exch",
-        "gln_exch",
-        "his_exch",
-        "ile_exch",
-        "leu_exch",
-        "lys_exch",
-        "met_exch",
-        "phe_exch",
-        "ser_exch",
-        "thr_exch",
-        "trp_exch",
-        "tyr_exch",
-        "val_exch",
-        "pro_exch",
-    ],
-    as_index=False,
-).mean()
+# batch = batch.groupby(
+#     by=[
+#         "ala_exch",
+#         "gly_exch",
+#         "arg_exch",
+#         "asn_exch",
+#         "asp_exch",
+#         "cys_exch",
+#         "glu_exch",
+#         "gln_exch",
+#         "his_exch",
+#         "ile_exch",
+#         "leu_exch",
+#         "lys_exch",
+#         "met_exch",
+#         "phe_exch",
+#         "ser_exch",
+#         "thr_exch",
+#         "trp_exch",
+#         "tyr_exch",
+#         "val_exch",
+#         "pro_exch",
+#     ],
+#     as_index=False,
+# ).mean()
 
 # cutoff = 0.25
 # batch = batch[batch["grow"] >= cutoff]
 # batch = batch.sort_values(by=["card", "grow"], ascending=[True, False])
-batch.to_csv("train_set_L1IL2I.csv")
+# batch.to_csv("train_set_L1IL2I.csv")
 
 # ############ Comparing L1O/L2O trained to L1O only trained AI batches #############3
 # batch_12 = pd.read_csv("data/iSMU-022720/batches/batch_C1.csv", index_col=0)
@@ -267,3 +267,20 @@ batch.to_csv("train_set_L1IL2I.csv")
 
 # if __name__ == "__main__":
 #     analyze("solo")
+
+
+### Filtering out Lins/Louts from extrapolated data
+
+data = pd.read_csv("models/iSMU-test/data_20_extrapolated.csv")
+
+cutoff = 0.25
+cards = data.iloc[:, :-1].sum(axis=1)
+
+L_in = data[cards <= 2]
+L_in.to_csv("data/iSMU-extrapolated/initial_data/train_set_in.csv", index=False)
+
+L_out = data[cards >= 18]
+L_out.to_csv("data/iSMU-extrapolated/initial_data/train_set_out.csv", index=False)
+
+both = data.loc[(cards >= 18) | (cards <= 2)]
+both.to_csv("data/iSMU-extrapolated/initial_data/train_set_both.csv", index=False)
