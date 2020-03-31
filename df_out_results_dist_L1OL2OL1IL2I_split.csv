@@ -1,0 +1,401 @@
+Card,# Epochs,Loss,Grow,No Grow
+1,5,binary CE,0.0,1.0
+1,5,binary CE - te/tr split,0.0,1.0
+1,5,custom,0.0,1.0
+1,5,custom - te/tr split,0.0,1.0
+1,10,binary CE,0.0,1.0
+1,10,binary CE - te/tr split,0.0,1.0
+1,10,custom,0.0,1.0
+1,10,custom - te/tr split,0.0,1.0
+1,20,binary CE,0.0,1.0
+1,20,binary CE - te/tr split,0.0,1.0
+1,20,custom,0.0,1.0
+1,20,custom - te/tr split,0.0,1.0
+1,100,binary CE,0.0,1.0
+1,100,binary CE - te/tr split,0.0,1.0
+1,100,custom,0.0,1.0
+1,100,custom - te/tr split,0.0,1.0
+1,1000,binary CE,0.0,1.0
+1,1000,binary CE - te/tr split,0.1,0.9
+1,1000,custom,0.0,1.0
+1,1000,custom - te/tr split,0.05,0.95
+2,5,binary CE,0.0,1.0
+2,5,binary CE - te/tr split,0.0,1.0
+2,5,custom,0.0,1.0
+2,5,custom - te/tr split,0.0,1.0
+2,10,binary CE,0.0,1.0
+2,10,binary CE - te/tr split,0.0,1.0
+2,10,custom,0.0,1.0
+2,10,custom - te/tr split,0.0,1.0
+2,20,binary CE,0.011,0.989
+2,20,binary CE - te/tr split,0.0,1.0
+2,20,custom,0.016,0.984
+2,20,custom - te/tr split,0.016,0.984
+2,100,binary CE,0.026,0.974
+2,100,binary CE - te/tr split,0.0,1.0
+2,100,custom,0.026,0.974
+2,100,custom - te/tr split,0.011,0.989
+2,1000,binary CE,0.032,0.968
+2,1000,binary CE - te/tr split,0.158,0.842
+2,1000,custom,0.042,0.958
+2,1000,custom - te/tr split,0.089,0.911
+3,5,binary CE,0.002,0.998
+3,5,binary CE - te/tr split,0.0,1.0
+3,5,custom,0.0,1.0
+3,5,custom - te/tr split,0.0,1.0
+3,10,binary CE,0.0,1.0
+3,10,binary CE - te/tr split,0.001,0.999
+3,10,custom,0.001,0.999
+3,10,custom - te/tr split,0.001,0.999
+3,20,binary CE,0.022,0.978
+3,20,binary CE - te/tr split,0.025,0.975
+3,20,custom,0.026,0.974
+3,20,custom - te/tr split,0.022,0.978
+3,100,binary CE,0.054,0.946
+3,100,binary CE - te/tr split,0.016,0.984
+3,100,custom,0.05,0.95
+3,100,custom - te/tr split,0.029,0.971
+3,1000,binary CE,0.078,0.922
+3,1000,binary CE - te/tr split,0.223,0.777
+3,1000,custom,0.076,0.924
+3,1000,custom - te/tr split,0.121,0.879
+4,5,binary CE,0.005,0.995
+4,5,binary CE - te/tr split,0.0,1.0
+4,5,custom,0.001,0.999
+4,5,custom - te/tr split,0.002,0.998
+4,10,binary CE,0.001,0.999
+4,10,binary CE - te/tr split,0.006,0.994
+4,10,custom,0.005,0.995
+4,10,custom - te/tr split,0.001,0.999
+4,20,binary CE,0.038,0.962
+4,20,binary CE - te/tr split,0.047,0.953
+4,20,custom,0.036,0.964
+4,20,custom - te/tr split,0.046,0.954
+4,100,binary CE,0.082,0.918
+4,100,binary CE - te/tr split,0.034,0.966
+4,100,custom,0.083,0.917
+4,100,custom - te/tr split,0.059,0.941
+4,1000,binary CE,0.134,0.866
+4,1000,binary CE - te/tr split,0.272,0.728
+4,1000,custom,0.108,0.892
+4,1000,custom - te/tr split,0.163,0.837
+5,5,binary CE,0.013,0.987
+5,5,binary CE - te/tr split,0.0,1.0
+5,5,custom,0.003,0.997
+5,5,custom - te/tr split,0.006,0.994
+5,10,binary CE,0.004,0.996
+5,10,binary CE - te/tr split,0.014,0.986
+5,10,custom,0.012,0.988
+5,10,custom - te/tr split,0.004,0.996
+5,20,binary CE,0.055,0.945
+5,20,binary CE - te/tr split,0.075,0.925
+5,20,custom,0.057,0.943
+5,20,custom - te/tr split,0.073,0.927
+5,100,binary CE,0.114,0.886
+5,100,binary CE - te/tr split,0.056,0.944
+5,100,custom,0.121,0.879
+5,100,custom - te/tr split,0.091,0.909
+5,1000,binary CE,0.187,0.813
+5,1000,binary CE - te/tr split,0.316,0.684
+5,1000,custom,0.155,0.845
+5,1000,custom - te/tr split,0.203,0.797
+6,5,binary CE,0.024,0.976
+6,5,binary CE - te/tr split,0.001,0.999
+6,5,custom,0.008,0.992
+6,5,custom - te/tr split,0.011,0.989
+6,10,binary CE,0.01,0.99
+6,10,binary CE - te/tr split,0.029,0.971
+6,10,custom,0.026,0.974
+6,10,custom - te/tr split,0.009,0.991
+6,20,binary CE,0.078,0.922
+6,20,binary CE - te/tr split,0.109,0.891
+6,20,custom,0.084,0.916
+6,20,custom - te/tr split,0.105,0.895
+6,100,binary CE,0.152,0.848
+6,100,binary CE - te/tr split,0.084,0.916
+6,100,custom,0.161,0.839
+6,100,custom - te/tr split,0.129,0.871
+6,1000,binary CE,0.234,0.766
+6,1000,binary CE - te/tr split,0.361,0.639
+6,1000,custom,0.199,0.801
+6,1000,custom - te/tr split,0.242,0.758
+7,5,binary CE,0.042,0.958
+7,5,binary CE - te/tr split,0.003,0.997
+7,5,custom,0.016,0.984
+7,5,custom - te/tr split,0.019,0.981
+7,10,binary CE,0.019,0.981
+7,10,binary CE - te/tr split,0.049,0.951
+7,10,custom,0.047,0.953
+7,10,custom - te/tr split,0.017,0.983
+7,20,binary CE,0.105,0.895
+7,20,binary CE - te/tr split,0.148,0.852
+7,20,custom,0.116,0.884
+7,20,custom - te/tr split,0.143,0.857
+7,100,binary CE,0.195,0.805
+7,100,binary CE - te/tr split,0.116,0.884
+7,100,custom,0.204,0.796
+7,100,custom - te/tr split,0.173,0.827
+7,1000,binary CE,0.28,0.72
+7,1000,binary CE - te/tr split,0.4,0.6
+7,1000,custom,0.238,0.762
+7,1000,custom - te/tr split,0.28,0.72
+8,5,binary CE,0.066,0.934
+8,5,binary CE - te/tr split,0.007,0.993
+8,5,custom,0.03,0.97
+8,5,custom - te/tr split,0.03,0.97
+8,10,binary CE,0.034,0.966
+8,10,binary CE - te/tr split,0.075,0.925
+8,10,custom,0.078,0.922
+8,10,custom - te/tr split,0.029,0.971
+8,20,binary CE,0.136,0.864
+8,20,binary CE - te/tr split,0.192,0.808
+8,20,custom,0.155,0.845
+8,20,custom - te/tr split,0.185,0.815
+8,100,binary CE,0.24,0.76
+8,100,binary CE - te/tr split,0.154,0.846
+8,100,custom,0.246,0.754
+8,100,custom - te/tr split,0.221,0.779
+8,1000,binary CE,0.319,0.681
+8,1000,binary CE - te/tr split,0.432,0.568
+8,1000,custom,0.274,0.726
+8,1000,custom - te/tr split,0.315,0.685
+9,5,binary CE,0.097,0.903
+9,5,binary CE - te/tr split,0.013,0.987
+9,5,custom,0.05,0.95
+9,5,custom - te/tr split,0.044,0.956
+9,10,binary CE,0.057,0.943
+9,10,binary CE - te/tr split,0.107,0.893
+9,10,custom,0.119,0.881
+9,10,custom - te/tr split,0.048,0.952
+9,20,binary CE,0.173,0.827
+9,20,binary CE - te/tr split,0.24,0.76
+9,20,custom,0.199,0.801
+9,20,custom - te/tr split,0.23,0.77
+9,100,binary CE,0.284,0.716
+9,100,binary CE - te/tr split,0.196,0.804
+9,100,custom,0.291,0.709
+9,100,custom - te/tr split,0.27,0.73
+9,1000,binary CE,0.351,0.649
+9,1000,binary CE - te/tr split,0.463,0.537
+9,1000,custom,0.307,0.693
+9,1000,custom - te/tr split,0.35,0.65
+10,5,binary CE,0.138,0.862
+10,5,binary CE - te/tr split,0.024,0.976
+10,5,custom,0.077,0.923
+10,5,custom - te/tr split,0.061,0.939
+10,10,binary CE,0.088,0.912
+10,10,binary CE - te/tr split,0.147,0.853
+10,10,custom,0.171,0.829
+10,10,custom - te/tr split,0.075,0.925
+10,20,binary CE,0.212,0.788
+10,20,binary CE - te/tr split,0.291,0.709
+10,20,custom,0.247,0.753
+10,20,custom - te/tr split,0.28,0.72
+10,100,binary CE,0.328,0.672
+10,100,binary CE - te/tr split,0.24,0.76
+10,100,custom,0.333,0.667
+10,100,custom - te/tr split,0.319,0.681
+10,1000,binary CE,0.382,0.618
+10,1000,binary CE - te/tr split,0.49,0.51
+10,1000,custom,0.34,0.66
+10,1000,custom - te/tr split,0.383,0.617
+11,5,binary CE,0.189,0.811
+11,5,binary CE - te/tr split,0.041,0.959
+11,5,custom,0.114,0.886
+11,5,custom - te/tr split,0.081,0.919
+11,10,binary CE,0.13,0.87
+11,10,binary CE - te/tr split,0.193,0.807
+11,10,custom,0.235,0.765
+11,10,custom - te/tr split,0.111,0.889
+11,20,binary CE,0.256,0.744
+11,20,binary CE - te/tr split,0.344,0.656
+11,20,custom,0.298,0.702
+11,20,custom - te/tr split,0.332,0.668
+11,100,binary CE,0.369,0.631
+11,100,binary CE - te/tr split,0.285,0.715
+11,100,custom,0.373,0.627
+11,100,custom - te/tr split,0.365,0.635
+11,1000,binary CE,0.411,0.589
+11,1000,binary CE - te/tr split,0.513,0.487
+11,1000,custom,0.373,0.627
+11,1000,custom - te/tr split,0.417,0.583
+12,5,binary CE,0.25,0.75
+12,5,binary CE - te/tr split,0.066,0.934
+12,5,custom,0.165,0.835
+12,5,custom - te/tr split,0.107,0.893
+12,10,binary CE,0.181,0.819
+12,10,binary CE - te/tr split,0.244,0.756
+12,10,custom,0.308,0.692
+12,10,custom - te/tr split,0.162,0.838
+12,20,binary CE,0.304,0.696
+12,20,binary CE - te/tr split,0.401,0.599
+12,20,custom,0.35,0.65
+12,20,custom - te/tr split,0.387,0.613
+12,100,binary CE,0.409,0.591
+12,100,binary CE - te/tr split,0.332,0.668
+12,100,custom,0.412,0.588
+12,100,custom - te/tr split,0.41,0.59
+12,1000,binary CE,0.438,0.562
+12,1000,binary CE - te/tr split,0.536,0.464
+12,1000,custom,0.405,0.595
+12,1000,custom - te/tr split,0.448,0.552
+13,5,binary CE,0.326,0.674
+13,5,binary CE - te/tr split,0.103,0.897
+13,5,custom,0.23,0.77
+13,5,custom - te/tr split,0.136,0.864
+13,10,binary CE,0.245,0.755
+13,10,binary CE - te/tr split,0.303,0.697
+13,10,custom,0.391,0.609
+13,10,custom - te/tr split,0.228,0.772
+13,20,binary CE,0.355,0.645
+13,20,binary CE - te/tr split,0.459,0.541
+13,20,custom,0.403,0.597
+13,20,custom - te/tr split,0.444,0.556
+13,100,binary CE,0.446,0.554
+13,100,binary CE - te/tr split,0.381,0.619
+13,100,custom,0.447,0.553
+13,100,custom - te/tr split,0.452,0.548
+13,1000,binary CE,0.46,0.54
+13,1000,binary CE - te/tr split,0.558,0.442
+13,1000,custom,0.438,0.562
+13,1000,custom - te/tr split,0.48,0.52
+14,5,binary CE,0.416,0.584
+14,5,binary CE - te/tr split,0.155,0.845
+14,5,custom,0.31,0.69
+14,5,custom - te/tr split,0.172,0.828
+14,10,binary CE,0.319,0.681
+14,10,binary CE - te/tr split,0.368,0.632
+14,10,custom,0.48,0.52
+14,10,custom - te/tr split,0.312,0.688
+14,20,binary CE,0.408,0.592
+14,20,binary CE - te/tr split,0.52,0.48
+14,20,custom,0.459,0.541
+14,20,custom - te/tr split,0.502,0.498
+14,100,binary CE,0.477,0.523
+14,100,binary CE - te/tr split,0.43,0.57
+14,100,custom,0.48,0.52
+14,100,custom - te/tr split,0.494,0.506
+14,1000,binary CE,0.484,0.516
+14,1000,binary CE - te/tr split,0.58,0.42
+14,1000,custom,0.473,0.527
+14,1000,custom - te/tr split,0.513,0.487
+15,5,binary CE,0.517,0.483
+15,5,binary CE - te/tr split,0.227,0.773
+15,5,custom,0.407,0.593
+15,5,custom - te/tr split,0.216,0.784
+15,10,binary CE,0.402,0.598
+15,10,binary CE - te/tr split,0.442,0.558
+15,10,custom,0.574,0.426
+15,10,custom - te/tr split,0.414,0.586
+15,20,binary CE,0.464,0.536
+15,20,binary CE - te/tr split,0.58,0.42
+15,20,custom,0.516,0.484
+15,20,custom - te/tr split,0.562,0.438
+15,100,binary CE,0.507,0.493
+15,100,binary CE - te/tr split,0.481,0.519
+15,100,custom,0.508,0.492
+15,100,custom - te/tr split,0.536,0.464
+15,1000,binary CE,0.52,0.48
+15,1000,binary CE - te/tr split,0.604,0.396
+15,1000,custom,0.508,0.492
+15,1000,custom - te/tr split,0.548,0.452
+16,5,binary CE,0.63,0.37
+16,5,binary CE - te/tr split,0.33,0.67
+16,5,custom,0.521,0.479
+16,5,custom - te/tr split,0.27,0.73
+16,10,binary CE,0.497,0.503
+16,10,binary CE - te/tr split,0.515,0.485
+16,10,custom,0.666,0.334
+16,10,custom - te/tr split,0.537,0.463
+16,20,binary CE,0.526,0.474
+16,20,binary CE - te/tr split,0.649,0.351
+16,20,custom,0.579,0.421
+16,20,custom - te/tr split,0.623,0.377
+16,100,binary CE,0.533,0.467
+16,100,binary CE - te/tr split,0.533,0.467
+16,100,custom,0.535,0.465
+16,100,custom - te/tr split,0.581,0.419
+16,1000,binary CE,0.553,0.447
+16,1000,binary CE - te/tr split,0.637,0.363
+16,1000,custom,0.553,0.447
+16,1000,custom - te/tr split,0.588,0.412
+17,5,binary CE,0.742,0.258
+17,5,binary CE - te/tr split,0.469,0.531
+17,5,custom,0.647,0.353
+17,5,custom - te/tr split,0.337,0.663
+17,10,binary CE,0.599,0.401
+17,10,binary CE - te/tr split,0.606,0.394
+17,10,custom,0.75,0.25
+17,10,custom - te/tr split,0.672,0.328
+17,20,binary CE,0.602,0.398
+17,20,binary CE - te/tr split,0.711,0.289
+17,20,custom,0.637,0.363
+17,20,custom - te/tr split,0.689,0.311
+17,100,binary CE,0.572,0.428
+17,100,binary CE - te/tr split,0.579,0.421
+17,100,custom,0.564,0.436
+17,100,custom - te/tr split,0.639,0.361
+17,1000,binary CE,0.589,0.411
+17,1000,binary CE - te/tr split,0.676,0.324
+17,1000,custom,0.595,0.405
+17,1000,custom - te/tr split,0.619,0.381
+18,5,binary CE,0.858,0.142
+18,5,binary CE - te/tr split,0.632,0.368
+18,5,custom,0.789,0.211
+18,5,custom - te/tr split,0.432,0.568
+18,10,binary CE,0.711,0.289
+18,10,binary CE - te/tr split,0.716,0.284
+18,10,custom,0.811,0.189
+18,10,custom - te/tr split,0.805,0.195
+18,20,binary CE,0.695,0.305
+18,20,binary CE - te/tr split,0.795,0.205
+18,20,custom,0.7,0.3
+18,20,custom - te/tr split,0.763,0.237
+18,100,binary CE,0.653,0.347
+18,100,binary CE - te/tr split,0.663,0.337
+18,100,custom,0.642,0.358
+18,100,custom - te/tr split,0.7,0.3
+18,1000,binary CE,0.626,0.374
+18,1000,binary CE - te/tr split,0.684,0.316
+18,1000,custom,0.637,0.363
+18,1000,custom - te/tr split,0.668,0.332
+19,5,binary CE,0.95,0.05
+19,5,binary CE - te/tr split,0.85,0.15
+19,5,custom,0.95,0.05
+19,5,custom - te/tr split,0.65,0.35
+19,10,binary CE,0.85,0.15
+19,10,binary CE - te/tr split,0.8,0.2
+19,10,custom,0.9,0.1
+19,10,custom - te/tr split,0.9,0.1
+19,20,binary CE,0.8,0.2
+19,20,binary CE - te/tr split,0.85,0.15
+19,20,custom,0.85,0.15
+19,20,custom - te/tr split,0.85,0.15
+19,100,binary CE,0.8,0.2
+19,100,binary CE - te/tr split,0.8,0.2
+19,100,custom,0.8,0.2
+19,100,custom - te/tr split,0.8,0.2
+19,1000,binary CE,0.8,0.2
+19,1000,binary CE - te/tr split,0.75,0.25
+19,1000,custom,0.8,0.2
+19,1000,custom - te/tr split,0.8,0.2
+20,5,binary CE,1.0,0.0
+20,5,binary CE - te/tr split,1.0,0.0
+20,5,custom,1.0,0.0
+20,5,custom - te/tr split,1.0,0.0
+20,10,binary CE,1.0,0.0
+20,10,binary CE - te/tr split,1.0,0.0
+20,10,custom,1.0,0.0
+20,10,custom - te/tr split,1.0,0.0
+20,20,binary CE,1.0,0.0
+20,20,binary CE - te/tr split,1.0,0.0
+20,20,custom,1.0,0.0
+20,20,custom - te/tr split,1.0,0.0
+20,100,binary CE,1.0,0.0
+20,100,binary CE - te/tr split,1.0,0.0
+20,100,custom,1.0,0.0
+20,100,custom - te/tr split,1.0,0.0
+20,1000,binary CE,1.0,0.0
+20,1000,binary CE - te/tr split,1.0,0.0
+20,1000,custom,1.0,0.0
+20,1000,custom - te/tr split,1.0,0.0

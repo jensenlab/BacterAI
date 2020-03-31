@@ -207,7 +207,7 @@ def load_data(filepath, mode="train", max_n=None):
         return x_test, y_test
 
 
-def get_stats(results):
+def get_stats(results, epoch, loss_name):
     TP = y_train[y_train >= 0.25].size
     TN = y_train[y_train < 0.25].size
     P = results[results == 1].size
@@ -215,10 +215,10 @@ def get_stats(results):
 
     grow_acc = P / TP
     no_grow_acc = N / TN
-    return (grow_acc, no_grow_acc)
+    return [epoch, loss_name, grow_acc, no_grow_acc]
 
 
-def get_distribution(data, pred):
+def get_distribution(data, pred, epoch, loss_name):
     data = pd.DataFrame(data)
     data["card"] = data.sum(axis=1)
     data["pred"] = pred
@@ -232,7 +232,15 @@ def get_distribution(data, pred):
         # print(
         #     f"NG:\t{sub.shape[0]-s}/{sub.shape[0]} \t- {(sub.shape[0] - s)/sub.shape[0]}"
         # )
-        stats += [f"{round(s/sub.shape[0], 3)}", f"{round(1-(s/sub.shape[0]), 3)}"]
+        stats.append(
+            [
+                x,
+                epoch,
+                loss_name,
+                round(s / sub.shape[0], 3),
+                round(1 - (s / sub.shape[0]), 3),
+            ]
+        )
     return stats
 
 
@@ -292,37 +300,41 @@ if __name__ == "__main__":
             pred3 = model_custom_batched.predict_class(all_combos)
             pred4 = model_bc_batched.predict_class(all_combos)
 
-            dist1 = get_distribution(all_combos, pred1)
-            dist2 = get_distribution(all_combos, pred2)
-            dist3 = get_distribution(all_combos, pred3)
-            dist4 = get_distribution(all_combos, pred4)
+            dist1 = get_distribution(all_combos, pred1, e, "custom")
+            dist2 = get_distribution(all_combos, pred2, e, "binary CE")
+            dist3 = get_distribution(all_combos, pred3, e, "custom - te/tr split")
+            dist4 = get_distribution(all_combos, pred4, e, "binary CE - te/tr split")
 
-            results1 = get_stats(model_custom.predict_class(x_test))
-            results2 = get_stats(model_bc.predict_class(x_test))
-            results3 = get_stats(model_custom_batched.predict_class(x_test))
-            results4 = get_stats(model_bc_batched.predict_class(x_test))
-
-            df_new_dist = pd.DataFrame([("epoch size", e), dist1, dist2, dist3, dist4])
-
-            df_new_acc = pd.DataFrame(
-                [("epoch size", e), results1, results2, results3, results4]
+            results1 = get_stats(model_custom.predict_class(x_test), e, "custom")
+            results2 = get_stats(model_bc.predict_class(x_test), e, "binary CE")
+            results3 = get_stats(
+                model_custom_batched.predict_class(x_test), e, "custom - te/tr split"
             )
+            results4 = get_stats(
+                model_bc_batched.predict_class(x_test), e, "binary CE - te/tr split"
+            )
+
+            df_new_dist = pd.DataFrame(dist1 + dist2 + dist3 + dist4)
+
+            df_new_acc = pd.DataFrame([results1, results2, results3, results4])
             print(df_new_acc)
             print(df_new_dist)
             df_out_acc = pd.concat([df_out_acc, df_new_acc])
             df_out_dist = pd.concat([df_out_dist, df_new_dist])
-        df_out_acc.columns = ["Grow Accuracy", "No Grow Accuracy"]
+        df_out_acc.columns = ["# Epochs", "Loss", "Grow Accuracy", "No Grow Accuracy"]
+        df_out_dist.columns = ["Card", "# Epochs", "Loss", "Grow", "No Grow"]
+        df_out_dist = df_out_dist.groupby(by=["Card", "# Epochs", "Loss"]).mean()
+        print(df_out_dist)
+        # col = list()
+        # for x in range(2, 42):
+        #     if x % 2 == 0:
+        #         col.append(f"G ({x//2})")
+        #     else:
+        #         col.append(f"NG ({x//2})")
 
-        col = list()
-        for x in range(2, 42):
-            if x % 2 == 0:
-                col.append(f"G ({x//2})")
-            else:
-                col.append(f"NG ({x//2})")
-
-        df_out_dist.columns = col
-        df_out_acc.to_csv(f"df_out_results_acc_{name}_split.csv")
-        df_out_dist.to_csv(f"df_out_results_dist_{name}_split.csv")
+        # df_out_dist.columns = col
+        df_out_acc.to_csv(f"df_out_results_acc_{name}.csv")
+        df_out_dist.to_csv(f"df_out_results_dist_{name}.csv")
 
     # # for x, y in test_dataset:
     # model.evaluate(x_test, y_test)

@@ -58,35 +58,32 @@ class COBRAnet:
             media = media[:-1]
 
             rxns_to_delete = np.array(self.media_names)[np.invert(media)].tolist()
-            if is_aerobic:
+            if not is_aerobic:
                 rxns_to_delete += model.CDM_O2_RXN_IDS
 
             for rxn in rxns_to_delete:
                 m.reactions.get_by_id(rxn).knock_out()
-                # print(f"removed({rxn})")
             print(f"# removed RXNs({len(rxns_to_delete)})")
             obj_value = m.slim_optimize()
+
             # Compute genes to delete from boolean array, then knock them out
-            # print(genes)
             genes_to_delete = np.array(self.non_essential_genes)[
                 np.invert(genes)
             ].tolist()
             for gene in genes_to_delete:
                 m.genes.get_by_id(gene).knock_out()
-                # print(f"removed({gene})")
             print(f"# removed GENES({len(genes_to_delete)})")
 
             new_obj_value = m.slim_optimize()
-            print(new_obj_value, obj_value)
             normalized = new_obj_value / obj_value
-            # normalized = float(max(min(1, normalized), 0))  # clamp between [0,1]
+
+            print(new_obj_value, obj_value)
         return normalized
 
     def get_predictions(self, genes, media, threshold=0.25):
         # Call FBA model helper function with boolean gene vector and boolean media vector
         # Return predicted growth
         genes = genes.numpy().astype(np.float32)
-        # print(genes)
         genes[genes >= threshold] = 1
         genes[genes < threshold] = 0
         genes = genes.astype(np.bool)
@@ -95,8 +92,6 @@ class COBRAnet:
         output = np.zeros((genes.shape[0],), dtype=np.float32)
         for x in range(genes.shape[0]):
             normalized = self.get_normalized_obj(genes[x, :], media[x])
-            # normalized = np.ndarray([[normalized]])
-            # output[x] = float((true_growth[x, 0] - normalized))
             output[x] = float(normalized)
 
         output = output.astype(np.float32)
@@ -113,9 +108,10 @@ class COBRAnet:
         pred = tf.py_function(
             func=self.get_predictions, inp=[genes, media], Tout=tf.float32,
         )
-
+        # Calculate loss
         loss = K.mean(K.square(true_growth - pred))
 
+        # Calculate performance
         print(f"Loss({loss})", true_growth.numpy()[0, 0], "->", pred.numpy()[0], "\n")
         if train:
             self.train_loss.append(loss.numpy())
@@ -185,29 +181,9 @@ class COBRAnet:
 
         self.optimizer.apply_gradients(zip(gradients, self.nn.trainable_variables))
 
-        # self.train_loss.append(loss.numpy())
-
-        # pred = self.get_predictions(genes, inputs)[0]
-
-        # if pred[0] >= 0.25:
-        #     pred = 1
-        # else:
-        #     pred = 0
-        # print(f"Loss({loss})", true_growth.numpy()[0, 0], "->", pred)
-        # self.train_accuracy.append([true_growth.numpy()[0, 0], pred])
-
     def test_step(self, inputs, true_growth):
         genes = self.nn(inputs)
         loss = self.fba_loss(true_growth, genes, inputs, train=False)
-
-        # self.test_loss.append(loss.numpy())
-        # pred = self.get_predictions(genes, inputs)[0]
-        # if pred[0] >= 0.25:
-        #     pred = 1
-        # else:
-        #     pred = 0
-        # print(f"Loss({loss})", true_growth.numpy()[0, 0], "->", pred)
-        # self.test_accuracy.append([true_growth.numpy()[0, 0], pred])
 
     def train(self, epochs, x_train, x_test, y_train, y_test):
         for epoch in tqdm.trange(epochs):
@@ -299,5 +275,5 @@ if __name__ == "__main__":
     )
 
     nn = COBRAnet("models/iSMUv01_CDM.xml", components)
-    epochs = 10
+    epochs = 100
     nn.train(epochs, x_train, x_test, y_train, y_test)
