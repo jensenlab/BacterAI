@@ -246,5 +246,5 @@ if __name__ == "__main__":
             "down": ["data/iSMU-test/initial_data/train_set_L1IL2I.csv"],
         },
         "models/iSMU-test/data_20_clean.csv",
-        "models/iSMU-test/data_20_extrapolated.csv",
+        "models/iSMU-test/data_20_extrapolated.csv.zip",
     )
