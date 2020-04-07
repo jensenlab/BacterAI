@@ -131,7 +131,9 @@ def batch_to_deep_phenotyping_protocol(
     protocol.from_batch_list(batch_name, batch_removals, development=development)
 
 
-def convex_extrapolation(data_filepaths, inputs_filepath, output_filepath):
+def convex_extrapolation(
+    data_filepaths, inputs_filepath, output_filepath, threshold=0.25
+):
     """Take existing growth data and extrapolate those results to a set of inputs, 
     assuming metabolic convexity (i.e. if a set of media components is removed and 
     grows to a certain point, we can assume all medias with those same coomponents removed 
@@ -140,10 +142,14 @@ def convex_extrapolation(data_filepaths, inputs_filepath, output_filepath):
     We define two directions to extrapolate: `up` and `down`. The up direction should
     be used for data that has less components removed (i.e Leave-out data). In the up 
     direction, the matching inputs will take the data that has a smaller cardinality since
-    it has more 'metabolic information.' Conversely, the down direction should be used
-    for data that has more components removed (i.e. Leave-in data). In the down direction,
-    the matching inputs will take the data that has a larger cardinality, for the same 
-    reason as above.
+    it has more 'metabolic information.' Matches are defined as medias with the same
+    componenents taken out.
+    
+    Conversely, the down direction should be used for data that has more components 
+    removed (i.e. Leave-in data). In the down direction, the matching inputs will take 
+    the data that has a larger cardinality, since it has more 'metabolic information.'
+    Matches are defined as medias with the same number of components left in. These will
+    overight the upward pass only if they are >= threshold for growth.
     
     Inputs
     ------
@@ -166,6 +172,9 @@ def convex_extrapolation(data_filepaths, inputs_filepath, output_filepath):
         
     output_filepath: str
         Path to save the extrapolated data to.
+    
+    threshold: float
+        Any fitness value >= to this number constitutes growth.
     
     Outputs
     -------
@@ -198,21 +207,63 @@ def convex_extrapolation(data_filepaths, inputs_filepath, output_filepath):
             data = data.sort_values(by=["card"], ascending=ascending)
             unique_cards = pd.unique(data["card"])
             for card in unique_cards:
-                combos = [
+                removed_combos = [
                     list(c)
                     for c in itertools.combinations(
                         media_components, n_components - card
                     )
                 ]
-                for c in combos:
+                for c in removed_combos:
                     remaining = list(set(media_components) - set(c))
                     grow_result = data[
                         data[c].eq(0).all(axis=1) & data[remaining].eq(1).all(axis=1)
                     ]["grow"].to_list()[0]
-                    matches = inputs[c].eq(0).all(1)
+                    if direction == "up":
+                        if grow_result >= threshold:
+                            # skip ones that grow
+                            continue
+                        matches = inputs[c].eq(0).all(axis=1)
+                    elif direction == "down":
+                        if grow_result <= threshold:
+                            # skip ones that don't grow
+                            continue
+                        matches = inputs[remaining].eq(1).all(axis=1)
+
                     inputs.loc[matches, "grow"] = grow_result
 
     inputs.to_csv(output_filepath, index=False)
+
+
+def create_fractional_factorial_experiment(design_filepath, hyperparams_filepath):
+    """Uses a fractional factorial design methods to create an experiment.
+
+    Inputs
+    ------
+    design_filepath: str
+        Path to design, where each row is an experiment, the columns are the variables,
+        and the values are -1 or 1 (low/high).
+            
+    hyperparams_filepath str
+        Path to hyperparameters, where each row is a variable, each column is -1 or 1 (low/high),
+        and each value is the corresponding value to be used in the experiment.
+    
+    Returns
+    -------
+    Dataframe where each row is an experiment, with the columns being the name of the 
+    input parameters.
+    """
+    params = pd.read_csv(hyperparams_filepath, index_col=0).to_dict(orient="index")
+    param_names = list(params.keys())
+    design = pd.read_csv(design_filepath, index_col=0)
+    if len(param_names) != len(design.columns):
+        print(f"Length mismatch: {len(param_names)} vs. {len(design.columns)}")
+        return
+    design.columns = param_names
+    for param, values in params.items():
+        design.loc[design[param] == 1, param] = values["1"]
+        design.loc[design[param] == -1, param] = values["-1"]
+
+    return design
 
 
 if __name__ == "__main__":
@@ -243,11 +294,15 @@ if __name__ == "__main__":
     #     components,
     # )
 
-    convex_extrapolation(
-        {
-            "up": ["data/iSMU-test/initial_data/train_set_L1OL2O.csv"],
-            "down": ["data/iSMU-test/initial_data/train_set_L1IL2I.csv"],
-        },
-        "models/iSMU-test/data_20_clean.csv",
-        "models/iSMU-test/data_20_extrapolated.csv",
+    # convex_extrapolation(
+    #     {
+    #         "up": ["data/iSMU-test/initial_data/train_set_L1OL2O.csv"],
+    #         "down": ["data/iSMU-test/initial_data/train_set_L1IL2I.csv"],
+    #     },
+    #     "models/iSMU-test/data_20_clean.csv",
+    #     "models/iSMU-test/data_20_extrapolated.csv",
+    # )
+
+    create_fractional_factorial_experiment(
+        "files/fractional_design_k10n128.csv", "files/hyperparameters.csv"
     )
