@@ -139,17 +139,18 @@ def convex_extrapolation(
     grows to a certain point, we can assume all medias with those same coomponents removed 
     result in that same growth).
     
-    We define two directions to extrapolate: `up` and `down`. The up direction should
-    be used for data that has less components removed (i.e Leave-out data). In the up 
-    direction, the matching inputs will take the data that has a smaller cardinality since
-    it has more 'metabolic information.' Matches are defined as medias with the same
-    componenents taken out.
+    We define two directions to extrapolate: `up` and `down`, the 'top' being the full 
+    media. The down direction should be used for data that has less components removed 
+    (i.e Leave-out data). In the down direction, the matching inputs will take the data 
+    that has a smaller cardinality since it has more 'metabolic information.' Matches 
+    are defined as medias with the same componenents taken out. These will override the 
+    default assumption of 'growth' < threshold for growth.
     
-    Conversely, the down direction should be used for data that has more components 
-    removed (i.e. Leave-in data). In the down direction, the matching inputs will take 
+    Conversely, the up direction should be used for data that has more components 
+    removed (i.e. Leave-in data). In the up direction, the matching inputs will take 
     the data that has a larger cardinality, since it has more 'metabolic information.'
     Matches are defined as medias with the same number of components left in. These will
-    overight the upward pass only if they are >= threshold for growth.
+    override the downward pass only if they are >= threshold for growth.
     
     Inputs
     ------
@@ -161,8 +162,8 @@ def convex_extrapolation(
         components) with a column 'grow' with growth data for that media config.
         Formatted in this way:
             {
-                "up" : [filepaths, to, data, files],
-                "down" : [filepaths, to, data, files]
+                "down" : [filepaths, to, data, files],
+                "up" : [filepaths, to, data, files]
             }
             
     inputs_filepath: str
@@ -188,8 +189,8 @@ def convex_extrapolation(
 
     # Ensuring order: `up` direction goes first.
     data_filepaths = {
-        "up": data_filepaths.get("up", []),
         "down": data_filepaths.get("down", []),
+        "up": data_filepaths.get("up", []),
     }
 
     for direction, filepaths in data_filepaths.items():
@@ -199,9 +200,9 @@ def convex_extrapolation(
             n_components = len(media_components)
             data["card"] = data.iloc[:, :-1].sum(axis=1)
 
-            if direction == "up":
+            if direction == "down":
                 ascending = False
-            elif direction == "down":
+            elif direction == "up":
                 ascending = True
 
             data = data.sort_values(by=["card"], ascending=ascending)
@@ -218,12 +219,12 @@ def convex_extrapolation(
                     grow_result = data[
                         data[c].eq(0).all(axis=1) & data[remaining].eq(1).all(axis=1)
                     ]["grow"].to_list()[0]
-                    if direction == "up":
+                    if direction == "down":
                         if grow_result >= threshold:
                             # skip ones that grow
                             continue
                         matches = inputs[c].eq(0).all(axis=1)
-                    elif direction == "down":
+                    elif direction == "up":
                         if grow_result <= threshold:
                             # skip ones that don't grow
                             continue
@@ -243,27 +244,34 @@ def create_fractional_factorial_experiment(design_filepath, hyperparams_filepath
         Path to design, where each row is an experiment, the columns are the variables,
         and the values are -1 or 1 (low/high).
             
-    hyperparams_filepath str
-        Path to hyperparameters, where each row is a variable, each column is -1 or 1 (low/high),
+    hyperparams_filepath: str
+        Path to hyperparameters, where each row is low/high values, the columns are the variables, 
         and each value is the corresponding value to be used in the experiment.
     
     Returns
     -------
-    Dataframe where each row is an experiment, with the columns being the name of the 
-    input parameters.
+    design_true: pd.DataFrame 
+        Where each row is an experiment, with the columns being the name of the 
+        input parameters, and the values being the actual parameter values.
+
+    design: pd.DataFrame
+        Where each row is an experiment, with the columns being the name of the 
+        input parameters, and the values being the -1 or 1 (low/high) designation.
     """
-    params = pd.read_csv(hyperparams_filepath, index_col=0).to_dict(orient="index")
-    param_names = list(params.keys())
+    params = pd.read_csv(hyperparams_filepath, index_col=0)
+    param_names = params.columns.to_list()
+    params = params.to_dict()
+
     design = pd.read_csv(design_filepath, index_col=0)
     if len(param_names) != len(design.columns):
         print(f"Length mismatch: {len(param_names)} vs. {len(design.columns)}")
         return
     design.columns = param_names
+    design_true = design.copy()
     for param, values in params.items():
-        design.loc[design[param] == 1, param] = values["1"]
-        design.loc[design[param] == -1, param] = values["-1"]
-
-    return design
+        design_true.loc[design_true[param] == 1, param] = values[1]
+        design_true.loc[design_true[param] == -1, param] = values[-1]
+    return design_true, design
 
 
 if __name__ == "__main__":
@@ -296,8 +304,8 @@ if __name__ == "__main__":
 
     # convex_extrapolation(
     #     {
-    #         "up": ["data/iSMU-test/initial_data/train_set_L1OL2O.csv"],
-    #         "down": ["data/iSMU-test/initial_data/train_set_L1IL2I.csv"],
+    #         "down": ["data/iSMU-test/initial_data/train_set_L1OL2O.csv"],
+    #         "up": ["data/iSMU-test/initial_data/train_set_L1IL2I.csv"],
     #     },
     #     "models/iSMU-test/data_20_clean.csv",
     #     "models/iSMU-test/data_20_extrapolated.csv",
