@@ -1,0 +1,3 @@
+﻿,n_layers,max_nodes,br_l1,dropout_percent,br_l2,ar_l1,ar_l2,binary_train,kr_l1,kr_l2
+-1,3,32,0.0,0.0,0.0,0.0,0.0,FALSE,0.0,0.0
+1,5,256,0.25,0.50,0.25,0.25,0.25,TRUE,0.25,0.25
