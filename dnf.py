@@ -59,7 +59,7 @@ class Rule(object):
             number_of_groups = sp.poisson.rvs(poisson_mu_OR)
             while number_of_groups == 0:
                 number_of_groups = sp.poisson.rvs(poisson_mu_OR)
-            definition = list()
+            definition = []
             for i in range(number_of_groups):
                 n = sp.poisson.rvs(poisson_mu_AND)
                 while n == 0 or n >= data_length:
@@ -149,9 +149,9 @@ class Rule(object):
             definition = self.definition
             results = np.empty(n_rows)
             for d in range(n_rows):
-                ors = list()
+                ors = []
                 for or_index, or_ in enumerate(definition):
-                    ands = list()
+                    ands = []
                     for and_index, and_ in enumerate(or_):
                         if data.ndim == 1:
                             ands.append(data[and_])
@@ -227,4 +227,3 @@ if __name__ == "__main__":
     print("Should give T/F:", rule.evaluate(data))
     data = np.random.choice(a=[0, 1], size=(4,))
     print("Should give error and None:", rule.evaluate(data))
-
