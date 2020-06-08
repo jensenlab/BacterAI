@@ -171,8 +171,8 @@ class Model:
     def get_reactions_of_interest(self):
         # Return a list of reactions and their bounds
         # exluding exchange and biomass reactions
-        reactions = list()
-        bounds = list()
+        reactions = []
+        bounds = []
         for rxn in self.model.reactions:
             if "exch" not in rxn.id and rxn.id is not "R_bio00001":
                 reactions.append(rxn)
@@ -227,7 +227,7 @@ class Model:
     #             self.medium = medium
     #             objective_value = m.slim_optimize()
     #     else:
-    #         reaction_bounds = dict()
+    #         reaction_bounds = {}
     #         for r in reactions:
     #             if use_names:
     #                 reaction_bounds[r] = (
@@ -349,9 +349,9 @@ class Model:
 
         num_knockouts = sp.poisson.rvs(5)
         print("Number of KOs:", num_knockouts)
-        removed_reactions = list()
+        removed_reactions = []
         for _ in range(num_knockouts):
-            candidate_reactions = list()
+            candidate_reactions = []
             for rxn in valid_reactions:
                 does_grow, _ = self.reaction_knockout([rxn], growth_cutoff)
                 if does_grow:
@@ -375,7 +375,7 @@ class Model:
 
         with self.model as m:
             all_reactions = set(m.reactions)
-            CDM_reactions = list()
+            CDM_reactions = []
             for id_ in CDM_RXN_IDS:
                 if m.reactions.has_id(id_):
                     CDM_reactions.append(m.reactions.get_by_id(id_))
@@ -428,7 +428,7 @@ class Model:
         enclosing_folder = os.path.join(parent_folder, f"{model_name}_{timestamp}")
 
         valid_reactions = self.get_non_media_reactions()
-        removed_reactions = list()
+        removed_reactions = []
         max_length_media = 0
         for _ in range(max_n):
             try:
@@ -444,7 +444,7 @@ class Model:
                 max_length_media = 0
                 self.reload_model()
                 valid_reactions = self.get_non_media_reactions()
-                removed_reactions = list()
+                removed_reactions = []
             else:
                 if current_length_media > max_length_media:
                     print("\n###########  Found New Minimum!  ############")
@@ -495,7 +495,7 @@ class Model:
         pass
 
     def _reaction_result_mp(self, row):
-        reactions_to_knockout = list()
+        reactions_to_knockout = []
         for idx, val in enumerate(row):
             if val == 0:
                 reactions_to_knockout.append(
@@ -557,7 +557,7 @@ class Model:
             else:
                 results = np.empty(n_rows)
                 for i in trange(n_rows):
-                    reactions_to_knockout = list()
+                    reactions_to_knockout = []
                     for idx, val in enumerate(inputs[i]):
                         if val == 0:
                             reactions_to_knockout.append(
@@ -586,7 +586,7 @@ class Model:
                 header = file.readline().split(",")[:-1]
                 return header
         else:
-            reactions = list()
+            reactions = []
             for rxn in CDM_RXN_IDS:
                 if self.model.reactions.has_id(rxn):
                     reactions.append(rxn)
