@@ -1,3 +1,4 @@
+from collections import defaultdict
 import csv
 import itertools
 import math
@@ -6,6 +7,7 @@ import sys
 
 import numpy as np
 import pandas as pd
+from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 
 from protocols import CDM_NH4_rescale as protocol
 
@@ -103,14 +105,12 @@ def match_original_data(original_data, new_data, new_data_labels=None):
     """Intersection of keys from both frames (inner join). 
     Set index to `original_data` index"""
 
-    new_data.columns = [f"col_{n}" for n in range(new_data.shape[1])]
-    original_data.columns = [f"col_{n}" for n in range(original_data.shape[1])]
+    original_data.columns = new_data.columns
     new_data = new_data.merge(original_data.reset_index()).set_index("index")
 
     if new_data_labels is not None:
         new_data_labels = new_data_labels.set_index(new_data.index)
-        return new_data, new_data_labels
-    return new_data
+    return new_data, new_data_labels
 
 
 def batch_to_deep_phenotyping_protocol(
@@ -122,7 +122,7 @@ def batch_to_deep_phenotyping_protocol(
         next(reader)
         name_mappings = {row[1]: row[0] for row in reader}
 
-    batch_removals = list()
+    batch_removals = []
     components = np.array([name_mappings[c] for c in components])
     for row in batch.to_numpy():
         c = components[np.invert(row.astype(bool))].tolist()
@@ -185,7 +185,7 @@ def convex_extrapolation(
     """
     # TODO: add support for aerobic
     inputs = pd.read_csv(inputs_filepath)
-    inputs["grow"] = 1
+    inputs["grow"] = 1.0
 
     # Ensuring order: `up` direction goes first.
     data_filepaths = {
@@ -195,11 +195,13 @@ def convex_extrapolation(
 
     for direction, filepaths in data_filepaths.items():
         for filepath in filepaths:
+            print("\n\n--------- FILE", filepath, " -----------")
             data = pd.read_csv(filepath)
             media_components = data.drop(columns=["grow"]).columns.to_list()
             n_components = len(media_components)
             data["card"] = data.iloc[:, :-1].sum(axis=1)
 
+            # when sorted the later ones become more important, they overwrite the previous data.
             if direction == "down":
                 ascending = False
             elif direction == "up":
@@ -208,29 +210,50 @@ def convex_extrapolation(
             data = data.sort_values(by=["card"], ascending=ascending)
             unique_cards = pd.unique(data["card"])
             for card in unique_cards:
+                print("\n--------- CARD", card, " -----------")
+                # get all combinations of media where N = # components left out from media
                 removed_combos = [
                     list(c)
                     for c in itertools.combinations(
                         media_components, n_components - card
                     )
                 ]
+                # print("removed_combos", removed_combos)
                 for c in removed_combos:
+                    # get media components still remaining
                     remaining = list(set(media_components) - set(c))
-                    grow_result = data[
+                    # print("remaining", remaining)
+
+                    # get growth result where removed components = 0, and remaining components = 1
+                    grow_data = data[
                         data[c].eq(0).all(axis=1) & data[remaining].eq(1).all(axis=1)
-                    ]["grow"].to_list()[0]
+                    ]["grow"].to_list()
+                    if grow_data:
+                        grow_result = grow_data[0]
+                    else:
+                        continue
+                    # print("grow_result", grow_result)
                     if direction == "down":
                         if grow_result >= threshold:
                             # skip ones that grow
                             continue
+                        # matched medias are ones with the same components removed
                         matches = inputs[c].eq(0).all(axis=1)
+                        inputs.loc[matches, "grow"] = grow_result
                     elif direction == "up":
                         if grow_result <= threshold:
                             # skip ones that don't grow
                             continue
+                        # matched medias are ones with the same components remaining
                         matches = inputs[remaining].eq(1).all(axis=1)
+                        # inputs.loc[matches, "grow"] = grow_result
+                        # only apply growth if it is larger than the current growth value
+                        inputs.loc[
+                            (matches) & (inputs["grow"] < grow_result), "grow"
+                        ] = grow_result
+                    # inputs.loc[matches, "grow"] = grow_result
 
-                    inputs.loc[matches, "grow"] = grow_result
+                    # print("matches", matches)
 
     inputs.to_csv(output_filepath, index=False)
 
@@ -274,6 +297,87 @@ def create_fractional_factorial_experiment(design_filepath, hyperparams_filepath
     return design_true, design
 
 
+def tensorflow_summary_writers_to_csv(path_dir):
+    # path_dir is a list to all the paths I should accumulate
+    final_out = {}
+    for dname in os.listdir(path_dir):
+        print(f"Converting run {dname}", end="")
+        ea = EventAccumulator(os.path.join(path_dir, dname)).Reload()
+        tags = ea.Tags()["scalars"]
+        print(tags)
+        out = {}
+
+        for tag in tags:
+            tag_values = []
+            wall_time = []
+            steps = []
+
+            for event in ea.Scalars(tag):
+                tag_values.append(event.value)
+                wall_time.append(event.wall_time)
+                steps.append(event.step)
+
+            out[tag] = pd.DataFrame(
+                data=dict(zip(steps, np.array([tag_values, wall_time]).transpose())),
+                columns=steps,
+                index=["value", "wall_time"],
+            )
+
+        if len(tags) > 0:
+            df = pd.concat(out.values(), keys=out.keys())
+            df.to_csv(f"tensorboard_logs/converted/{dname}.csv")
+            final_out[dname] = df
+            print(" - Done")
+        else:
+            print(" - No scalers to write")
+    return final_out
+
+
+def data_subset(data_path, save_path, p=0.05):
+    """Creates a subset of the original data from `data_path` taking `p` 
+    percentage of the orignal data. Saves new file to `save_path`."""
+
+    data = pd.read_csv(data_path, index_col=None)
+    num_to_take = int(p * data.shape[0])
+    indexes = np.random.choice(
+        data.index.to_list(), size=num_to_take, replace=False,
+    ).tolist()
+    data = data.loc[indexes, :]
+    data.to_csv(save_path, index=False)
+
+
+def add_feature_columns(data_path, features_list_path, has_grow=True):
+    """Adds feature columns from `features_list_path` to the original data 
+    from `data_path`, saving it as a new file in the same location as 
+    the '[original name]_with_features'. The row names in the features list must
+    match the columns in the original data. The original data is assumed to have a 
+    `grow` column unless you specify `False`."""
+
+    data = pd.read_csv(data_path, index_col=None)
+    features = pd.read_csv(features_list_path, index_col=0)
+    feature_names = features.columns.to_list()
+
+    for col in feature_names:
+        data.insert(data.shape[1] - int(has_grow), col, 0)
+
+    for col_name, col in data.items():
+        if col_name in feature_names or col_name == "grow":
+            continue
+        for feature_name in feature_names:
+            value = features.loc[col_name, feature_name]
+            if value == 1:
+                data.loc[data[col_name] == 1, feature_name] = 1
+    orig_save_path = os.path.dirname(data_path)
+    orig_file_name = os.path.basename(data_path)
+    new_file_name = (
+        os.path.splitext(orig_file_name)[0]
+        + "_with_features"
+        + os.path.splitext(orig_file_name)[1]
+    )
+    new_save_path = os.path.join(orig_save_path, new_file_name)
+    data.to_csv(new_save_path, index=False)
+
+
 if __name__ == "__main__":
     # components = [
     #     "ala_exch",
@@ -305,12 +409,41 @@ if __name__ == "__main__":
     # convex_extrapolation(
     #     {
     #         "down": ["data/iSMU-test/initial_data/train_set_L1OL2O.csv"],
-    #         "up": ["data/iSMU-test/initial_data/train_set_L1IL2I.csv"],
+    #         # "up": ["data/iSMU-test/initial_data/train_set_L1IL2I.csv"],
     #     },
     #     "models/iSMU-test/data_20_clean.csv",
-    #     "models/iSMU-test/data_20_extrapolated.csv",
+    #     "models/iSMU-test/data_20_extrapolated_LO_only.csv",
     # )
 
-    create_fractional_factorial_experiment(
-        "files/fractional_design_k10n128.csv", "files/hyperparameters.csv"
+    convex_extrapolation(
+        {
+            "down": [
+                "data/tweaked_agent_learning_policy/initial_data/data_20_extrapolated_001.csv"
+            ],
+            # "up": ["data/iSMU-test/initial_data/train_set_L1IL2I.csv"],
+        },
+        "models/iSMU-test/data_20_clean.csv",
+        "data/tweaked_agent_learning_policy/initial_data/data_20_extrapolated_001_extrapolated.csv",
     )
+
+    # create_fractional_factorial_experiment(
+    #     "files/fractional_design_k10n128.csv", "files/hyperparameters.csv"
+    # )
+
+    # out = tensorflow_summary_writers_to_csv(
+    #     "tensorboard_logs/fractional_factorial_results_100000_50split/20200410-153117-1/"
+    # )
+    # print(out)
+
+    # steps = tabulate_events(path)
+    # pd.concat(steps.values(),keys=steps.keys()).to_csv('all_result.csv')
+    # data_subset(
+    #     "data/tweaked_agent_learning_policy/initial_data/data_20_extrapolated.csv",
+    #     "data/tweaked_agent_learning_policy/initial_data/data_20_extrapolated_001.csv",
+    #     p=0.001,
+    # )
+
+    # add_feature_columns(
+    #     data_path="data/tweaked_agent_learning_policy/initial_data/data_20_extrapolated.csv",
+    #     features_list_path="files/amino_acid_features.csv",
+    # )
