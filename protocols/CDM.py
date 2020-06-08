@@ -119,11 +119,11 @@ CDM_groups = {
 
 
 def make_CDM():
-    reagents = dict()
-    stocks = dict()
-    concentrations = dict()
-    amino_acid_final_concentrations = dict()
-    molecular_weights = dict()
+    reagents = {}
+    stocks = {}
+    concentrations = {}
+    amino_acid_final_concentrations = {}
+    molecular_weights = {}
 
     parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     file_path = os.path.join(parent_dir, "files", "CDM_reagents_2x_base.csv")
@@ -244,7 +244,7 @@ def make_CDM():
     with open(file_path, newline="", encoding="utf-8-sig") as csvfile:
         reader = csv.DictReader(csvfile)
         ## MAKING CDM_BASE (CDM without all amino acids)
-        reagent_concentrations_CDM_base = dict()
+        reagent_concentrations_CDM_base = {}
         for row in reader:
             # Reading values from CSV
             short_id = row["id"]
@@ -496,7 +496,7 @@ def from_batch_list(batch_name, batch_removals, development=True):
     # instructions.append(ot)
 
     # BioTek read OD manual add
-    plate_objects = list()
+    plate_objects = []
     # biotek_plates => 4 WP384 plates from each DWP96 in plates
     for p in plates:
         # for i in range(1,4):
@@ -516,7 +516,7 @@ def from_batch_list(batch_name, batch_removals, development=True):
 
     # Incubate manual add
     # plate_objects = [p[0] for p in plate_objects]
-    plate_temps = dict()
+    plate_temps = {}
     for idx, p in enumerate(plates):
         # if idx < len(plates) / 2:
         plate_temps[p] = constants.environments["AE"]
@@ -573,4 +573,3 @@ def from_batch_list(batch_name, batch_removals, development=True):
             path=filepath,
             ot_split_file="files/96_to_384_Mapping_8plate.csv",
         )
-
