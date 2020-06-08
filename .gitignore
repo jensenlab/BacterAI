@@ -1,6 +1,8 @@
 data/
 img/
-# models/
+models/
 __pycache__/
+tensorboard_logs/
 gurobi.log
 .vscode/
+*.out
