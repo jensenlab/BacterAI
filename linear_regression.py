@@ -10,7 +10,6 @@ from sklearn import metrics
 
 
 def perform_regression(features, labels, save_filepath):
-
     poly_transform = PolynomialFeatures(degree=2)
     poly_features = poly_transform.fit_transform(features.values)
     poly_names = poly_transform.get_feature_names(features.columns)
@@ -35,7 +34,7 @@ def perform_regression(features, labels, save_filepath):
 if __name__ == "__main__":
 
     data = pd.read_csv("fractional_factorial_results_low_high_100000.csv", index_col=0)
-    features = data.iloc[:, :-2]
-    labels = data.iloc[:, -1]
+    features = data.iloc[:, :2]
+    labels = data.iloc[:, 1]
 
     perform_regression(features, labels, "regression_coefficients_100000.csv")
