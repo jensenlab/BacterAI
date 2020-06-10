@@ -12,7 +12,7 @@ from tqdm import tqdm, trange
 import neural_pretrain as neural
 
 
-class Rollout:
+class MCTS:
     def __init__(self, value_model_dir, starting_state):
         self.value_model = neural.PredictNet.from_save(value_model_dir)
         self.all_ingredients = list(starting_state.keys())
@@ -206,7 +206,7 @@ class Rollout:
         inputs = np.isin(inputs, list(state)).astype(float).reshape((1, -1))
         return inputs
 
-    def get_best_action(self, limit, grow_advantage=None, log_graph=True):
+    def perform_rollout(self, limit, grow_advantage=None, log_graph=True):
         """
         Performs an MCTS Rollout Simulation for the solution `self.current_state`. The 
         trajectories for each remaining ingredient are averaged over `limit` times. The
@@ -327,10 +327,10 @@ if __name__ == "__main__":
         }
         # starting_state = data.iloc[112123, :]
         # starting_state = starting_state.to_dict()
-        rollout = Rollout(
+        mcts = MCTS(
             value_model_dir="data/neuralpy_optimization_expts/052220-sparcity-3/working_model",
             starting_state=starting_state,
         )
         print("\nStarting State:", starting_state)
         # rollout.simulate(1000)
-        best_action = rollout.get_best_action(limit=1000000, grow_advantage=1)
+        best_action = mcts.perform_rollout(limit=1000000, grow_advantage=1)
