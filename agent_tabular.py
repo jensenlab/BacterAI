@@ -278,7 +278,7 @@ class Agent:
             data = pd.concat([data, supp_data])
 
         file_name = "initial_data_assembled.csv"
-        save_path = os.path.join(os.path.dirname(supplemental_data_path), file_name)
+        save_path = os.path.join(os.path.dirname(data_path), file_name)
         data.to_csv(save_path, index=False)
         return save_path
 
