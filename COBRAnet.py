@@ -13,27 +13,27 @@ import statistics
 import utils
 
 
-class Linear(tf.keras.layers.Layer):
-    def __init__(self, units=32):
-        super(Linear, self).__init__()
-        self.units = units
-        self.reference_fluxes = none
+# class Linear(tf.keras.layers.Layer):
+#     def __init__(self, units=32):
+#         super(Linear, self).__init__()
+#         self.units = units
+#         self.reference_fluxes = none
 
-    def build(self, input_shape):
-        self.w = self.add_weight(
-            shape=(input_shape[-1], self.units),
-            initializer="random_normal",
-            trainable=True,
-        )
-        self.b = self.add_weight(
-            shape=(self.units,), initializer="zero", trainable=True
-        )
-        self.reference_fluxes = self.add_weight(
-            shape=(self.units,), initializer="zero", trainable=True
-        )
+#     def build(self, input_shape):
+#         self.w = self.add_weight(
+#             shape=(input_shape[-1], self.units),
+#             initializer="random_normal",
+#             trainable=True,
+#         )
+#         self.b = self.add_weight(
+#             shape=(self.units,), initializer="zero", trainable=True
+#         )
+#         self.reference_fluxes = self.add_weight(
+#             shape=(self.units,), initializer="zero", trainable=True
+#         )
 
-    def call(self, inputs):
-        return tf.matmul(inputs, self.w) + self.b
+#     def call(self, inputs):
+#         return tf.matmul(inputs, self.w) + self.b
 
 
 class COBRAnet:
@@ -114,7 +114,7 @@ class COBRAnet:
             # print(f"# removed RXNs({len(rxns_to_delete)})")
             reference_obj_value = m.slim_optimize()
 
-            with self.fba_model.model as m:
+            with self.fba_model.model as m:  ## potential bug--is it okay to overwrite m here?
                 # Compute genes to delete from boolean array
                 genes_to_delete = np.array(self.non_essential_genes)[
                     np.invert(genes)
@@ -131,7 +131,8 @@ class COBRAnet:
 
                 # print(new_obj_value, obj_value)
 
-            # Use finite difference method to estimate dLoss/dGenes, also knows as gradient of cost
+            # Check FD implementation:
+            # Use finite difference method to estimate dLoss/dGenes, also known as gradient of cost
             # For each gene, if it's on, turn it off, and the inverse and to measure dLoss/dG
             # where the flipped gene, G, is notated G'
             # approximation for the derivative, where dLoss/dG = (Loss(G') - Loss(G))/ deltaG

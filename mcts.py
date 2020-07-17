@@ -27,13 +27,14 @@ class MCTS:
         if state_memory:
             self.state_memory.update(state_memory)
             # print(self.state_memory)
+        self.growth_cutoff = 0.25
 
     def get_value_weights(self):
         if not self.value_model_weights:
             self.value_model_weights = np.load(self.value_model_weights_dir)
         return self.value_model_weights
 
-    def evaluate_value_model(self, inputs, return_bool=True):
+    def evaluate_value_model(self, inputs, return_bool=False):
         n = self.get_value_weights()["num_layers"]
         answer = inputs
         for i in range(n):
@@ -43,7 +44,7 @@ class MCTS:
                 answer[answer <= 0] = 0
             else:
                 answer = 1 / (1 + np.exp(-1 * answer))
-
+        answer = answer[0, 0]
         if return_bool:
             answer = 1 if answer >= 0.25 else 0
         return answer
@@ -91,8 +92,8 @@ class MCTS:
         #         does_grow[ingredient] = result
         #         key = keys[ingredient]
         #         self.state_memory[key] = result
-
-        candidates = [k for k, v in does_grow.items() if v == 1]
+        print("find_candidates results", does_grow)
+        candidates = [k for k, v in does_grow.items() if v >= self.growth_cutoff]
         return candidates
 
     # def informed_trajectory(self, state):
@@ -146,10 +147,17 @@ class MCTS:
         length: int
             The minimum size of media that still results in growth in this random trajectory. 
         """
+        print("")
         trajectory_state = copy.copy(state)
+        # trajectory_state = set(self.find_candidates(state))
         length = len(trajectory_state)
-
-        while length > 0:
+        # print(state)
+        # print(grow_result)
+        prev_grow_result = 0
+        while length >= 1:
+            # trajectory_state = set(self.find_candidates(trajectory_state))
+            # if not len(trajectory_state):
+            #     break
             # Set choice probabilities
             temp_state = list(trajectory_state)
             p = np.ones(length)
@@ -161,6 +169,7 @@ class MCTS:
             p /= p.sum()
 
             # Pick a random ingredient from the current state
+            print(len(temp_state), len(p))
             ingredient = np.random.choice(temp_state, p=p)
             test_state = self.remove_from_list(state, ingredient)
             test_state = self.ingredients_to_input(test_state)
@@ -169,23 +178,28 @@ class MCTS:
             # otherwise ask the value model for the prediction
             key = tuple(test_state.tolist()[0])
             if key in self.state_memory.keys():
-                grow = self.state_memory[key]
+                grow_result = self.state_memory[key]
             else:
+                # print("THIS SHOULD NEVER HAPPEN")
                 # grow = self.value_model.model.predict(test_state).reshape((1, -1))[0]
 
-                grow = self.evaluate_value_model(test_state)
+                grow_result = self.evaluate_value_model(test_state)
                 # grow = self.value_model.predict_class(test_state)
                 # print("GROW SELF", grow, grow2)
                 # grow = 1 if grow >= 0.25 else 0
-                self.state_memory[key] = grow
+                self.state_memory[key] = grow_result
 
             # Stop if the solution results in no growth, or if all ingredients
             # have been removed.
-            if not grow or length == 1:
-                return length
-
+            # if length == 1:
+            #     return prev_grow_result
+            print(grow_result, length, ingredient)
             trajectory_state.remove(ingredient)
+            # print(trajectory_state)
             length = len(trajectory_state)
+            prev_grow_result = grow_advantage
+
+        return prev_grow_result
 
     def spsa(self):
         """Not Implemented Yet"""
@@ -253,7 +267,7 @@ class MCTS:
         available_actions=None,
         grow_advantage=None,
         log_graph=True,
-        use_multiprocessing=True,
+        use_multiprocessing=False,
     ):
         """
         Performs an MCTS Rollout Simulation for the solution `self.current_state`. The 
@@ -293,7 +307,7 @@ class MCTS:
 
         if not use_multiprocessing:
             t1 = tqdm(available_actions, desc="Exploring Actions", leave=True)
-            t2 = tqdm(total=limit, desc="Calculating Trajectory", leave=True)
+            # t2 = tqdm(total=limit, desc="Calculating Trajectory", leave=True)
             for i, action in enumerate(t1):
                 t1.set_description(f"Exploring ({action})")
                 t1.refresh()  # to show immediately the update
@@ -301,22 +315,22 @@ class MCTS:
 
                 results = np.empty(limit)
                 results.fill(np.nan)
-                t2.reset()
+                # t2.reset()
                 for j in range(limit):
                     results[j] = self.trajectory(
                         test_state, grow_advantage=grow_advantage
                     )
 
                     intermediate_result = np.nanmean(results) if j is not 0 else 0
-                    t2.set_description(
-                        f"Calculating Trajectory ({round(intermediate_result, 3)})"
-                    )
-                    t2.update()  # to show immediately the update
+                    # t2.set_description(
+                    #     f"Calculating Trajectory ({round(intermediate_result, 3)})"
+                    # )
+                    # t2.update()  # to show immediately the update
                     if log_graph:
                         all_results[i, j] = intermediate_result
                 rewards[action] = np.mean(results)
 
-            t2.close()
+            # t2.close()
             t1.close()
         else:
 
@@ -368,7 +382,7 @@ class MCTS:
         for k, v in rewards.items():
             print(f"{k} ->\t{v}")
 
-        best_action = min(rewards.items(), key=operator.itemgetter(1))[0]
+        best_action = max(rewards.items(), key=operator.itemgetter(1))[0]
         return best_action
 
     # def simulate(self, limit):
@@ -427,5 +441,5 @@ if __name__ == "__main__":
         # print("\nStarting State:", starting_state)
         # rollout.simulate(1000)
         best_action = mcts.perform_rollout(
-            available_actions=None, limit=10000, grow_advantage=1
+            available_actions=None, limit=1000, grow_advantage=1
         )
