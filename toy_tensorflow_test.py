@@ -61,21 +61,22 @@ if __name__ == "__main__":
     model.fit(x_train, y_train, epochs=100, batch_size=10)
     (loss, mae) = model.evaluate(x_test, y_test)
 
-    print("Testing set Mean Abs Error: ${:7.2f}".format(mae * 1000))
+    print("Testing set Mean Abs Error: ${:.2f}".format(mae * 1000))
 
-    k_num = 0
-    k_den = 0
-    b_num = 0
-    b_den = 0
-    for layer in model.layers:
-        if isinstance(layer, tf.keras.layers.Dropout):
-            continue
-        k, b = layer.get_weights()
-        k_num += k[np.absolute(k) < 1e-3].size
-        k_den += k.size
-        b_num += b[np.absolute(b) < 1e-3].size
-        b_den += b.size
+    # # Testing out calculating the sparcity of the network (where weights < 1e-3)
+    # k_num = 0
+    # k_den = 0
+    # b_num = 0
+    # b_den = 0
+    # for layer in model.layers:
+    #     if isinstance(layer, tf.keras.layers.Dropout):
+    #         continue
+    #     k, b = layer.get_weights()
+    #     k_num += k[np.absolute(k) < 1e-3].size
+    #     k_den += k.size
+    #     b_num += b[np.absolute(b) < 1e-3].size
+    #     b_den += b.size
 
-    k_sparcity = k_num / k_den
-    b_sparcity = b_num / b_den
-    print("SPARCITY", k_sparcity, b_sparcity)
+    # k_sparcity = k_num / k_den
+    # b_sparcity = b_num / b_den
+    # print("SPARCITY", k_sparcity, b_sparcity)

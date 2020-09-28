@@ -24,8 +24,10 @@ import tensorflow.keras.backend as K
 from tensorflow.keras.mixed_precision import experimental
 from tensorflow.python.keras.engine import compile_utils
 
-import model
+# import model
 import utils
+
+tf.get_logger().setLevel("ERROR")
 
 
 class PredictNet:
@@ -35,8 +37,10 @@ class PredictNet:
         n_test,
         parent_logdir,
         save_model_path=None,
-        n_layers=3,
-        max_nodes=32,
+        # n_layers=3,
+        # max_nodes=32,
+        layer_order=[32, 16, 1],
+        activations=["relu", "relu", "sigmoid"],
         include_dropout=False,
         dropout_percent=0.0,
         lr=0.001,
@@ -44,24 +48,28 @@ class PredictNet:
         beta_2=0.999,
         binary_train=False,
         n_epochs=100,
-        n_retrain_epochs=200,
+        n_retrain_epochs=500,
         train_batch_size=1024,
         kr_l1=0.001,
-        ar_l1=0.001,
+        ar_l1=0.0005,
         br_l1=0.001,
         leaky_relu=0.0,
         k_init="glorot_uniform",
         log_sparcity=True,
+        seed=None,
         **kwargs,
     ):
 
-        self.n_test = n_test
         self.exp_id = exp_id
+        self.n_test = n_test
         self.parent_logdir = parent_logdir
         self.save_model_path = save_model_path
 
-        self.n_layers = n_layers
-        self.max_nodes = max_nodes
+        # self.n_layers = n_layers
+        # self.max_nodes = max_nodes
+        self.layer_order = layer_order
+        self.activations = activations
+
         self.include_dropout = include_dropout
         self.dropout_percent = dropout_percent
         self.lr = lr
@@ -78,54 +86,7 @@ class PredictNet:
         self.k_init = k_init
         self.log_sparcity = log_sparcity
 
-        if n_layers == 3:
-            if max_nodes == 32:
-                layer_order = [32, 16, 1]
-            elif max_nodes == 256:
-                layer_order = [256, 64, 1]
-            activation_types = ["relu", "relu", "sigmoid"]
-        elif n_layers == 5:
-            if max_nodes == 32:
-                layer_order = [32, 24, 16, 8, 1]
-            elif max_nodes == 256:
-                layer_order = [256, 128, 64, 16, 1]
-            activation_types = ["relu", "relu", "relu", "relu", "sigmoid"]
-
-        kr = None
-        if kr_l1:
-            kr = tf.keras.regularizers.l1(kr_l1)
-        ar = None
-        if ar_l1:
-            ar = tf.keras.regularizers.l1(ar_l1)
-        br = None
-        if br_l1:
-            br = tf.keras.regularizers.l1(br_l1)
-
-        layers = []
-        for idx, (n, a) in enumerate(zip(layer_order, activation_types)):
-            if a == "leaky_relu":
-                a = None
-            layers.append(
-                tf.keras.layers.Dense(
-                    n,
-                    activation=a,
-                    # kernel_initializer=k_init,
-                    kernel_regularizer=kr,
-                    activity_regularizer=ar,
-                    bias_regularizer=br,
-                )
-            )
-            if a == None:
-                layers.append(tf.keras.layers.LeakyReLU(alpha=leaky_relu))
-
-            if include_dropout and idx != len(layer_order):
-                layers.append(
-                    tf.keras.layers.Dropout(
-                        dropout_percent, noise_shape=None, seed=None
-                    )
-                )
-
-        self.model = tf.keras.Sequential(layers)
+        self.model = self.compile_model()
         self.loss_object = tf.keras.losses.BinaryCrossentropy()
         self.compiled_loss = compile_utils.LossesContainer(
             self.loss_object, output_names=self.model.output_names
@@ -143,7 +104,7 @@ class PredictNet:
 
         current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S" + f"-{exp_id}")
         current_run_dir = os.path.join(parent_logdir, current_time)
-        print(colored(f"Saving logs to {current_run_dir}", "cyan"))
+        # print(colored(f"Saving logs to {current_run_dir}", "cyan"))
 
         train_log_dir = os.path.join(current_run_dir, "train")
         test_log_dir = os.path.join(current_run_dir, "test")
@@ -163,6 +124,92 @@ class PredictNet:
         self.n_no_grow_tracker = []
         self.n_no_grow_correct_tracker = []
 
+        self.seed = seed
+        if self.seed is not None:
+            os.environ["TF_DETERMINISTIC_OPS"] = "1"
+            rand_seed = utils.numpy_state_int(utils.seed_numpy_state(self.seed))
+            tf.random.set_seed(rand_seed)
+            random.seed(rand_seed)
+            np.random.seed(rand_seed)
+
+    def compile_model(self):
+        # if self.n_layers == 3:
+        #     if self.max_nodes == 32:
+        #         layer_order = [32, 16, 1]
+        #     elif self.max_nodes == 256:
+        #         layer_order = [256, 64, 1]
+        #     activation_types = ["relu", "relu", "sigmoid"]
+        # elif self.n_layers == 5:
+        #     if self.max_nodes == 32:
+        #         layer_order = [32, 24, 16, 8, 1]
+        #     elif self.max_nodes == 256:
+        #         layer_order = [256, 128, 64, 16, 1]
+        #     activation_types = ["relu", "relu", "relu", "relu", "sigmoid"]
+
+        kr = None
+        if self.kr_l1:
+            kr = tf.keras.regularizers.l1(self.kr_l1)
+        ar = None
+        if self.ar_l1:
+            ar = tf.keras.regularizers.l1(self.ar_l1)
+        br = None
+        if self.br_l1:
+            br = tf.keras.regularizers.l1(self.br_l1)
+
+        layers = []
+        for idx, (n, a) in enumerate(zip(self.layer_order, self.activations)):
+            if a == "leaky_relu":
+                a = None
+            layers.append(
+                tf.keras.layers.Dense(
+                    n,
+                    activation=a,
+                    kernel_regularizer=kr,
+                    activity_regularizer=ar,
+                    bias_regularizer=br,
+                )
+            )
+            if a == None:
+                layers.append(tf.keras.layers.LeakyReLU(alpha=self.leaky_relu))
+
+            if self.include_dropout and idx != len(layer_order):
+                layers.append(
+                    tf.keras.layers.Dropout(
+                        self.dropout_percent, noise_shape=None, seed=None
+                    )
+                )
+
+        return tf.keras.Sequential(layers)
+
+    def get_reset_clone(self):
+        clone = type(self)(
+            self.exp_id,
+            self.n_test,
+            self.parent_logdir,
+            self.save_model_path,
+            # self.n_layers,
+            # self.max_nodes,
+            self.layer_order,
+            self.activations,
+            self.include_dropout,
+            self.dropout_percent,
+            self.lr,
+            self.beta_1,
+            self.beta_2,
+            self.binary_train,
+            self.n_epochs,
+            self.n_retrain_epochs,
+            self.train_batch_size,
+            self.kr_l1,
+            self.ar_l1,
+            self.br_l1,
+            self.leaky_relu,
+            self.k_init,
+            self.log_sparcity,
+            self.seed,
+        )
+        return clone
+
     def save(self):
         if not os.path.exists(self.save_model_path):
             os.makedirs(self.save_model_path)
@@ -174,8 +221,10 @@ class PredictNet:
             "n_test": self.n_test,
             "parent_logdir": self.parent_logdir,
             "save_model_path": self.save_model_path,
-            "n_layers": self.n_layers,
-            "max_nodes": self.max_nodes,
+            "layer_order": self.layer_order,
+            "activations": self.activations,
+            # "n_layers": self.n_layers,
+            # "max_nodes": self.max_nodes,
             "include_dropout": self.include_dropout,
             "dropout_percent": self.dropout_percent,
             "lr": self.lr,
@@ -190,6 +239,7 @@ class PredictNet:
             "br_l1": self.br_l1,
             "leaky_relu": self.leaky_relu,
             "k_init": self.k_init,
+            "seed": self.seed,
         }
         save_path = os.path.join(self.save_model_path, "model_params.pkl")
         with open(save_path, "wb") as f:
@@ -372,7 +422,7 @@ class PredictNet:
                 colored(f"{b_sparcity:.3f}", "green"),
             )
 
-            print(results)
+            # print(results)
 
             if evaluate_distribution:
                 self.accuracy_tracker.append(self.test_accuracy.result().numpy())
@@ -380,11 +430,14 @@ class PredictNet:
                 self.b_sparcity_tracker.append(b_sparcity)
 
         if self.save_model_path:
-            # if not os.path.exists(self.save_model_path):
-            #     os.makedirs(self.save_model_path)
-            # save_path = os.path.join(self.save_model_path, "model.h5")
-            # self.model.save(save_path)
             self.save()
+            weights_path = os.path.join(self.save_model_path, "weights")
+            weights = {"num_layers": len(self.layer_order)}
+            for idx, layer in enumerate(self.model.layers):
+                k, b = layer.get_weights()
+                weights[f"W{idx}"] = k
+                weights[f"b{idx}"] = b
+            np.savez_compressed(weights_path, **weights)
 
         return (
             self.train_accuracy.result(),
@@ -573,7 +626,10 @@ def pretrain_scheme(
         for train_size in train_sizes:
 
             x_train, x_test, y_train, y_test = train_test_split(
-                x, y, train_size=train_size, random_state=12345
+                x,
+                y,
+                train_size=train_size,
+                random_state=12345,  # Get random state from user or new state if they don't define
             )
 
             start = time.time()
@@ -697,12 +753,7 @@ def pretrain_scheme(
             axis=0,
         )
         data_out.to_csv(os.path.join(experiment_dir, save_file_name))
-        print(
-            "ZERO:",
-            model.predict_class(
-                np.array([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]])
-            ),
-        )
+
         # data_out_train_acc.to_csv(
         #     os.path.join(
         #         experiment_dir, f"pretrain_eval_train_results_final_retrain.csv",
@@ -899,9 +950,9 @@ if __name__ == "__main__":
 
         experiment_dir = "data/neuralpy_optimization_expts/052220-sparcity-3"
         design_file_name = "experiments_sparcity_10.csv"
-        save_file_name = "experiments_sparcity_10_results_no_first_train_2500.csv"
+        save_file_name = "experiments_sparcity_10_results_no_first_train_500.csv"
         save_model_path = (
-            "data/neuralpy_optimization_expts/052220-sparcity-3/working_model_2500"
+            "data/neuralpy_optimization_expts/052220-sparcity-3/no_training"
         )
 
         # make_keras_picklable()
@@ -918,7 +969,7 @@ if __name__ == "__main__":
             save_model_path=save_model_path,
             n_pretrain_layers=0,
             n_test=N_TEST,
-            train_sizes=[0.01],
+            train_sizes=[0.001],
             final_retrain=True,
-            evaluate_distribution=True,
+            evaluate_distribution=False,
         )

@@ -6,35 +6,60 @@ import tensorflow as tf
 import neural_pretrain as neural
 import utils
 
-# ############ Analyzing which ones grew ###############
+############ Analyzing which ones grew ###############
 
-# batch, batch_labels = utils.parse_data_map(
-#     "files/name_mappings_aa.csv",
-#     "data/iSMU-test/initial_data/bacterAI_SMU_C1.csv",
-#     [
-#         "ala_exch",
-#         "gly_exch",
-#         "arg_exch",
-#         "asn_exch",
-#         "asp_exch",
-#         "cys_exch",
-#         "glu_exch",
-#         "gln_exch",
-#         "his_exch",
-#         "ile_exch",
-#         "leu_exch",
-#         "lys_exch",
-#         "met_exch",
-#         "phe_exch",
-#         "ser_exch",
-#         "thr_exch",
-#         "trp_exch",
-#         "tyr_exch",
-#         "val_exch",
-#         "pro_exch",
-#     ],
-# )
+batch, batch_labels = utils.parse_data_map(
+    "files/name_mappings_aa_alt.csv",
+    "SPSAvFDSA_expt/mapped_data_preexpt_fdsa_v_spsa.csv",
+    [
+        "ala_exch",
+        "arg_exch",
+        "asp_exch",
+        "asn_exch",
+        "glu_exch",
+        "gln_exch",
+        "gly_exch",
+        "his_exch",
+        "ile_exch",
+        "leu_exch",
+        "lys_exch",
+        "met_exch",
+        "phe_exch",
+        "pro_exch",
+        "ser_exch",
+        "thr_exch",
+        "trp_exch",
+        "tyr_exch",
+        "val_exch",
+        "cys_exch",
+    ],
+    # [
+    #     "ala_exch",
+    #     "gly_exch",
+    #     "arg_exch",
+    #     "asn_exch",
+    #     "asp_exch",
+    #     "cys_exch",
+    #     "glu_exch",
+    #     "gln_exch",
+    #     "his_exch",
+    #     "ile_exch",
+    #     "leu_exch",
+    #     "lys_exch",
+    #     "met_exch",
+    #     "phe_exch",
+    #     "ser_exch",
+    #     "thr_exch",
+    #     "trp_exch",
+    #     "tyr_exch",
+    #     "val_exch",
+    #     "pro_exch",
+    # ],
+)
 
+batch["fitness"] = batch_labels
+batch = batch[batch.fitness >= 0.50]
+batch.to_csv("SPSAvFDSA_expt/preexpt_fdsa_v_spsa_candidates.csv")
 
 # batch = batch.drop(columns=["aerobic"])
 # batch["grow"] = batch_labels
@@ -384,4 +409,4 @@ def card_distribution(save_location):
         print(f"NG:\t{n-s}/{n} \t- {(n - s)/n} \t- {ng_correct/(n-s)}")
 
 
-card_distribution("data/tweaked_agent_learning_policy")
+# card_distribution("data/tweaked_agent_learning_policy")
