@@ -378,6 +378,14 @@ def add_feature_columns(data_path, features_list_path, has_grow=True):
     data.to_csv(new_save_path, index=False)
 
 
+def seed_numpy_state(seed):
+    return np.random.RandomState(np.random.MT19937(np.random.SeedSequence(seed)))
+
+
+def numpy_state_int(state):
+    return state.randint(2 ** 32 - 1)
+
+
 if __name__ == "__main__":
     # components = [
     #     "ala_exch",

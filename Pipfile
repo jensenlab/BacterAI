@@ -13,13 +13,19 @@ matplotlib = "*"
 tqdm = "*"
 sklearn = "*"
 scipy = "*"
-cobra = {editable = true,path = "./../cobrapy"}
 black = "*"
 mongoengine = "*"
 deepphenotyping = {editable = true,path = "./../DeepPhenotyping/module/deepphenotyping"}
 tensorflow = "*"
 tensorboard-plugin-profile = "*"
 termcolor = "*"
+pathos = "*"
+multiprocess = "*"
+dill = "*"
+yaspin ="*"
+prompt_toolkit = "*"
+cobra = {editable = true,path = "./../cobrapy"}
+depinfo = "*"
 
 [requires]
 python_version = "3.7.6"

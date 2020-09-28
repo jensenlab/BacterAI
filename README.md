@@ -17,3 +17,5 @@ tensorboard --port 6006 --bind_all --logdir=tensorboard_logs/
 
 View tensorboard through ssh:
 ssh -L 6006:127.0.0.1:6006 lab@ghost.bioe.illinois.edu
+
+ssh -L 8000:127.0.0.1:8000 lab@ghost.bioe.illinois.edu
