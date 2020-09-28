@@ -1,8 +1,11 @@
 data/
 img/
+benchmark_results/
 models/
 __pycache__/
 tensorboard_logs/
 gurobi.log
 .vscode/
 *.out
+Pipfile.lock
+SPSAvFDSA_expt/
