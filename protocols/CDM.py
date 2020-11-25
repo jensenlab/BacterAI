@@ -13,7 +13,7 @@ from deepphenotyping import (
     constants,
     ingredients,
     makeids,
-    mantis,
+    formulatrix,
     mapper,
     models,
     scheduling,
@@ -126,7 +126,7 @@ def make_CDM():
     molecular_weights = {}
 
     parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    file_path = os.path.join(parent_dir, "files", "CDM_reagents_2x_base.csv")
+    file_path = os.path.join(parent_dir, "files", "CDM_reagents_4x_base.csv")
     with open(file_path, newline="", encoding="utf-8-sig") as csvfile:
         reader = csv.DictReader(csvfile)
 
@@ -433,7 +433,7 @@ def schedule_CDM_l2o(
 
     print("# of solutions:", len(solutions))
 
-    return scheduling.schedule_mantis(
+    return scheduling.schedule_formulatrix(
         solutions,
         constants.strains["SMU"],
         ["5% CO2 @ 37 C"],
@@ -562,7 +562,7 @@ def from_batch_list(batch_name, batch_removals, development=True):
             )
 
         # filepath = os.path.join(settings.BASE_DIR, "data/")
-        mantis.generate_experiment_files(
+        formulatrix.generate_experiment_files(
             instruction_set, layout, "2 ul", path_to_worklists=filepath
         )
         mapper.save_well_map(

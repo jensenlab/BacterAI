@@ -25,32 +25,35 @@ import pandas as pd
 import mongoengine
 import numpy as np
 
-parser = argparse.ArgumentParser(description="Make CDM for DeepPhenotyping.")
 
-parser.add_argument(
-    "-mi",
-    "--mongo_items",
-    action="store_true",
-    default=False,
-    help="Save items (reagents, solutions, stocks, CDM) to MongoDB.",
-)
-parser.add_argument(
-    "-me",
-    "--make_experiment",
-    action="store_false",
-    default=True,
-    help="Make experiment in MongoDB and export files.",
-)
+def set_up_args():
+    parser = argparse.ArgumentParser(description="Make CDM for DeepPhenotyping.")
 
-parser.add_argument(
-    "-n",
-    "--make_new",
-    action="store_true",
-    default=True,
-    help="Make new objects instead of assembling them from the database.",
-)
+    parser.add_argument(
+        "-mi",
+        "--mongo_items",
+        action="store_true",
+        default=False,
+        help="Save items (reagents, solutions, stocks, CDM) to MongoDB.",
+    )
+    parser.add_argument(
+        "-me",
+        "--make_experiment",
+        action="store_false",
+        default=True,
+        help="Make experiment in MongoDB and export files.",
+    )
 
-args = parser.parse_args()
+    parser.add_argument(
+        "-n",
+        "--make_new",
+        action="store_true",
+        default=True,
+        help="Make new objects instead of assembling them from the database.",
+    )
+
+    args = parser.parse_args()
+
 
 from deepphenotyping import (
     constants,
@@ -130,7 +133,9 @@ def make_CDM():
     molecular_weights = {}
 
     parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "."))
-    file_path = os.path.join(parent_dir, "files", "CDM_reagents_4x_base+NH4.csv")
+    file_path = os.path.join(
+        parent_dir, "files", "CDM_reagents_2x_NH4_tempest_optimized.csv"
+    )
     with open(file_path, newline="", encoding="utf-8-sig") as csvfile:
         reader = csv.DictReader(csvfile)
 
@@ -404,7 +409,7 @@ def scale_NH4_concentrations(original_conc, scale, molecular_weights):
         change = scaled_conc - orig_conc
         sum_conc_change += change
 
-    final_conc.loc["ammoniums_100x", "value"] = -sum_conc_change / 2
+    final_conc.loc["ammoniums_50x", "value"] = -sum_conc_change / 2
 
     zeros = [i for i, val in scale.items() if val == 0]
     final_conc = final_conc.drop(zeros, axis=0)  # DROP IF ANY CONC ARE ZERO
@@ -445,7 +450,7 @@ def schedule_FDSA_SPSA(
     n_components = len(amino_acid_names)
 
     amino_acid_ids = amino_acid_final_concentrations.keys()
-    amino_acid_ids = [i for i in amino_acid_ids if i != "ammoniums_100x"]
+    amino_acid_ids = [i for i in amino_acid_ids if i != "ammoniums_50x"]
     solutions = [cdm]
 
     spsa_perturbations = []
@@ -658,9 +663,8 @@ def generate_random_experiments(
         new_conc = scale_NH4_concentrations(
             amino_acid_final_concentrations, scaled_conc, molecular_weights
         )
-        new_soln = copy.deepcopy(cdm)
+        new_soln = cdm.without(removed_ingredient_ids)
         new_soln = new_soln.updated(new_conc)
-        new_soln = new_soln.remove_reagents(removed_ingredient_ids)
         new_soln.id = f"SPSA(grow_test)_R1_CDM -- " + " -- ".join(
             removed_ingredient_names
         )
@@ -716,20 +720,20 @@ def create_experiment(
         amino_acid_names = list(amino_acid_names)
         print(amino_acid_names)
         amino_acid_ids = amino_acid_final_concentrations.keys()
-        amino_acid_ids = [i for i in amino_acid_ids if i != "ammoniums_100x"]
+        amino_acid_ids = [i for i in amino_acid_ids if i != "ammoniums_50x"]
         print(amino_acid_ids)
         # Generate the pre experiments
-        # plates, instructions, layout = generate_random_experiments(
-        #     n_experiments,
-        #     amino_acid_ids,
-        #     amino_acid_names,
-        #     CDM,
-        #     list(CDM_stocks.values()),
-        #     amino_acid_final_concentrations,
-        #     molecular_weights,
-        #     output_file="experiments_random_R1.csv",
-        #     use_tempest=use_tempest,
-        # )
+        plates, instructions, layout = generate_random_experiments(
+            n_experiments,
+            amino_acid_ids,
+            amino_acid_names,
+            CDM,
+            list(CDM_stocks.values()),
+            amino_acid_final_concentrations,
+            molecular_weights,
+            output_file="experiments_random_SPSAvFDSA.csv",
+            use_tempest=use_tempest,
+        )
     else:
         # Generate the experiments
         plates, instructions, layout = schedule_FDSA_SPSA(
@@ -737,7 +741,7 @@ def create_experiment(
             list(CDM_stocks.values()),
             amino_acid_final_concentrations,
             molecular_weights,
-            experiments_csv="experiments_random_R1.csv",
+            experiments_csv="experiments_random_SPSAvFDSA.csv",
             use_tempest=use_tempest,
         )
 
@@ -826,10 +830,11 @@ def create_experiment(
 
 
 if __name__ == "__main__":
-    development = True
+    set_up_args()
+    development = False
 
     create_experiment(
-        is_pre_expt=True, n_experiments=10, development=development, use_tempest=False
+        is_pre_expt=True, n_experiments=126, development=development, use_tempest=False
     )
 
     # create_experiment(is_pre_expt=False, development=development, use_tempest=True)

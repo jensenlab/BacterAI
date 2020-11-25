@@ -13,7 +13,7 @@ from deepphenotyping import (
     constants,
     ingredients,
     makeids,
-    mantis,
+    formulatrix,
     mapper,
     models,
     scheduling,
@@ -48,8 +48,9 @@ from deepphenotyping import utils as dp_utils
 # args = parser.parse_args()
 
 mongo_items = False
-mongo_experiment = export = True
+mongo_experiment = export = False
 make_new = True
+use_tempest = True
 
 CDM_groups = {
     "amino_acids+NH4": set(
@@ -127,7 +128,9 @@ def make_CDM():
     molecular_weights = {}
 
     parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    file_path = os.path.join(parent_dir, "files", "CDM_reagents_2x_base+NH4.csv")
+    file_path = os.path.join(
+        parent_dir, "files", "CDM_reagents_2x_NH4_tempest_optimized.csv"
+    )
     with open(file_path, newline="", encoding="utf-8-sig") as csvfile:
         reader = csv.DictReader(csvfile)
 
@@ -391,9 +394,11 @@ def scale_NH4_concentrations(to_remove, final_conc_in, molecular_weights):
     final_conc["value"] = final_conc["value"].apply(lambda x: x.value)
     final_conc["unit"] = final_conc["unit"].apply(lambda x: x.unit_str)
     final_conc = final_conc.drop(0, axis=1)
-    to_remove = dp_utils.assert_list(to_remove)
+    to_remove = utils.assert_list(to_remove)
+
+    # print(to_remove)
     removed_conc = sum([final_conc.loc[r].value for r in to_remove])
-    final_conc.loc["ammoniums_100x", "value"] = removed_conc / 2
+    final_conc.loc["ammoniums_50x", "value"] = removed_conc / 2
     final_conc = final_conc.drop(to_remove, axis=0)
     final_conc.insert(0, "final", pd.Series())
     final_conc["final"] = final_conc[["value", "unit"]].apply(
@@ -413,23 +418,29 @@ def schedule_CDM_l2o(
 
     for components in batch_removals:
         print(f"Removing: {components}")
-        new_aa_conc = scale_NH4_concentrations(
+        new_conc = scale_NH4_concentrations(
             components, amino_acid_final_concentrations, molecular_weights
         )
-        new = copy.deepcopy(CDM)
-        new = new.updated(new_aa_conc)
-        new = new.remove_reagents(components)
-
-        new.id = "CDM -- " + " -- ".join(components)
-
+        new = CDM.without(components)
+        new = new.updated(new_conc)
         solutions.append(new)
 
     print("# of solutions:", len(solutions))
 
-    return scheduling.schedule_mantis(
+    n_stocks = 6 if use_tempest else 24
+    drop_size = "0.2 ul" if use_tempest else "0.1 ul"
+
+    cdm_base_id = [s.id for s in stocks if s.id.startswith("CDM_base_stock")]
+    if use_tempest:
+        ammoniums_id = [s.id for s in stocks if s.id.startswith("ammoniums")]
+        override_sets = [["water"], cdm_base_id, ammoniums_id]
+    else:
+        override_sets = None
+
+    return scheduling.schedule_formulatrix(
         solutions,
-        constants.strains["SGO"],
-        ["aerobic"],
+        [constants.strains["STH"]],
+        ["aerobic", "anaerobic"],
         stocks,
         excess="water",
         plate=constants.labware["WP384"],
@@ -438,7 +449,12 @@ def schedule_CDM_l2o(
         plate_control=("CDM", 1),
         plate_blank=("CDM", 1),
         replicates=3,
-        min_drop_size="0.1 ul",
+        min_drop_size=drop_size,
+        max_stocks=n_stocks,
+        override_stock_sets=override_sets,
+        is_tempest=use_tempest,
+        manual_fill_stocks=["water", cdm_base_id[0]],
+        alphabetical_stocks=True,
     )
 
 
@@ -555,7 +571,7 @@ def from_batch_list(batch_name, batch_removals, development=True):
             )
 
         # filepath = os.path.join(settings.BASE_DIR, "data/")
-        mantis.generate_experiment_files(
+        formulatrix.generate_experiment_files(
             instruction_set, layout, "2 ul", path_to_worklists=filepath
         )
         mapper.save_well_map(
