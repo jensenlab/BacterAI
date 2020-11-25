@@ -58,8 +58,9 @@ def parse_data_map(
     data = data.groupby(
         by=leave_out_cols + ["environment", "strain", "parent_plate"], as_index=False,
     ).mean()
-    plate_control_indexes = data[data["plate_control"]].index
-    data = data.drop(index=plate_control_indexes)
+
+    # plate_control_indexes = data[data["plate_control"]].index
+    # data = data.drop(index=plate_control_indexes)
     data["delta_od_normalized"] = data["delta_od"] / data["parent_plate"].replace(
         plate_control_means
     )
@@ -95,10 +96,11 @@ def parse_data_map(
         data.loc[data["delta_od_normalized"] < 0, "delta_od_normalized"] = 0.0
 
     data_growth = data["delta_od_normalized"].to_frame()
-    experiments = data["media"].apply(pd.Series)
-    experiments.columns = components
-    experiments["aerobic"] = data["environment"]
-    return experiments, data_growth
+    nn_experiments = data["media"].apply(pd.Series)
+    nn_experiments.columns = components
+    # nn_experiments["aerobic"] = data["environment"]
+    nn_experiments["grow"] = data["delta_od_normalized"]
+    return data, nn_experiments, data_growth
 
 
 def match_original_data(original_data, new_data, new_data_labels=None):
@@ -386,32 +388,54 @@ def numpy_state_int(state):
     return state.randint(2 ** 32 - 1)
 
 
+def normalize_dict_values(d):
+    total = sum(d.values())
+    d = {key: value / total for key, value in d.items()}
+    return d
+
+
 if __name__ == "__main__":
-    # components = [
-    #     "ala_exch",
-    #     "gly_exch",
-    #     "arg_exch",
-    #     "asn_exch",
-    #     "asp_exch",
-    #     "cys_exch",
-    #     "gln_exch",
-    #     "his_exch",
-    #     "ile_exch",
-    #     "leu_exch",
-    #     "lys_exch",
-    #     "met_exch",
-    #     "phe_exch",
-    #     "ser_exch",
-    #     "thr_exch",
-    #     "trp_exch",
-    #     "tyr_exch",
-    #     "val_exch",
-    #     "pro_exch",
-    # ]
-    # parse_data_map(
-    #     "files/name_mappings_aa.csv",
-    #     "/home/lab/Downloads/mapped_data_SGO_2.csv",
-    #     components,
+    components = [
+        "ala_exch",
+        "gly_exch",
+        "arg_exch",
+        "asn_exch",
+        "asp_exch",
+        "cys_exch",
+        "glu_exch",
+        "gln_exch",
+        "his_exch",
+        "ile_exch",
+        "leu_exch",
+        "lys_exch",
+        "met_exch",
+        "phe_exch",
+        "ser_exch",
+        "thr_exch",
+        "trp_exch",
+        "tyr_exch",
+        "val_exch",
+        "pro_exch",
+    ]
+    _, nn_experiments, _ = parse_data_map(
+        "files/name_mappings_tempest_aa.csv",
+        "data/L1L2IO-Rand-Tempest-SMU/L1IO-L2IO-Rand SMU UA159 (2)_mapped_data.csv",
+        components,
+    )
+    nn_experiments.to_csv(
+        "data/L1L2IO-Rand-Tempest-SMU/L1IO-L2IO-Rand SMU UA159 (2)_data_clean.csv",
+        index=False,
+    )
+
+    # convex_extrapolation(
+    #     {
+    #         "down": [
+    #             "data/tweaked_agent_learning_policy/initial_data/data_20_extrapolated_001.csv"
+    #         ],
+    #         # "up": ["data/iSMU-test/initial_data/train_set_L1IL2I.csv"],
+    #     },
+    #     "models/iSMU-test/data_20_clean.csv",
+    #     "data/tweaked_agent_learning_policy/initial_data/data_20_extrapolated_001_extrapolated.csv",
     # )
 
     # convex_extrapolation(
@@ -422,17 +446,6 @@ if __name__ == "__main__":
     #     "models/iSMU-test/data_20_clean.csv",
     #     "models/iSMU-test/data_20_extrapolated_LO_only.csv",
     # )
-
-    convex_extrapolation(
-        {
-            "down": [
-                "data/tweaked_agent_learning_policy/initial_data/data_20_extrapolated_001.csv"
-            ],
-            # "up": ["data/iSMU-test/initial_data/train_set_L1IL2I.csv"],
-        },
-        "models/iSMU-test/data_20_clean.csv",
-        "data/tweaked_agent_learning_policy/initial_data/data_20_extrapolated_001_extrapolated.csv",
-    )
 
     # create_fractional_factorial_experiment(
     #     "files/fractional_design_k10n128.csv", "files/hyperparameters.csv"

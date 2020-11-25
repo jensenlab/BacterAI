@@ -27,7 +27,7 @@ from tensorflow.python.keras.engine import compile_utils
 # import model
 import utils
 
-tf.get_logger().setLevel("ERROR")
+# tf.get_logger().setLevel("ERROR")
 
 
 class PredictNet:
@@ -259,6 +259,9 @@ class PredictNet:
         obj.load_model(model_path)
         return obj
 
+    def set_save_path(self, new_path):
+        self.save_model_path = new_path
+
     def train_step(self, inputs, labels):
         with tf.GradientTape() as tape:
             # training=True is only needed if there are layers with different
@@ -422,7 +425,7 @@ class PredictNet:
                 colored(f"{b_sparcity:.3f}", "green"),
             )
 
-            # print(results)
+            print(results)
 
             if evaluate_distribution:
                 self.accuracy_tracker.append(self.test_accuracy.result().numpy())
@@ -576,6 +579,7 @@ class PredictNet:
 
 def pretrain_scheme(
     experiment_dir,
+    train_data_name,
     design_file_name,
     save_file_name,
     n_pretrain_layers,
@@ -589,7 +593,7 @@ def pretrain_scheme(
         os.path.join(experiment_dir, design_file_name), index_col=0,
     )
     x, y = load_data(
-        filepath=f"models/iSMU-test/data_20_extrapolated.csv",
+        filepath=os.path.join(experiment_dir, train_data_name),
         # filepath=f"models/iSMU-test/data_20_extrapolated_with_features.csv",
         starting_index=0,
     )
@@ -948,12 +952,11 @@ if __name__ == "__main__":
         N_TEST = 10000
         print(f"GPU: {tf.test.is_built_with_cuda()}")
 
-        experiment_dir = "data/neuralpy_optimization_expts/052220-sparcity-3"
+        experiment_dir = "data/L1L2IO-Rand-Tempest-SMU"
+        train_data_name = "L1IO-L2IO-Rand SMU UA159 (2)_data_clean.csv"
         design_file_name = "experiments_sparcity_10.csv"
         save_file_name = "experiments_sparcity_10_results_no_first_train_500.csv"
-        save_model_path = (
-            "data/neuralpy_optimization_expts/052220-sparcity-3/no_training"
-        )
+        save_model_path = "data/L1L2IO-Rand-Tempest-SMU/no_training"
 
         # make_keras_picklable()
         # standard_train_scheme(
@@ -964,12 +967,13 @@ if __name__ == "__main__":
         # )
         pretrain_scheme(
             experiment_dir,
+            train_data_name,
             design_file_name,
             save_file_name,
             save_model_path=save_model_path,
             n_pretrain_layers=0,
             n_test=N_TEST,
-            train_sizes=[0.001],
+            train_sizes=[0.80],
             final_retrain=True,
             evaluate_distribution=False,
         )

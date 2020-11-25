@@ -58,15 +58,14 @@ class MCTS(object):
     def __init__(
         self,
         growth_model_weights_dir,
-        current_state,
+        ingredient_names,
         state_memory=None,
         growth_cutoff=0.25,
         seed=None,
     ):
         self.growth_model_weights_dir = growth_model_weights_dir
         self.growth_model_weights = None
-        self.all_ingredients = list(current_state.keys())
-        self.current_state = self.dict_to_ingredients(current_state)
+        self.ingredient_names = ingredient_names
         self.state_memory = {}
         if state_memory:
             self.state_memory.update(state_memory)
@@ -183,9 +182,17 @@ class MCTS(object):
         state["growth_model_weights"] = None
         return state
 
-    def trajectory(self, state, horizon, numpy_state, grow_advantage=None):
+    def trajectory(
+        self,
+        state,
+        horizon,
+        length,
+        numpy_state,
+        grow_advantage=None,
+        double_step=False,
+    ):
         """
-        Calculates the trajectory of a given state. A random ingredient is chosen from remaining 
+        Calculates the trajectory reward of a given state. A random ingredient is chosen from remaining 
         ingredients until the solution results in a 'no grow' prediction from the `self.growth_model`.
 
         Inputs
@@ -194,6 +201,8 @@ class MCTS(object):
             The present ingredients in the solution.
         horizon: int
             The depth of the rollout.
+        length: int
+            The length the full media
         grow_advantage: int or None
             Parameter used to set the relative probability of choosing an ingredient that is
             predicted to grow. Values <1 will skew the choice towards an ingredient that 
@@ -204,14 +213,17 @@ class MCTS(object):
         
         Return
         -------
-        length: int
-            The minimum size of media that still results in growth in this random trajectory. 
+        reward: float
+            Reward = # of ingredients removed (len full media + current step) * growth_result (of 
+            most recent simulation above the growth cutoff). 
         """
         trajectory_state = copy.copy(state)
         length = len(trajectory_state)
 
+        prev_reward = 0
+        step_size = 2 if double_step else 1
         # Random walk to remove 'horizon' ingredients
-        for step in range(horizon):
+        for step in range(1, horizon + 1, step_size):
             if length <= 0:
                 break
             # Set choice probabilities
@@ -224,23 +236,20 @@ class MCTS(object):
             p /= p.sum()
 
             # Pick a random ingredient from the current state
-            ingredient = numpy_state.choice(trajectory_state, p=p)
-            trajectory_state = self.remove_from_list(trajectory_state, ingredient)
+            ingredients = numpy_state.choice(
+                trajectory_state, (step_size,), p=p
+            ).tolist()
+            trajectory_state = self.remove_from_list(trajectory_state, ingredients)
             length = len(trajectory_state)
 
             # Cache calculated state values if we haven't seen the state yet,
             # otherwise ask the value model for the prediction
             grow_result = self.get_value_cache(trajectory_state)
+            cardinality_reward = grow_result * (length + step)
             if grow_result <= self.growth_cutoff:
-                cardinality_reward = grow_result * (len(state) + step)
-                return
-
-        cardinality_reward = grow_result * (len(state) + horizon)
-        return cardinality_reward
-
-    def spsa(self):
-        """Not Implemented Yet"""
-        pass
+                break
+            prev_reward = cardinality_reward
+        return prev_reward
 
     def dict_to_ingredients(self, state):
         """
@@ -278,7 +287,7 @@ class MCTS(object):
             The remaining ingredients in the solution.
         """
         if isinstance(to_remove, list):
-            state = [i for i in state if i in to_remove]
+            state = [i for i in state if i not in to_remove]
         else:
             state = [i for i in state if i != to_remove]
         return state
@@ -297,8 +306,7 @@ class MCTS(object):
         inputs: np.array(int)
             A boolean array representation of the state.
         """
-
-        inputs = np.array(self.all_ingredients)
+        inputs = np.array(self.ingredient_names)
         inputs = np.isin(inputs, state).astype(float).reshape((1, -1))
         return inputs
 
@@ -316,7 +324,7 @@ class MCTS(object):
         print(f"stage: {n}")
         if n == 1:
             print("performing rollout")
-            return self.perform_rollout(self.current_state, **kwargs)
+            return self.perform_rollout(state, **kwargs)
         else:
 
             def _run_helper(_state, _n, args):
@@ -358,7 +366,7 @@ class MCTS(object):
         use_multiprocessing=True,
     ):
         """
-        Performs an Monte Carlo Rollout Simulation for the solution `self.current_state`. The 
+        Performs an Monte Carlo Rollout Simulation for the solution `self`. The 
         trajectories for each remaining ingredient are averaged over `limit` times. The
         ingredient with the lowest predicted score (equivalent to the cardinality of the 
         solution) is returned.
@@ -392,13 +400,13 @@ class MCTS(object):
 
         if available_actions is None:
             available_actions = self.find_candidates(state)
-            # available_actions = self.current_state
         rewards = {}
         LOG.debug(f"Available actions: {available_actions}")
 
         if log_graph:
             all_results = np.empty((len(available_actions), limit))
 
+        full_media_length = len(state)
         if use_multiprocessing is False:
             # t1 = tqdm(available_actions, desc="Exploring Actions", leave=True)
             # t2 = tqdm(total=limit, desc="Calculating Trajectory", leave=True)
@@ -407,13 +415,13 @@ class MCTS(object):
                 # t1.refresh()  # to show immediately the update
                 test_state = self.remove_from_list(state, action)
 
-                results = np.empty(limit)
-                results.fill(np.nan)
+                results = np.zeros(limit)
                 # t2.reset()
                 for j in range(limit):
                     results[j] = self.trajectory(
                         test_state,
                         horizon,
+                        full_media_length,
                         self.np_state,
                         grow_advantage=grow_advantage,
                     )
@@ -434,8 +442,7 @@ class MCTS(object):
             def _rollout_multi_helper(action, limit, grow_advantage, seed=None):
                 numpy_state = utils.seed_numpy_state(seed)
                 test_state = self.remove_from_list(state, action)
-                results = np.empty(limit)
-                results.fill(np.nan)
+                results = np.zeros(limit)
 
                 # Use TQDM if logging level is INFO or below
                 if args.log <= 2:
@@ -452,14 +459,19 @@ class MCTS(object):
                         t_range.update()  # to show immediately the update
 
                     results[j] = self.trajectory(
-                        test_state, horizon, numpy_state, grow_advantage=grow_advantage,
+                        test_state,
+                        horizon,
+                        full_media_length,
+                        numpy_state,
+                        grow_advantage=grow_advantage,
                     )
 
                 if args.log <= 2:
                     t_range.close()
 
-                LOG.debug(f"Results: {results}")
                 results = (np.min(results), np.max(results), np.mean(results))
+                LOG.debug(f"Results: {results}")
+
                 return results
 
             # Set up multiprocessing
@@ -516,26 +528,49 @@ if __name__ == "__main__":
         # data = pd.read_csv(data_path)
         # data = data.drop(columns=["grow"])
         # starting_state = data.sample(1).to_dict("records")[0]
+        # starting_state = {
+        #     "ala_exch": 0,
+        #     "gly_exch": 0,
+        #     "arg_exch": 1,
+        #     "asn_exch": 0,
+        #     "asp_exch": 0,
+        #     "cys_exch": 1,
+        #     "glu_exch": 0,
+        #     "gln_exch": 1,
+        #     "his_exch": 0,
+        #     "ile_exch": 1,
+        #     "leu_exch": 1,
+        #     "lys_exch": 0,
+        #     "met_exch": 1,
+        #     "phe_exch": 1,
+        #     "ser_exch": 0,
+        #     "thr_exch": 1,
+        #     "trp_exch": 1,
+        #     "tyr_exch": 1,
+        #     "val_exch": 0,
+        #     "pro_exch": 1,
+        # }
+
         starting_state = {
-            "ala_exch": 0,
-            "gly_exch": 0,
+            "ala_exch": 1,
+            "gly_exch": 1,
             "arg_exch": 1,
-            "asn_exch": 0,
-            "asp_exch": 0,
+            "asn_exch": 1,
+            "asp_exch": 1,
             "cys_exch": 1,
-            "glu_exch": 0,
+            "glu_exch": 1,
             "gln_exch": 1,
-            "his_exch": 0,
+            "his_exch": 1,
             "ile_exch": 1,
             "leu_exch": 1,
-            "lys_exch": 0,
+            "lys_exch": 1,
             "met_exch": 1,
             "phe_exch": 1,
-            "ser_exch": 0,
+            "ser_exch": 1,
             "thr_exch": 1,
             "trp_exch": 1,
             "tyr_exch": 1,
-            "val_exch": 0,
+            "val_exch": 1,
             "pro_exch": 1,
         }
 
@@ -545,8 +580,8 @@ if __name__ == "__main__":
         search = MCTS(
             # growth_model_dir="data/neuralpy_optimization_expts/052220-sparcity-3/working_model",
             growth_model_weights_dir="data/neuralpy_optimization_expts/052220-sparcity-3/working_model/weights.npz",
-            current_state=starting_state,
-            seed=10,
+            ingredient_names=list(starting_state.keys()),
+            # seed=0,
         )
         # dill.detect.trace(True)
         # dill.detect.errors(mcts)
@@ -565,7 +600,7 @@ if __name__ == "__main__":
         # )
 
         best_action = search.run(
-            starting_state=search.current_state,
+            starting_state=starting_state,
             n=2,
             available_actions=None,
             horizon=4,

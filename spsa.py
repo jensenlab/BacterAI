@@ -10,6 +10,12 @@ import pandas as pd
 import dnf
 import utils
 
+INDENT = "  "
+
+
+def get_indent(n):
+    return "".join([INDENT for _ in range(n)])
+
 
 # Logging set up
 logger = logging.getLogger(__name__)
@@ -19,11 +25,6 @@ LOGTYPE = collections.namedtuple("LOGTYPE", "debug info error")
 LOG = LOGTYPE(logger.debug, logger.info, logger.error)
 
 INDENT = "  "
-
-
-def get_indent(n):
-    return "".join([INDENT for _ in range(n)])
-
 
 # CLI argument set up
 parser = argparse.ArgumentParser(description="Run spsa.py")
