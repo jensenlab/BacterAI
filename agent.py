@@ -3,6 +3,7 @@ import collections
 import copy
 import csv
 from dataclasses import dataclass
+import itertools
 import logging
 import math
 import operator
@@ -68,12 +69,6 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--no_reinforce",
-    action="store_true",
-    default=False,
-    help="Don't use the REINFORCE algorithm when updating policy.",
-)
-parser.add_argument(
     "-mp",
     "--no_multiprocessing",
     action="store_true",
@@ -82,12 +77,7 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "-g",
-    "--gpu",
-    type=int,
-    default=0,
-    choices=range(0, 2),
-    help="Choose GPU (0 or 1).",
+    "-g", "--gpu", type=int, default=0, choices=(0, 1), help="Choose GPU (0 or 1).",
 )
 
 parser.add_argument(
@@ -107,17 +97,6 @@ logger.setLevel(LOGLEVELS[args.log - 1])
 pp = pprint.PrettyPrinter(indent=2)
 
 
-@dataclass
-class AgentState:
-    """Agent state."""
-
-    media: dict  # str -> int
-    step_progress: float  # n_removed/n_media_ingredients
-    growth: float
-    agreement_rollout_gf: float
-    agreement_local_search_NN: float
-
-
 class AgentController(object):
     def __init__(
         self,
@@ -125,6 +104,7 @@ class AgentController(object):
         ingredients,
         growth_model_dir,
         agents=[],
+        oracle_model_dir=None,
         simulation_data_path=None,
         simulation_rule=None,
         shared_history=None,
@@ -134,11 +114,17 @@ class AgentController(object):
         self.experiment_cycle = 0
         self.policy_iteration = 0
         self.agents = agents  # list of Agent()
+        self.finished_agents = []
         self.ingredients = ingredients  # list of str for each possible ingredient
         self.growth_model = neural.PredictNet.from_save(growth_model_dir)
         self.growth_model_dir = growth_model_dir
         self.shared_history = pd.DataFrame()
         self.growth_threshold = 0.25
+
+        self.oracle_model = None
+        self.oracle_model_dir = oracle_model_dir
+        if oracle_model_dir:
+            self.oracle_model = neural.PredictNet.from_save(oracle_model_dir)
 
         self.simulation_data_dict = None
         self.simulation_data = None
@@ -153,8 +139,8 @@ class AgentController(object):
         if simulation_rule:
             self.simulation_rule = simulation_rule
 
-        self.policy = {}
         self.episode_history = {}
+
         self.np_state = utils.seed_numpy_state(seed)
 
     def add_agents(self, agents):
@@ -174,6 +160,7 @@ class AgentController(object):
         """
         state = dict(self.__dict__)
         state["growth_model"] = None
+        state["oracle_model"] = None
         return state
 
     def save_state(self):
@@ -190,7 +177,9 @@ class AgentController(object):
         with open(agent_controller_path, "wb") as f:
             pickle.dump(self, f)
 
-    def save_summary(self, old_policy, agent_media_states, agent_cardinalities):
+    def save_summary(
+        self, new_policy, old_policy, agent_media_states, agent_cardinalities
+    ):
         print("save_policy_summary")
         folder_path = os.path.join(
             self.experiment_path, f"policy_iteration_{self.policy_iteration}",
@@ -202,7 +191,7 @@ class AgentController(object):
         print("summary path", summary_path)
         with open(summary_path, "w") as f:
             f.write("NEW POLICY:\n")
-            for k, v in self.policy.items():
+            for k, v in new_policy.items():
                 f.write(f"\t{k}: {v}\n")
             f.write("OLD POLICY:\n")
             for k, v in old_policy.items():
@@ -222,8 +211,8 @@ class AgentController(object):
             f"policy_iteration_{self.policy_iteration}",
             f"cycle_{self.experiment_cycle}",
         )
-        loaded_agent_controller = AgentController.load_state(folder_path)
-        self.__dict__.update(loaded_agent_controller.__dict__)
+        # loaded_agent_controller = AgentController.load_state(folder_path)
+        # self.__dict__.update(loaded_agent_controller.__dict__)
 
     @classmethod
     def load_state(cls, iteration_folder_path):
@@ -251,7 +240,9 @@ class AgentController(object):
         self.growth_model = self.growth_model.get_reset_clone()
         self.growth_model.train(x, y)
 
-    def simulate_random_initial_data(self, n=None, supplemental_data_path=None):
+    def simulate_random_initial_data(
+        self, n=None, supplemental_data_path=None, use_oracle=True
+    ):
         LOG.info("Setting initial data")
 
         try:
@@ -262,11 +253,24 @@ class AgentController(object):
         else:
             accum = []
             if n is not None:
-                random_indexes = self.np_state.choice(
-                    self.simulation_data.index, size=n, replace=False
-                )
-                simulation_data = self.simulation_data.loc[random_indexes, :]
+                if use_oracle:
+                    random_inputs = self.np_state.choice(
+                        [0, 1], size=(n, len(self.ingredients))
+                    )
+                    simulation_data = pd.DataFrame(
+                        random_inputs, columns=self.ingredients,
+                    )
+                    simulation_data["grow"] = self.oracle_model.predict_probability(
+                        random_inputs
+                    )
+
+                else:
+                    random_indexes = self.np_state.choice(
+                        self.simulation_data.index, size=n, replace=False
+                    )
+                    simulation_data = self.simulation_data.loc[random_indexes, :]
                 accum.append(simulation_data)
+
             if supplemental_data_path is not None:
                 supplemental_data = pd.read_csv(supplemental_data_path, index_col=None)
                 accum.append(supplemental_data)
@@ -290,7 +294,11 @@ class AgentController(object):
 
     def get_simulation_growth(self, media_state):
         """
-        Get growth result from simuation dict by passing in state dict
+        Get growth result from by passing in state dict from difference sources in this order:
+        1. oracle NN
+        2. DNF simulation rule
+        3. Simulation data dictionary
+
         """
         try:
             if isinstance(media_state, dict):
@@ -306,148 +314,103 @@ class AgentController(object):
             else:
                 raise Exception("Must pass in tuple or dict.")
 
-            if self.simulation_rule is None and self.simulation_data_dict is None:
-                raise Exception("Need either simulation data or simulation rule.")
-            elif self.simulation_data_dict is None:
-                result = float(self.simulation_rule.evaluate(np.array(input_data)))
-            elif input_data not in self.simulation_data_dict:
-                # growth_model
+            if self.oracle_model is not None:
                 result = float(
-                    self.growth_model.predict_probability(np.array([input_data]))
+                    self.oracle_model.predict_probability(np.array([input_data]))
                 )
-                self.simulation_data_dict[input_data] = result
-            elif self.simulation_rule is None:
+            elif self.simulation_rule is not None:
+                result = float(self.simulation_rule.evaluate(np.array(input_data)))
+            elif self.simulation_data_dict is not None:
                 result = self.simulation_data_dict.get(input_data, None)
             else:
-                raise Exception("Unknown: could not get simulation growth result.")
+                raise Exception(
+                    "Could not get simulation growth result: Need either neural oracle, simulation data, or simulation rule."
+                )
+
         except Exception as e:
             LOG.error("get_simulation_growth:" + str(e))
         else:
             return result
 
-    def get_l1o_at_state(self, media_state):
-        """
-        Calculate L10 experiments on current state, returns a dict of 
-        the removed ingredient str -> experiment state tuple
-        """
-        # First, generate dict of media states to test
-        l1o_experiments = {}
-        still_present = [i for i, present in media_state.items() if present]
-        for ingredient in still_present:
-            new_expt = copy.copy(media_state)
-            new_expt[ingredient] = 0
-            l1o_experiments[ingredient] = tuple(new_expt.values())
-        return l1o_experiments
-
-    def update_policy(self, results, scores, learning_rate=0.001):
-        LOG.info("Updating Policy")
-        LOG.debug(f"Current Policy: {self.policy}")
-
-        # all_keys = set()
-        # for i in scores.keys()
-        #     all_keys.add(i)
-
-        gradients = {i: [] for i in self.policy.keys()}
-        for idx, target_score in enumerate(results):
-            agent_scores = zip(*scores[idx].values())
-            for s in agent_scores:
-                total = sum(s)
-                diff = total - target_score
-                for key, val in self.policy.items():
-                    grad = diff * val
-                    gradients[key].append(grad)
-
-        LOG.debug(f"Gradients: {gradients}")
-        new_policy = {}
-        for key, grads in gradients.items():
-            sum_grad = sum(grads)
-            LOG.debug(f"Grad({key}) sum: {sum_grad}")
-            new_policy[key] = self.policy[key] - learning_rate * sum_grad
-        LOG.info(f"New Policy: {new_policy}")
-        self.policy = new_policy
-
     def update_policy_reinforce(
         self,
+        policy,
         final_cardinality,
         episodes,
         learning_rate=0.10,
         discount_factor=1,
         episilon=1e-5,
+        clip=False,
     ):
         LOG.info("Updating Policy - REINFORCE")
-        LOG.debug(f"Current Policy: {self.policy}")
+        LOG.debug(f"Current Policy: {policy}")
         print("RESULTS", final_cardinality)
         print("EPISODES")
         pp.pprint(episodes)
-        policy_updates = {theta_name: [] for theta_name in self.policy.keys()}
+        policy_updates = []
+        policy_loss = []
         for e, episode in enumerate(episodes.values()):
             print("episode:", e)
             T = len(episode)
-            gJ = 0  # np.zeros(len(self.policy))
+            gJ = 0  # np.zeros(len(policy))
             for t in range(0, T):
-                regrade_scores, gLogPolicy = episode[t]  # ignore this reward value
+                gLogPolicy = episode[t]["calculated_gradients"]
+                log_prob = episode[t]["log_prob"]
+                reward = episode[t]["reward"]
                 # print(f"T:{t}, S:{s}, A:{a}, R:{r}")
 
-                if t == T - 1:
-                    final_reward = (
-                        len(self.ingredients) - final_cardinality[e]
-                    )  # max num of ingred - final cardinality
-                else:
-                    final_reward = 0
-
                 return_score = sum(
-                    [
-                        final_reward * (discount_factor ** (t_i - t))
-                        for t_i in range(t, T)
-                    ]
+                    [reward * (discount_factor ** (t_i - t)) for t_i in range(t, T)]
                 )
 
-                print("regrade_scores", regrade_scores)
+                # print("regrade_scores", regrade_scores)
                 print("gLogPolicy", gLogPolicy)
-                print("return score:", return_score, "final_reward", final_reward)
+                print("return score:", return_score, "reward", reward)
 
                 print("gJ", gJ)
                 gJ += return_score * gLogPolicy
                 print("gJ after", gJ)
-                # policy_score = sum(
-                #     [theta * s[theta_name] for theta_name, theta in self.policy.items()]
-                # )
-                # print(f"POLICY SCORE: {policy_score}")
 
-            # for theta_name in self.policy.keys():
-            #     theta_deriv = (1 / policy_score) * s[theta_name]
-            #     policy_updates[theta_name].append(
-            #         learning_rate * (discount_factor) * R * theta_deriv
-            #     )
-            policy_updates["regrade_lambda"].append(learning_rate * gJ)
+            policy_updates.append(learning_rate * gJ)
 
-        LOG.debug("Policy deltas")
+        policy_updates = np.vstack(policy_updates)
+        policy_means = policy_updates.mean(axis=0)
+
+        LOG.debug("Policy deltas:")
+        LOG.debug(policy_means)
         new_policy = {}
         all_updates = []
-        for theta_name in self.policy.keys():
-            avg_update = np.mean(policy_updates[theta_name])
-            all_updates.append(avg_update)
+        for i, param_name in enumerate(policy.keys()):
+            avg_update = policy_means[i]
             LOG.debug(get_indent(1) + str(avg_update))
-            new_policy[theta_name] = self.policy[theta_name] + avg_update
+            if clip:
+                new_policy[param_name] = np.clip(policy[param_name] + avg_update, 0, 1)
+            else:
+                new_policy[param_name] = policy[param_name] + avg_update
 
-        total = sum(new_policy.values())
-        for k, v in new_policy.items():
-            new_policy[k] = v / total
+            # if param_name == "lambda":
+            #     new_policy["lambda"] = max(min(new_policy["lambda"], 1), 0)
+            # new_policy[param_name] = max(min(new_policy[param_name], 1), 0)
+
+        # total = sum(new_policy.values())
+        # for k, v in new_policy.items():
+        #     new_policy[k] = v / total
+
+        #### Testing not using rollout mu: ####
+        policy["lambda"] = 0.0
 
         LOG.info(f"New Policy: {new_policy}")
-        self.policy = new_policy
-
         below_episilon = False
-        if np.mean(all_updates) <= episilon:
-            below_episilon = True
-        return below_episilon
+        # if np.abs(np.mean(all_updates)) <= episilon:
+        #     below_episilon = True
+
+        return new_policy, policy, below_episilon
 
     def generate_SPSA_experiment(self, media_states, n_grads=2):
         """returns experiments dict {removed_ingredient: ([(p_plus, p_minus)], perturbation vector)...}"""
         experiments = {}
         for removed_ingredient, media_state in media_states.items():
             # Remove any ingredients not available
-            # still_present = [i for i, present in state.items() if present == 1]
             n_remaining = sum(media_state)
             s = spsa.SPSA(W=np.ones(n_remaining))
             expts, perturbation = s.gen_spsa_experiments(n_grads)
@@ -466,12 +429,10 @@ class AgentController(object):
                     else:
                         full_expt_plus.append(0)
                         full_expt_minus.append(0)
-                # print(
-                #     "full_expt_plus, full_expt_minus", full_expt_plus, full_expt_minus
-                # )
+
             full_expts.append((full_expt_plus, full_expt_minus))
-            # print(f"Perturbed weights {(removed_ingredient)}", expts)
             experiments[removed_ingredient] = list(zip(full_expts, perturbation))
+
         return experiments
 
     def get_spsa_results(self, experiments, is_simulation=True):
@@ -482,9 +443,6 @@ class AgentController(object):
             perturb_results = []
             # print(ingredient_experiments)
             for (p_plus, p_minus), perturb_vector in ingredient_experiments:
-
-                # print(p_plus, p_minus)
-                # print(perturb_vector)
 
                 # p_plus, p_minus are the inputs perturbed in the +/- direction
                 if is_simulation:
@@ -512,88 +470,94 @@ class AgentController(object):
                 print("ZERO")
             if len(ingredient_grads) == 1:
                 mean_grad = ingredient_grads
+
             else:
                 mean_grad = np.mean(np.vstack(ingredient_grads), axis=0)
 
-            # TODO: Ensure dimensionality
-            # ingredient_grads.append(mean_grad)
             all_gradients[removed_ingredient] = mean_grad
+
         return all_gradients
 
-    def initialize_agents(self, n_agents, starting_media_state):
+    def initialize_agents(self, policy, env, n_agents):
+
+        """
+        Initialize `n_agents` with `policy`.
+        """
         self.agents = []
-        # Initialze Agents
         weights_dir = os.path.join(self.growth_model_dir, "weights.npz")
         for i in range(n_agents):
             LOG.debug(f"Creating agent {i}")
             random_seed = utils.numpy_state_int(self.np_state)
-            a = Agent(
-                self,
-                weights_dir,
-                starting_media_state=starting_media_state,
-                seed=random_seed,
-            )
+            a = Agent(policy, env, weights_dir, seed=random_seed,)
             self.agents.append(a)
 
-    def run(
-        self,
-        n_agents,
-        starting_media_state=None,
-        prev_cycle_results=None,
-        update_policy_on_completion=True,
-        online_growth_training=False,
-    ):
-        if prev_cycle_results is None:
-            self.experiment_cycle = 0
-            regrade_lambda = self.np_state.uniform(0.25, 0.75)
-            self.policy = {
-                "regrade_lambda": regrade_lambda,
-            }
-            self.initialize_agents(n_agents, starting_media_state)
-            self.episode_history = {agent.uuid: [] for agent in self.agents}
-        else:
-            self.experiment_cycle += 1
+    # def run(
+    #     self,
+    #     n_agents,
+    #     starting_media_state=None,
+    #     prev_cycle_results=None,
+    #     update_policy_on_completion=True,
+    #     online_growth_training=False,
+    # ):
+    #     if prev_cycle_results is None:
+    #         self.experiment_cycle = 0
+    #         regrade_lambda = self.np_state.uniform(0, 1)
+    #         skip_beta_1 = self.np_state.uniform(0, 1)
+    #         skip_beta_2 = self.np_state.uniform(0, 1)
+    #         skip_beta_3 = self.np_state.uniform(0, 1)
 
-        (
-            agent_media_states,
-            agent_cardinalities,
-            episodes,
-            final_scores,
-        ) = self.perform_round(online_growth_training)
+    #         policy = {
+    #             "lambda": regrade_lambda,
+    #             "beta_1": skip_beta_1,
+    #             "beta_2": skip_beta_2,
+    #             "beta_3": skip_beta_3,
+    #         }
 
-        LOG.info(colored(f"Final Media States:", "green"))
-        for m in agent_media_states:
-            LOG.info(get_indent(1) + str(m))
+    #         environment = ExperimentEnvironment()
 
-        LOG.info(
-            colored(f"Final Media Cardinalities:", "green") + str(agent_cardinalities)
-        )
+    #         self.initialize_agents(policy, n_agents)
+    #         self.episode_history = {agent.uuid: [] for agent in self.agents}
+    #     else:
+    #         self.experiment_cycle += 1
 
-        if episodes:
-            for uuid, eps in episodes.items():
-                self.episode_history[uuid].append(eps)
+    #     (
+    #         agent_media_states,
+    #         agent_cardinalities,
+    #         episodes,
+    #         final_scores,
+    #     ) = self.perform_round(online_growth_training)
 
-        if len(episodes) == 0 and update_policy_on_completion:
-            # POLICY ITERATION
-            old_policy = self.policy
-            if args.no_reinforce:
-                self.update_policy(agent_cardinalities, final_scores)
-                below_episilon = False
-            else:
-                below_episilon = self.update_policy_reinforce(
-                    agent_cardinalities, self.episode_history
-                )
+    #     LOG.info(colored(f"Final Media States:", "green"))
+    #     for m in agent_media_states:
+    #         LOG.info(get_indent(1) + str(m))
 
-            if below_episilon:
-                # Stop iterating policy if policy deltas are below threshold
-                return
+    #     LOG.info(
+    #         colored(f"Final Media Cardinalities:", "green") + str(agent_cardinalities)
+    #     )
 
-            self.agents = copy.copy(self.agents)
+    #     if episodes:
+    #         for uuid, eps in episodes.items():
+    #             self.episode_history[uuid].append(eps)
 
-            self.retrain_growth_model()
-            self.save_summary(old_policy)
-            self.policy_iteration += 1
-        self.save_state()
+    #     if len(episodes) == 0 and update_policy_on_completion:
+    #         # POLICY ITERATION
+    #         old_policy = policy
+    #         new_policy, below_episilon = self.update_policy_reinforce(
+    #             policy, agent_cardinalities, self.episode_history
+    #         )
+
+    #         if below_episilon:
+    #             # Stop iterating policy if policy deltas are below threshold
+    #             return
+
+    #         self.agents = copy.copy(self.agents)
+
+    #         for agent in self.agents:
+    #             agent.update_policy(new_policy)
+    #         self.retrain_growth_model()
+    #         self.save_summary(new_policy, old_policy)
+    #         self.policy_iteration += 1
+    #     self.save_state()
 
     def run_simulation(
         self,
@@ -606,32 +570,37 @@ class AgentController(object):
         try:
             if self.shared_history is None:
                 raise Exception("You need to add input data to data shared_history")
-            if self.simulation_data_dict is None and self.simulation_rule is None:
-                raise Exception("You need to set the simulation data or rule")
+            if (
+                self.simulation_data_dict is None
+                and self.simulation_rule is None
+                and self.oracle_model is None
+            ):
+                raise Exception(
+                    "You need to set the oracle, simulation data, or simulation rule"
+                )
         except Exception as e:
             LOG.error("simulate:" + str(e))
         else:
-            # policy = {
-            #     "min_rollout": self.np_state.uniform(0, 1),
-            #     "max_rollout": self.np_state.uniform(0, 1),
-            #     "mean_rollout": self.np_state.uniform(0, 1),
-            #     "spsa_gradients": self.np_state.uniform(0, 1),
-            # }
-            regrade_lambda = self.np_state.uniform(0.25, 0.75)
-            # self.policy = {
-            #     "mean_rollout": regrade_lambda,
-            #     "gf_stage_1": 1 - regrade_lambda,
-            # }
-            self.policy = {
-                "regrade_lambda": regrade_lambda,
+
+            regrade_lambda = 0.0
+            # regrade_lambda = self.np_state.uniform(0, 1)
+            skip_beta_1 = self.np_state.uniform(0, 1)
+            skip_beta_2 = self.np_state.uniform(0, 1)
+            skip_beta_3 = self.np_state.uniform(0, 1)
+
+            policy = {
+                "lambda": regrade_lambda,
+                "beta_1": skip_beta_1,
+                "beta_2": skip_beta_2,
+                "beta_3": skip_beta_3,
             }
-            policy_iterations = [self.policy]
+
+            env = ExperimentEnvironment(starting_media_state)
+            self.initialize_agents(policy, env, n_agents)
+
+            policy_history = [policy]
             final_media_states = {}
-
             for policy_i in range(n_policy_iterations):
-                self.policy_iteration = policy_i
-                self.initialize_agents(n_agents, starting_media_state)
-
                 LOG.info(
                     colored(
                         f"################# STARTING POLICY ROUND {policy_i} #################",
@@ -641,8 +610,12 @@ class AgentController(object):
                     )
                 )
 
+                self.policy_iteration = policy_i
+
+                self.perform_experiment_sims(n_stages=1)
+
                 first_iteration = True
-                self.episode_history = {agent.uuid: [] for agent in self.agents}
+                self.episode_history = {a.uuid: [] for a in self.agents}
                 while len(self.agents):
                     if not first_iteration:
                         self.update_state()
@@ -654,14 +627,13 @@ class AgentController(object):
                         agent_media_states,
                         agent_cardinalities,
                         episodes,
-                        final_scores,
                     ) = self.perform_round(online_growth_training)
 
                     if episodes:
                         for uuid, eps in episodes.items():
                             self.episode_history[uuid].append(eps)
                     first_iteration = False
-                    self.save_state()
+                    # self.save_state()
 
                 LOG.info(colored(f"Final Media States:", "green"))
                 for m in agent_media_states:
@@ -673,32 +645,37 @@ class AgentController(object):
                 )
 
                 # POLICY ITERATION
-                old_policy = self.policy
-                if args.no_reinforce:
-                    self.update_policy(agent_cardinalities, final_scores)
-                    below_episilon = False
-                else:
-                    below_episilon = self.update_policy_reinforce(
-                        agent_cardinalities, self.episode_history
-                    )
+                policy, old_policy, below_episilon = self.update_policy_reinforce(
+                    policy, agent_cardinalities, self.episode_history
+                )
+
+                for a in self.finished_agents:
+                    a.reset()
+                    a.set_policy(policy)
+                    self.agents.append(a)
+
+                self.finished_agents.clear()
+                print("self.agents")
+                for a in self.agents:
+                    print(a.env.get_current_media(as_binary=True))
 
                 if below_episilon:
                     # Stop iterating policy if policy deltas are below threshold
                     return
 
-                #### REFACTOR FOR AGENT POLICY ITERATION ####
-                self.agents = copy.copy(self.agents)
                 # self.simulate_random_initial_data(
                 #     n=2500,
                 #     supplemental_data_path="data/iSMU-test/initial_data/train_set_L1OL2O.csv",
                 # )
 
                 self.retrain_growth_model()
-                self.save_summary(old_policy, agent_media_states, agent_cardinalities)
-                policy_iterations.append(self.policy)
+                self.save_summary(
+                    policy, old_policy, agent_media_states, agent_cardinalities
+                )
+                policy_history.append(policy)
                 final_media_states[policy_i] = agent_media_states
 
-            LOG.info(f"All Policies: {policy_iterations}")
+            LOG.info(f"All Policies: {policy_history}")
             return final_media_states
 
     def perform_round(
@@ -713,50 +690,32 @@ class AgentController(object):
             )
         )
         LOG.debug(f"Current History: {self.shared_history}")
-        (
-            agent_available_actions,
-            agent_l1o_results,
-        ) = self.get_gradient_following_experiments(n_stages=1)
 
         # if online_growth_training:
         #     self.retrain_growth_model()
 
         # Get next media prediction
         episodes = {}
-        final_scores = {}
-        agents_to_stop = set()
-        agent_media_states = []
-        agent_cardinalities = []
-        for i, (agent, actions, l1o_results) in enumerate(
-            zip(self.agents, agent_available_actions, agent_l1o_results)
-        ):
+        for i, agent in enumerate(self.agents):
             LOG.info(colored(f"Simulating Agent #{i}", "cyan", attrs=["bold"]))
-            LOG.debug(f"Current State: {agent.get_current_state(as_binary=True)}")
-            # Set current agent to terminate if there are no available actions
-            if not actions:
-                LOG.info(
-                    colored(
-                        f"Terminating Agent #{i}! Final media state:",
-                        "red",
-                        attrs=["bold"],
-                    )
-                    + str(agent.current_state)
-                )
-                agent_media_states.append(agent.get_current_state(as_binary=True))
-                agent_cardinalities.append(agent.get_cardinality())
-                agents_to_stop.add(i)
-                continue
+            LOG.debug(f"Current State: {agent.env.get_current_media(as_binary=True)}")
 
-            # Run simulation on Agent's next choice
-            next_media, regrade_scores, gradients = agent.get_next_media(
-                available_actions=actions,
-                gf_stage_1=l1o_results,
-                # gf_stage_2=spsa_gradients[i],
-                policy=self.policy,
-                n_rollout=100,
-                agent_i=i,
+            # Get next move from agent policy
+            best_action, policy_scores, gradient, log_prob = agent.get_action(
+                n_rollout=100
             )
-            episodes[agent.uuid] = (regrade_scores, gradients)
+
+            # Take step using best_action
+            prev_env = agent.env
+            agent.env.step(best_action)
+
+            episodes[agent.uuid] = {
+                "action": best_action,
+                "state": prev_env,
+                "reward": 0,
+                "calculated_gradients": gradient,
+                "log_prob": log_prob,
+            }
 
             # for name, value in reward.items():
             #     if name not in final_scores:
@@ -766,25 +725,42 @@ class AgentController(object):
             # Move to best state. Don't need to update value net, since this next
             # state is chosen from available_actions, which are a subset of L1O at
             # the current state, which have already been tested.
-            agent.current_state = next_media
+
+        agents_done = self.perform_experiment_sims(n_stages=1)
 
         # Remove any agents that need to be terminated
-        if agents_to_stop:
-            self.agents = [
-                self.agents[j]
-                for j in range(len(self.agents))
-                if j not in agents_to_stop
-            ]
+        current_agents = []
+        final_media_states = []
+        agent_cardinalities = []
+        for agent, is_done in zip(self.agents, agents_done):
+            if is_done:
+                LOG.info(
+                    colored(
+                        f"Terminating Agent #{i}! Final media state:",
+                        "red",
+                        attrs=["bold"],
+                    )
+                    + str(agent.env.get_current_media())
+                )
+                episodes[agent.uuid]["reward"] = agent.env.get_n_removed()
+                final_media_states.append(agent.env.get_current_media(as_binary=True))
+                agent_cardinalities.append(agent.env.get_cardinality())
+                self.finished_agents.append(agent)
+            else:
+                current_agents.append(agent)
 
-        return agent_media_states, agent_cardinalities, episodes, final_scores
+        self.agents = current_agents
 
-    def get_gradient_following_experiments(self, n_stages=1):
-        # Determine all L1O expertiments that need to be run based on each Agent's current state
+        return final_media_states, agent_cardinalities, episodes
+
+    def perform_experiment_sims(self, n_stages=1):
+
+        # Determine all L1O experiments that need to be run based on each Agent's current state
         expt_to_removed_ingredient = []
         l1o_experiments = set()
         spsa_experiments = []
         for agent in self.agents:
-            l1o = self.get_l1o_at_state(agent.current_state)
+            l1o = agent.env.get_gf_stage_1_experiments()
             l1o_experiments.update(l1o.values())
             expt_to_removed_ingredient.append(l1o)
 
@@ -792,9 +768,15 @@ class AgentController(object):
             # spsa_expts = self.generate_SPSA_experiment(l1o)
             # spsa_experiments.append(spsa_expts)
 
-        # Retrive results from simulation dict
-        l1o_raw_results = {
+        # Retrive results from simulation dict or oracle model NN
+        l1o_oracle_results = {
             expt: self.get_simulation_growth(expt) for expt in l1o_experiments
+        }
+
+        # Obtain NN prediction from growth model NN when removing each ingredient
+        l1o_predicted_results = {
+            expt: float(self.growth_model.predict_probability(np.array([expt]))[0])
+            for expt in l1o_experiments
         }
 
         # Use for 2-stage lookahead
@@ -811,69 +793,175 @@ class AgentController(object):
         # Get a list of available actions for each agent based on L1O results
         agent_available_actions = []
         agent_l1o_results = []
+        agents_done = []
         for agent, experiment_dict in zip(self.agents, expt_to_removed_ingredient):
             # Available actions are only L1Os that grow
             actions = []
             l1o_results = {}
+            l1o_predictions = {}
             for ingredient, expt in experiment_dict.items():
-                if l1o_raw_results[expt] >= self.growth_threshold:
+                # print("l1o_oracle_results", l1o_oracle_results[expt])
+                if l1o_oracle_results[expt] >= self.growth_threshold:
                     actions.append(ingredient)
-                    l1o_results[ingredient] = l1o_raw_results[expt]
+
+                    l1o_results[ingredient] = l1o_oracle_results[expt]
+                    l1o_predictions[ingredient] = l1o_predicted_results[expt]
+
+            done = agent.env.update(actions, l1o_results, l1o_predictions)
+            print(f"Agent {agent.uuid} done: {done}")
             agent_available_actions.append(actions)
             agent_l1o_results.append(l1o_results)
-
+            agents_done.append(done)
         # Train value net based on these L1Os
         media_columns = [c for c in self.shared_history.columns if c != "grow"]
-        l1o_df = pd.DataFrame(l1o_raw_results.keys(), columns=media_columns)
-        l1o_df["grow"] = l1o_raw_results.values()
+        l1o_df = pd.DataFrame(l1o_oracle_results.keys(), columns=media_columns)
+        l1o_df["grow"] = l1o_oracle_results.values()
 
         LOG.debug(f"Added L1O data: {l1o_df}")
         self.update_history(l1o_df)
 
-        return agent_available_actions, agent_l1o_results
+        return agents_done
+        # return agent_available_actions, agent_l1o_results
 
 
-class Agent:
-    def __init__(
-        self, controller, growth_model_weights_dir, starting_media_state, seed=None
-    ):
+class ExperimentEnvironment:
+    """The current environment of the experiment for our RL agent to use.
 
-        self.controller = controller
-        self.uuid = uuid.uuid4()
-        self.growth_model_weights_dir = growth_model_weights_dir
-        self.experiment_history = pd.DataFrame()
+    media: dict(str -> int)
+        The current media configuration, 0 means ingredient not present, 1 means ingredient is present.
+    step_progress: float
+        Ranged from [0, 1], this represents how close the media is to having all of its ingredients
+        removed. Computed as (number of removed ingredients)/(number of media ingredients)
+    growth: float
+        Ranged from [0, 1], this is the experimental result. 
+    agreement: float
+        This value represents the "agreement" between the local search (gradient following results) and
+        the predicted neural network results.
+    
+    """
 
-        # self._current_state = None
-        # self.starting_state = None
-        # if starting_media_state:
-        self._current_state = starting_media_state
+    def __init__(self, starting_media_state, seed=None):
+        self._current_media = starting_media_state
+        self.available_actions = None
+
+        self.step_progress = None
+        self.growth = None
+        self.agreement = None
+
+        self.gf_stage_1 = None
+        self.gf_stage_2 = None
+        self.growth_ods_predicted = None
 
         self.np_state = utils.seed_numpy_state(seed)
 
-    def __getstate__(self):
-        """
-        Automatically called when pickling this class, to avoid pickling errors 
-        when saving controller object.
-        """
-        state = dict(self.__dict__)
-        state["controller"] = None
-        return state
-
-    def get_current_state(self, as_binary=False):
+    def get_current_media(self, as_binary=False):
         if as_binary:
-            return list(self._current_state.values())
-        return self._current_state
+            return list(self._current_media.values())
+        return self._current_media
 
-    def set_current_state(self, new_state):
-        self._current_state = new_state
+    def set_current_media(self, new_state):
+        self._current_media = new_state
 
-    current_state = property(get_current_state, set_current_state)
+    current_state = property(get_current_media, set_current_media)
+
+    def update(self, actions, stage_1_results, predicted_ods):
+        self.available_actions = actions
+        self.gf_stage_1 = stage_1_results
+        self.growth_ods_predicted = predicted_ods
+
+        self.update_agreement()
+        return len(actions) <= 0  # is_done
+
+    def get_n_removed(self):
+        return len(self.get_current_media()) - self.get_cardinality()
 
     def get_cardinality(self):
-        return sum(self.get_current_state(as_binary=True))
+        return sum(self.get_current_media(as_binary=True))
+
+    def get_removal_progress(self):
+        """
+        Compute the ingredient removal 'progress' as 
+        (# currently removed ingredients/# total ingredients)
+        """
+
+        progress = self.get_n_removed() / len(self.get_current_media())
+        return progress
+
+    def update_agreement(self):
+        """
+        Calculate the agreement between local search gf_stage_1 results (L1O expts.)
+        and the agent neural network predictions.
+        """
+
+        agreement = {}
+        for ingredient, l1o_result in self.gf_stage_1.items():
+            l1o_prediction = self.growth_ods_predicted[ingredient]
+            value = 1 - abs(l1o_prediction - l1o_result)
+            agreement[ingredient] = value
+
+        self.agreement = utils.normalize_dict_values(agreement)
+
+    def step(self, ingredient):
+        self._current_media[ingredient] = 0
+
+    def get_normalized_gf_scores(self):
+        st_one = utils.normalize_dict_values(self.gf_stage_1)
+        # st_two = utils.normalize_dict_values(self.gf_stage_2)
+        st_two = None
+        return st_one, st_two
+
+    def get_gf_stage_1_experiments(self):
+        """
+        Calculate L10 experiments on current state, returns a dict of 
+        the removed ingredient str -> experiment state tuple
+        """
+        # First, generate dict of media states to test
+        l1o_experiments = {}
+        still_present = [
+            i for i, present in self.get_current_media().items() if present
+        ]
+        for ingredient in still_present:
+            new_expt = copy.copy(self.get_current_media())
+            new_expt[ingredient] = 0
+            l1o_experiments[ingredient] = tuple(new_expt.values())
+        return l1o_experiments
+
+
+class Agent:
+    def __init__(self, policy, env, growth_model_weights_dir, seed=None):
+
+        self.uuid = uuid.uuid4()
+        self.policy = policy
+        self.env = env
+        self.growth_model_weights_dir = growth_model_weights_dir
+        # self.experiment_history = pd.DataFrame()
+
+        self.original_policy = copy.deepcopy(policy)
+        self.original_env = copy.deepcopy(env)
+
+        self.np_state = utils.seed_numpy_state(seed)
+
+    def reset(self):
+        """
+        Resets agents and policies
+        """
+
+        print(f"reseting agent {self.uuid}")
+        self.policy = copy.deepcopy(self.original_policy)
+        self.env = copy.deepcopy(self.original_env)
+
+    def __str__():
+        print(f"Agent({self.uuid}):")
+        print("policy:")
+        for k, v in policy.items():
+            print(f"\t{k}: {v}")
+        print(env)
 
     def softmax_with_tiebreak(self, score_totals):
-        # score_totals = {ingredient: s["total"] for ingredient, s in scores.items()}
+        """
+        Compute softmax with random tiebreak.
+        """
+
         exps = np.exp(list(score_totals.values()))
         softmax_scores = exps / exps.sum()
 
@@ -891,188 +979,218 @@ class Agent:
         else:
             return self.np_state.choice(max_actions)
 
-    def pick_best_action(
-        self,
-        policy,
-        available_actions,
-        rollout_predictions,
-        growth_ods,
-        gf_stage_1,
-        gf_stage_2,
+    def eval_regrade_policy(self, lamb, rollout_score, gf_score):
+        """Evaluate REGRADE policy:
+        P(ingredient) = lambda * rollout_mu_score + (1-lamb) * gradient_following_score
+        """
+
+        return tf.Variable(
+            lamb * rollout_score + (1 - lamb) * gf_score, name="regrade_eval"
+        )
+
+    def eval_skip_policy(self, betas, removal_progress, growth, agreement):
+        """Evaluate skip policy:
+        P(ingredient) = (beta_1*removal_progress) + (beta_2*growth) +(beta_3*agreement)
+        """
+
+        values = tf.constant([removal_progress, growth, agreement])
+        betas = tf.cast(betas, tf.float32, name="betas")
+        x = tf.math.reduce_sum(tf.math.multiply(betas, values))
+        return tf.math.sigmoid(x)
+
+    def compute_lambda_grad(self, rollout_score, gf_score):
+        """Compute lambda gradient"""
+
+        lamb = tf.Variable(self.policy["lambda"], name="lambda")
+        lamb = tf.cast(lamb, tf.float32, name="lambda")
+
+        with tf.GradientTape(watch_accessed_variables=False) as tape:
+            tape.watch(lamb)
+            # y = self.eval_regrade_policy(lamb, rollout_score, gf_score) # TF can't track vars in this fn?
+            y = (
+                lamb * rollout_score + (1 - lamb) * gf_score
+            )  # TF can't track vars unless we directly call this here
+
+        dy_dlamb = tape.gradient(y, lamb)
+        return np.array([dy_dlamb.numpy()])
+
+    def compute_beta_grad(self, growth, agreement):
+        """Compute beta gradient"""
+
+        removal_progress = self.env.get_removal_progress()
+        betas = [self.policy["beta_1"], self.policy["beta_2"], self.policy["beta_3"]]
+        betas = tf.Variable(betas, name="betas")
+        betas = tf.cast(betas, tf.float32, name="betas")
+
+        with tf.GradientTape(watch_accessed_variables=False) as tape:
+            tape.watch(betas)
+            # y = self.eval_skip_policy(betas, removal_progress, growth, agreement)
+            values = tf.constant([removal_progress, growth, agreement])
+            x = tf.math.reduce_sum(tf.math.multiply(betas, values))
+            y = tf.math.sigmoid(x)
+
+        grad_betas = tape.gradient(y, betas)
+        return grad_betas.numpy()
+
+    def set_policy(self, new):
+        if self.policy.keys() != new.keys():
+            raise KeyError("Matching keys not found.")
+        self.policy = new
+
+    def set_env(self, new):
+        self.env = new
+
+    def get_action(
+        self, n_rollout=100, state_memory=None, log=False,
     ):
         """
-        Picks and action based on the provided sources of information and 
-        optionally weights them unevenly when making the final choice.
+        Picks and action based on the provided sources of information.
 
-        Inputs must each be a dict(str -> x) where the str is the ingredient name and x 
-        is the respective information.
-
-        Implement the REGRADE algorithm.
+        Implement the REGRADE algorithm, calculate skip policy
         """
 
-        ### Finishes calculating the value of our state and chooses a best action
-        # based on a policy
+        # Perform rollout
+        rollout_predictions = self.run_rollout(n_rollout)
+        if log:
+            self.log_rollout_results(rollout_predictions)
 
         print("\nRollout predictions:")
         pp.pprint(rollout_predictions)
-        print("\ngrowth_ods:")
-        pp.pprint(growth_ods)
+        print("\ngrowth_ods_predicted:")
+        pp.pprint(self.env.growth_ods_predicted)
         print("\ngf_stage_1:")
-        pp.pprint(gf_stage_1)
+        pp.pprint(self.env.gf_stage_1)
         print("\ngf_stage_2:")
-        pp.pprint(gf_stage_2)
+        pp.pprint(self.env.gf_stage_2)
 
-        has_od = growth_ods is not None
-        has_gf_stage_1 = gf_stage_1 is not None
-        has_gf_stage_2 = gf_stage_2 is not None
-
-        n_choices = 3 + int(has_od) + int(has_gf_stage_1) + int(has_gf_stage_2)
-
-        # keys = ["min_rollout", "max_rollout", "mean_rollout"]
-        keys = ["mean_rollout"]
-        if has_od:
-            keys.append("growth_ods")
-        if has_gf_stage_1:
-            keys.append("gf_stage_1")
-        if has_gf_stage_2:
-            keys.append("gf_stage_2")
-
-        # if policy is None:
-        #     policy = {k: 1 / n_choices for k in keys}
-        # elif len(policy) != n_choices:
-        #     raise Exception(
-        #         f"ERROR: len(policy) must match number of choices passed in. ({len(policy)}, {n_choices})"
-        #     )
-        # elif round(sum(weights), 5) != 1:
-        #     raise "ERROR: sum(weights) must equal 1."
-
-        # Process rollout results
+        # Process rollout results, use only mean currently
         rollout_scores = {}
-        for ingredient, score in rollout_predictions.items():
-            mean_rollout_score = score[2]
-            rollout_scores[ingredient] = mean_rollout_score
+        for ingredient, (mini, maxi, mean) in rollout_predictions.items():
+            rollout_scores[ingredient] = mean
 
         rollout_scores = utils.normalize_dict_values(rollout_scores)
         print("normalized rollout_scores:")
         pp.pprint(rollout_scores)
 
-        # if ingredient not in scores.keys():
-        #     scores[ingredient] = {"total": 0}
-        # min_score = policy["min_rollout"] * rollout_predictions[ingredient][0]
-        # max_score = policy["max_rollout"] * rollout_predictions[ingredient][1]
-        # mean_score = policy["mean_rollout"] * rollout_predictions[ingredient][2]
-
-        # scores[ingredient]["min_rollout"] = min_score
-        # scores[ingredient]["max_rollout"] = max_score
-        # scores[ingredient]["mean_rollout"] = mean_score
-        # scores[ingredient]["total"] += min_score + max_score + mean_score
-
-        if has_od:
+        if self.env.growth_ods_predicted is not None:
             # Process OD results
-            for ingredient, score in growth_ods.items():
+            for ingredient, score in self.env.growth_ods_predicted.items():
                 pass
-                # if ingredient not in scores.keys():
-                #     scores[ingredient] = {"total": 0}
-                # growth_score = policy["growth_ods"] * growth_ods[ingredient]
-                # scores[ingredient]["growth_ods"] = growth_score
-                # scores[ingredient]["total"] += growth_score
-        if has_gf_stage_1:
+
+        if self.env.gf_stage_1 is not None:
             # Process L1O gradients
-            # print("L1O results:")
-            # for ingredient, gradient in gf_stage_1.items():
-            #     print(ingredient)
-            #     print("\t", gradient)
-            gf_stage_1_scores = utils.normalize_dict_values(gf_stage_1)
+            gf_stage_1_scores, _ = self.env.get_normalized_gf_scores()
+
             print("normalized gf 1:")
             pp.pprint(gf_stage_1_scores)
 
-        if has_gf_stage_2:
+        if self.env.gf_stage_2 is not None:
             # TODO: process SPSA gradients
             print("USING GRADIENTS:")
-            pp.print(gf_stage_2)
+            pp.pprint(self.env.gf_stage_2)
             # scores[ingredient]["spsa_gradients"] = policy["spsa_gradients"] * self.process_gradients(spsa_gradients[ingredient])
 
-        # logit_scores = {
-        #     ingredient: self.logit_eval(score["total"])
-        #     for ingredient, score in scores.items()
-        # }
-        # Compute REGRADE score
-        regrade_scores = {}
-        for ingredient in rollout_predictions.keys():
-            rollout_score = rollout_scores[ingredient] * policy["regrade_lambda"]
-            gf_stage_1_score = gf_stage_1_scores[ingredient] * (
-                1 - policy["regrade_lambda"]
+        print("Agreement:")
+        pp.pprint(self.env.agreement)
+
+        removal_progress = self.env.get_removal_progress()
+        print(f"Removal Progress: {removal_progress}")
+
+        # Compute combined policy score (REGRADE policy and Skip Policy)
+        # Calculate scores for all single ingredient removals
+        policy_scores = {}
+        for ingredient in self.env.available_actions:
+            # compute REGRADE scores for ingredient
+            regrade_policy_val_1 = self.eval_regrade_policy(
+                self.policy["lambda"],
+                rollout_scores[ingredient],
+                gf_stage_1_scores[ingredient],
+            ).numpy()
+
+            # compute Skip scores
+            betas = tf.Variable(
+                [self.policy["beta_1"], self.policy["beta_2"], self.policy["beta_3"]]
             )
-            components = [rollout_score, gf_stage_1_score]
-            # regrade_score = sum(regrade_score)
-            regrade_scores[ingredient] = sum(components)
+            growth = self.env.growth_ods_predicted[ingredient]
+            agreement = self.env.agreement[ingredient]
+            skip_policy_val_1 = self.eval_skip_policy(
+                betas, removal_progress, growth, agreement
+            ).numpy()
 
-        print("########### REGRADE SCORES ###########\n")
-        print("total:", sum(regrade_scores.values()))
-        pp.pprint(regrade_scores)
+            policy_scores[ingredient] = regrade_policy_val_1 * skip_policy_val_1
+
+        # Skip distribution computations
+        # removal_permutations = list(
+        #     itertools.product(self.env.available_actions, repeat=2)
+        # )
+        # double_remove_policy_scores = {i: {} for i in self.env.available_actions}
+        # for ingredient1, ingredient2 in removal_permutations:
+        #     if ingredient1 == ingredient2:
+        #         continue
+        #     double_remove_policy_scores[ingredient1][ingredient2] = (
+        #         policy_scores[ingredient1] * policy_scores[ingredient2]
+        #     )
+        # print("########### DOUBLE POLICY SCORES ###########\n")
+        # pp.pprint(double_remove_policy_scores)
+
+        print("########### POLICY SCORES ###########\n")
+        policy_sum = sum(policy_scores.values())
+        normalized_policy_scores = {k: v / policy_sum for k, v in policy_scores.items()}
+        pp.pprint(normalized_policy_scores)
         print()
-        action = self.softmax_with_tiebreak(regrade_scores)
 
-        # reward = scores[action]
-        # reward = {
-        #     "mean_rollout": rollout_scores[ingredient] * policy["regrade_lambda"],
-        #     "gf_stage_1": gf_stage_1_scores[ingredient] * (1 - policy["regrade_lambda"]),
-        # }
-        # reward.pop("total")
+        # best_action = self.softmax_with_tiebreak(policy_scores)
+        best_action = self.np_state.choice(
+            self.env.available_actions,
+            size=1,
+            p=list(normalized_policy_scores.values()),
+        )[0]
 
-        # state = {k: 0 for k in keys}
-        # state["min_rollout"] = rollout_predictions[action][0]
-        # state["max_rollout"] = rollout_predictions[action][1]
-        # state["mean_rollout"] = rollout_scores[action]
-        # if has_gf_stage_1:
-        #     state["gf_stage_1"] = gf_stage_1_scores[action]
+        roll_score = rollout_scores[best_action]
+        gf_score = gf_stage_1_scores[best_action]
 
-        # media: dict  # str -> int
-        # step_progress
-        # growth: float
-        # agreement_rollout_gf: float
-        # agreement_local_search_NN: float
-        gradient = 1 / (rollout_scores[action] - gf_stage_1_scores[action] + 1)
+        log_prob = np.log(normalized_policy_scores[best_action])
+        print("log_prob:", log_prob)
 
-        n_full_media = len(self.get_current_state())
-        step_progress = (
-            n_full_media - sum(self.get_current_state(True))
-        ) / n_full_media
+        gradient_lambda = self.compute_lambda_grad(roll_score, gf_score)
+        gradient_betas = self.compute_beta_grad(
+            self.env.growth_ods_predicted[ingredient], self.env.agreement[ingredient]
+        )
 
-        rollout_scores = list(rollout_scores.values())
-        gf_stage_1_scores = list(gf_stage_1_scores.values())
-        agreement_rollout_gf = self.cos_similiarity(rollout_scores, gf_stage_1_scores)
+        gradient = np.hstack((gradient_lambda, gradient_betas))
+        print("gradient:", gradient)
 
-        print("STATE:", step_progress, agreement_rollout_gf)
-        # state = AgentState(avail)
+        LOG.info(f"Chosen ingredient to remove: {best_action}")
 
-        # LOG.info(f"State: {state}")
-        # LOG.info(f"Action: {action}")
-        # LOG.info(f"Reward: {reward}, ")
-        return action, regrade_scores, gradient
+        return best_action, policy_scores, gradient, log_prob
 
-    def cos_similiarity(self, r1, r2):
-        r1 = np.array(r1)
-        r2 = np.array(r2)
-        s = r1.dot(r2) / (np.sqrt(r1.dot(r1)) * np.sqrt(r2.dot(r2)))
-        return s
+    def run_rollout(self, limit, state_memory=None):
+        """Run rollout using MCTS"""
 
-    def get_next_media(
-        self,
-        available_actions,
-        gf_stage_1=None,
-        gf_stage_2=None,
-        growth_ods=None,
-        policy=None,
-        n_rollout=100,
-        agent_i=0,
-        state_memory=None,
-        log=False,
-    ):
-        ### This is part of the value function for our agent
+        # Initialize most updated MCTS
+        rand_seed = utils.numpy_state_int(self.np_state)
+        search = mcts.MCTS(
+            self.growth_model_weights_dir,
+            list(ingredients.keys()),
+            state_memory,
+            seed=rand_seed,
+        )
+
         # Perform rollout
-        rollout_scores = self.run_rollout(available_actions, n_rollout)
+        rollout_scores = search.perform_rollout(
+            state=self.env.get_current_media(),
+            limit=limit,
+            horizon=5,
+            available_actions=self.env.available_actions,
+            log_graph=False,
+            use_multiprocessing=True,
+        )
 
+        # Use results of state_memory to speed up subsequent rollouts
+        # state_memory = search.get_state_memory()
+        return rollout_scores
+
+    def log_rollout_results(self, rollout_scores):
         min_scores = []
         max_scores = []
         avg_scores = []
@@ -1085,85 +1203,19 @@ class Agent:
         mean_max_rollout_score = np.mean(max_scores)
         mean_avg_rollout_score = np.mean(avg_scores)
 
-        if log:
-            filename = (
-                f"avg_rollout_score_agent{agent_i}.csv"
-                if args.no_reinforce
-                else f"avg_rollout_score_reinforce_agent{agent_i}.csv"
+        filename = f"avg_rollout_score_reinforce_agent{self.uuid}.csv"
+        with open(filename, "a") as f:
+            writer = csv.writer(f)
+            writer.writerow(
+                [
+                    mean_min_rollout_score,
+                    mean_max_rollout_score,
+                    mean_avg_rollout_score,
+                ]
             )
-            with open(filename, "a") as f:
-                writer = csv.writer(f)
-                writer.writerow(
-                    [
-                        mean_min_rollout_score,
-                        mean_max_rollout_score,
-                        mean_avg_rollout_score,
-                    ]
-                )
-        # TODO: Get OD growth results
-        growth_ods = None
-
-        # Choose best actions
-        action, regrade_scores, gradients = self.pick_best_action(
-            policy,
-            available_actions,
-            rollout_scores,
-            growth_ods,
-            gf_stage_1,
-            gf_stage_2,
-        )
-        LOG.info(f"Chosen ingredient to remove: {action}")
-
-        # Generate new media dict and return if valid action
-        next_media = copy.copy(self.get_current_state())
-        next_media[action] = 0
-        return next_media, regrade_scores, gradients
-
-    def run_rollout(self, available_actions, limit, state_memory=None):
-        # Initialize most updated MCTS
-        rand_seed = utils.numpy_state_int(self.np_state)
-        search = mcts.MCTS(
-            self.growth_model_weights_dir,
-            list(ingredients.keys()),
-            state_memory,
-            seed=rand_seed,
-        )
-        # Perform rollout to determine next best media
-        rollout_scores = search.perform_rollout(
-            state=self.get_current_state(),
-            limit=limit,
-            horizon=5,
-            available_actions=available_actions,
-            log_graph=False,
-            use_multiprocessing=True,
-        )
-
-        # Use results of state_memory to speed up subsequent rollouts
-        # state_memory = search.get_state_memory()
-        return rollout_scores
 
 
 if __name__ == "__main__":
-    # import pickle
-
-    # a = pickle.load(
-    #     open(
-    #         "/home/lab/Documents/github/BacterAI/data/neuralpy_optimization_expts/052220-sparcity-3/no_training/model_params.pkl",
-    #         "rb",
-    #     )
-    # )
-    # a["lr"] = 0.004
-    # a["n_epochs"] = 10
-    # a["n_retrain_epochs"] = 10
-
-    # pickle.dump(
-    #     a,
-    #     open(
-    #         "/home/lab/Documents/github/BacterAI/data/neuralpy_optimization_expts/052220-sparcity-3/no_training/model_params.pkl",
-    #         "wb",
-    #     ),
-    # )
-
     # Set GPU
     with tf.device(f"/device:gpu:{args.gpu}"):
         # Silence some Tensorflow outputs
@@ -1188,86 +1240,64 @@ if __name__ == "__main__":
 
         ingredients = {
             "ala_exch": 0.1,
-            "gly_exch": 0.1,
             "arg_exch": 0.1,
             "asn_exch": 0.1,
             "asp_exch": 0.1,
             "cys_exch": 0.65,
             "glu_exch": 0.1,
             "gln_exch": 0.2,
+            "gly_exch": 0.1,
             "his_exch": 0.1,
             "ile_exch": 0.1,
             "leu_exch": 0.1,
             "lys_exch": 0.1,
             "met_exch": 0.1,
             "phe_exch": 0.1,
+            "pro_exch": 0.2,
             "ser_exch": 0.1,
             "thr_exch": 0.2,
             "trp_exch": 0.1,
             "tyr_exch": 0.1,
             "val_exch": 0.1,
-            "pro_exch": 0.2,
         }
-
-        # ingredients = {
-        #     "ala_exch": "0.1 g/mol",
-        #     "gly_exch": "0.1 g/mol",
-        #     "arg_exch": "0.1 g/mol",
-        #     "asn_exch": "0.1 g/mol",
-        #     "asp_exch": "0.1 g/mol",
-        #     "cys_exch": "0.65 g/mol",
-        #     "glu_exch": "0.1 g/mol",
-        #     "gln_exch": "0.2 g/mol",
-        #     "his_exch": "0.1 g/mol",
-        #     "ile_exch": "0.1 g/mol",
-        #     "leu_exch": "0.1 g/mol",
-        #     "lys_exch": "0.1 g/mol",
-        #     "met_exch": "0.1 g/mol",
-        #     "phe_exch": "0.1 g/mol",
-        #     "ser_exch": "0.1 g/mol",
-        #     "thr_exch": "0.2 g/mol",
-        #     "trp_exch": "0.1 g/mol",
-        #     "tyr_exch": "0.1 g/mol",
-        #     "val_exch": "0.1 g/mol",
-        #     "pro_exch": "0.2 g/mol",
-        # }
 
         # Starting state initialzation, everything is in the media
-        # starting_media_state = {i: 1 for i in ingredients}
-        starting_media_state = {
-            "ala_exch": 0,
-            "gly_exch": 0,
-            "arg_exch": 1,
-            "asn_exch": 0,
-            "asp_exch": 0,
-            "cys_exch": 1,
-            "glu_exch": 0,
-            "gln_exch": 1,
-            "his_exch": 0,
-            "ile_exch": 1,
-            "leu_exch": 1,
-            "lys_exch": 0,
-            "met_exch": 1,
-            "phe_exch": 1,
-            "ser_exch": 0,
-            "thr_exch": 1,
-            "trp_exch": 1,
-            "tyr_exch": 1,
-            "val_exch": 0,
-            "pro_exch": 1,
-        }
+        starting_media_state = {i: 1 for i in ingredients.keys()}
+        # starting_media_state = {
+        #     "ala_exch": 0,
+        #     "arg_exch": 1,
+        #     "asn_exch": 0,
+        #     "asp_exch": 0,
+        #     "cys_exch": 1,
+        #     "glu_exch": 0,
+        #     "gln_exch": 1,
+        #     "gly_exch": 0,
+        #     "his_exch": 0,
+        #     "ile_exch": 1,
+        #     "leu_exch": 1,
+        #     "lys_exch": 0,
+        #     "met_exch": 0,
+        #     "phe_exch": 0,
+        #     "pro_exch": 1,
+        #     "ser_exch": 0,
+        #     "thr_exch": 1,
+        #     "trp_exch": 1,
+        #     "tyr_exch": 1,
+        #     "val_exch": 0,
+        # }
         # starting_media_state = {i: np.random.randint(0, 2) for i in ingredients}
 
         controller = AgentController(
-            experiment_path="data/agent_state_save_ROLL1_3",
+            experiment_path="data/agent_state_save_fixed_reinforce4",
             ingredients=ingredients,
-            growth_model_dir="data/neuralpy_optimization_expts/052220-sparcity-3/no_training",
-            simulation_data_path="models/iSMU-test/data_20_extrapolated.csv",
+            growth_model_dir="models/untrained_growth_NN",
+            # simulation_data_path="models/iSMU-test/data_20_extrapolated.csv",
+            oracle_model_dir="models/SMU_NN_oracle",
             # seed=0,
         )
         controller.simulate_random_initial_data(
-            n=2500,
-            supplemental_data_path="data/iSMU-test/initial_data/train_set_L1OL2O.csv",
+            n=1000,
+            supplemental_data_path="models/SMU_NN_oracle/SMU_training_data_L1OL2OL1IL2I.csv",
         )
         controller.retrain_growth_model()
         controller.run_simulation(
@@ -1275,6 +1305,7 @@ if __name__ == "__main__":
             n_policy_iterations=100,
             starting_media_state=starting_media_state,
         )
+
         # controller.run(
         #     n_agents=1, starting_media_state=starting_media_state, prev_cycle_results=None,
         # )
@@ -1290,23 +1321,23 @@ if __name__ == "__main__":
 
         reagent_name_mapping = {
             "ala_exch": "dl_alanine",
-            "gly_exch": "glycine",
             "arg_exch": "l_arginine",
             "asn_exch": "l_asparagine",
             "asp_exch": "l_aspartic_acid",
             "cys_exch": "l_cysteine",
             "glu_exch": "l_glutamic_acid",
             "gln_exch": "l_glutamine",
+            "gly_exch": "glycine",
             "his_exch": "l_histidine",
             "ile_exch": "l_isoleucine",
             "leu_exch": "l_leucine",
             "lys_exch": "l_lysine",
             "met_exch": "l_methionine",
             "phe_exch": "l_phenylalanine",
+            "pro_exch": "prolines",
             "ser_exch": "l_serine",
             "thr_exch": "l_threonine",
             "trp_exch": "l_tryptophan",
             "tyr_exch": "l_tyrosine",
             "val_exch": "l_valine",
-            "pro_exch": "prolines",
         }
