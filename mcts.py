@@ -79,6 +79,7 @@ class MCTS(object):
         """
         if not self.growth_model_weights:
             self.growth_model_weights = np.load(self.growth_model_weights_dir)
+
         return self.growth_model_weights
 
     def evaluate_growth_model(self, inputs, return_bool=False):
@@ -239,12 +240,14 @@ class MCTS(object):
             ingredients = numpy_state.choice(
                 trajectory_state, (step_size,), p=p
             ).tolist()
+
             trajectory_state = self.remove_from_list(trajectory_state, ingredients)
             length = len(trajectory_state)
 
             # Cache calculated state values if we haven't seen the state yet,
             # otherwise ask the value model for the prediction
             grow_result = self.get_value_cache(trajectory_state)
+
             cardinality_reward = grow_result * (length + step)
             if grow_result <= self.growth_cutoff:
                 break
@@ -317,13 +320,13 @@ class MCTS(object):
         else:
             results = self.perform_rollout(starting_state, **kwargs)
 
-        print(results)
+        # print(results)
         return results
 
     def run_n_stage(self, state, n, **kwargs):
-        print(f"stage: {n}")
+        # print(f"stage: {n}")
         if n == 1:
-            print("performing rollout")
+            # print("performing rollout")
             return self.perform_rollout(state, **kwargs)
         else:
 
@@ -335,7 +338,7 @@ class MCTS(object):
             if n - 1 == 1:
                 kwargs["use_multiprocessing"] = False
                 threads = mp.cpu_count() - 1
-                with mp.Pool(threads) as pool:
+                with mp.get_context("spawn").Pool(threads) as pool:
                     all_results = pool.starmap(
                         _run_helper,
                         zip(
@@ -448,9 +451,10 @@ class MCTS(object):
                 if args.log <= 2:
                     t_range = trange(limit, desc="Calculating Trajectory", leave=True)
                 else:
-                    t_range = limit
+                    t_range = range(limit)
 
-                for j in range(limit):
+                for j in t_range:
+                    # print(f"_rollout_multi_helper j:{j}")
                     if args.log <= 2:
                         intermediate_result = np.nanmean(results) if j is not 0 else 0
                         t_range.set_description(
@@ -481,7 +485,7 @@ class MCTS(object):
                 threads = use_multiprocessing
 
             # with mp.get_context("spawn").Pool(threads) as pool:
-            with mp.Pool(threads) as pool:
+            with mp.get_context("spawn").Pool(threads) as pool:
                 # pool = mp.Pool(threads)
                 n_actions = len(available_actions)
                 rewards = pool.starmap(
