@@ -335,7 +335,6 @@ class AgentController(object):
     def update_policy_reinforce(
         self,
         policy,
-        final_cardinality,
         episodes,
         learning_rate=0.10,
         discount_factor=1,
@@ -647,7 +646,7 @@ class AgentController(object):
 
                 # POLICY ITERATION
                 policy, old_policy, below_episilon = self.update_policy_reinforce(
-                    policy, agent_cardinalities, self.episode_history
+                    policy, self.episode_history
                 )
 
                 for a in self.finished_agents:
