@@ -344,9 +344,7 @@ class AgentController(object):
     ):
         LOG.info("Updating Policy - REINFORCE")
         LOG.debug(f"Current Policy: {policy}")
-        print("RESULTS", final_cardinality)
-        print("EPISODES")
-        pp.pprint(episodes)
+
         policy_updates = []
         policy_loss = []
         for e, episode in enumerate(episodes.values()):
@@ -357,27 +355,29 @@ class AgentController(object):
                 gLogPolicy = episode[t]["calculated_gradients"]
                 log_prob = episode[t]["log_prob"]
                 reward = episode[t]["reward"]
-                # print(f"T:{t}, S:{s}, A:{a}, R:{r}")
 
                 return_score = sum(
                     [reward * (discount_factor ** (t_i - t)) for t_i in range(t, T)]
-                )
+                )  # compute discounted return
 
-                # print("regrade_scores", regrade_scores)
                 print("gLogPolicy", gLogPolicy)
                 print("return score:", return_score, "reward", reward)
 
                 print("gJ", gJ)
-                gJ += return_score * gLogPolicy
+                gJ += return_score * gLogPolicy  # vector of param gradients
                 print("gJ after", gJ)
 
-            policy_updates.append(learning_rate * gJ)
+            policy_updates.append(
+                learning_rate * gJ
+            )  # if there are multiple parallel agents, keep track of all updates
 
         policy_updates = np.vstack(policy_updates)
-        policy_means = policy_updates.mean(axis=0)
+        policy_means = policy_updates.mean(axis=0)  # avg parallel agent updates
 
         LOG.debug("Policy deltas:")
         LOG.debug(policy_means)
+
+        # Apply updates to policy
         new_policy = {}
         all_updates = []
         for i, param_name in enumerate(policy.keys()):
@@ -385,13 +385,13 @@ class AgentController(object):
             LOG.debug(get_indent(1) + str(avg_update))
             if clip:
                 new_policy[param_name] = np.clip(policy[param_name] + avg_update, 0, 1)
+                # Clip only lambda
+                # if param_name == "lambda":
+                #     new_policy["lambda"] = np.clip(policy[param_name] + avg_update, 0, 1)
             else:
                 new_policy[param_name] = policy[param_name] + avg_update
 
-            # if param_name == "lambda":
-            #     new_policy["lambda"] = max(min(new_policy["lambda"], 1), 0)
-            # new_policy[param_name] = max(min(new_policy[param_name], 1), 0)
-
+        # Normalize all params to sum of 1 ??
         # total = sum(new_policy.values())
         # for k, v in new_policy.items():
         #     new_policy[k] = v / total
@@ -400,9 +400,10 @@ class AgentController(object):
         policy["lambda"] = 0.0
 
         LOG.info(f"New Policy: {new_policy}")
-        below_episilon = False
+
+        below_episilon = False  # hard coded
         # if np.abs(np.mean(all_updates)) <= episilon:
-        #     below_episilon = True
+        #     below_episilon = True # stop policy iteration when updates go below epsilon
 
         return new_policy, policy, below_episilon
 
