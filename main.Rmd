@@ -1,0 +1,82 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+
+sample_test_train <- function(test=0.0, train=0.0, n=NULL, X=NULL) {
+  stopifnot(!is.null(n) || !is.null(X))
+  stopifnot(test + train <= 1.0)
+  if (is.null(n)) {
+    n <- nrow(X)
+  }
+  n_test <- floor(test*n)
+  n_train <- floor(train*n)
+  all_indices <- sample.int(n, size=n_test+n_train)
+  list(
+    test = all_indices[1:n_test],
+    n_test = n_test,
+    train = all_indices[(n_test+1):(n_test+n_train)],
+    n_train = n_train
+  )
+}
+
+```
+
+
+```{r}
+
+raw <- readr::read_csv("L1IO-L2IO-L3O All Rands SMU UA159 Processed-Aerobic.csv")
+
+Xall <- as.matrix(raw[ ,1:20])
+yall <- raw$growth
+
+spl <- sample_test_train(test=0.1, train=0.1, X=Xall)
+
+X <- Xall[spl$train, ]
+y <- yall[spl$train]
+
+Xt <- Xall[spl$test, ]
+yt <- yall[spl$test]
+
+```
+
+
+```{r}
+
+raw <- readr::read_csv("L1IO-L2IO-L3O All Rands SMU UA159 Processed-Aerobic.csv")
+
+Xall <- as.matrix(raw[ ,1:20])
+yall <- raw$growth
+
+spl <- sample_test_train(test=0.1, train=0.1, X=Xall)
+
+X <- Xall[spl$train, ]
+y <- yall[spl$train]
+
+Xt <- Xall[spl$test, ]
+yt <- yall[spl$test]
+
+```
+
+```{r}
+eps <- sqrt(.Machine$double.eps)
+gpi <- laGP::newGPsep(X, y, d=0.1, g=0.1*var(y), dK=TRUE)
+ndim <- dim(X)[[2]]
+tmin <- rep(eps, ndim+1)
+tmax <- c(rep(100, ndim), var(y))
+mle <- laGP::mleGPsep(gpi, para="both", tmin=tmin, tmax=tmax, verb=2)
+```
+```{r}
+
+order_plot <- function(ytrue, ypred) {
+  so <- order(ytrue)
+  cex <- 0.5
+  plot(1:length(ypred), ypred[so], col="orange", xlab="sorted index", ylab="", cex=cex)
+  points(1:length(ytrue), ytrue[so], col="blue", cex=cex)
+}
+
+yp <- laGP::predGPsep(gpi, Xt)
+order_plot(yt, yp$mean)
+```
