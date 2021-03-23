@@ -5,10 +5,12 @@ make_gpr = function(X, y) {
   tmin <- rep(eps, ndim+1)
   tmax <- c(rep(100, ndim), stats::var(y))
   mle <- laGP::mleGPsep(gpi, para="both", tmin=tmin, tmax=tmax, verb=2)
+  saveRDS(gpi, "gpr_model.rds")
   return(gpi)
 }
 
 gpr_pred = function(model, Xtest) {
+  # model <- readRDS("gpr_model.rds")
   yp <- laGP::predGPsep(model, Xtest)
   # print(yp)
   return(yp$mean)

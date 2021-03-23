@@ -1,4 +1,5 @@
 {
     "python.formatting.blackPath": "/Users/adamdama/.local/share/virtualenvs/GPRegGrowth--1K96RNv/bin/black",
-    "python.pythonPath": "/Users/adamdama/.local/share/virtualenvs/GPRegGrowth--1K96RNv/bin/python"
+    "python.pythonPath": "/Users/adamdama/Documents/School/Jensen Lab Research/GPRegGrowth/GPRegGrowth/bin/python3.8",
+    "python.formatting.provider": "black"
 }
