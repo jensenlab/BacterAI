@@ -4,3 +4,5 @@
 .Ruserdata
 .Rproj
 GPRegGrowth/
+R-*
+rpy2*
