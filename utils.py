@@ -10,6 +10,9 @@ def process_mapped_data(path):
     """
 
     data = pd.read_csv(path, index_col=None).fillna("")
+    if "bad" not in data.columns:
+        data["bad"] = None
+
     plate_control_indexes = data[data["plate_control"]].index
     plate_blank_indexes = data[data["plate_blank"]].index
 
@@ -27,38 +30,21 @@ def process_mapped_data(path):
     )
 
     data = data.drop(data[(data["plate_control"] | data["plate_blank"])].index)
-    data = data.drop(columns=["plate_control", "plate_blank", "initial_od", "final_od", "parent_well_index", "replicate", "solution_id_hex", "parent_plate"])
-    print(data.shape)
+    data = data.drop(columns=["plate_control", "plate_blank",  "parent_well", "parent_well_index", "replicate", "solution_id_hex"])
     data_grouped = data.groupby(
-        by=leave_out_cols
-        + ["environment", "strain"],
+        by=leave_out_cols + ["environment", "strain", "parent_plate"],
         as_index=False,
     )
-    print(len(data_grouped))
-    for idx, df in data_grouped:
-        # print()
-        if len(df) != 3:
-            print()
-            print(idx)
-            print(df)
-        # print(idx)
-        # print(df)
+
     data = data_grouped.mean()
-    print(data.shape)
     cols = list(AA_NAMES) + list(data.columns)
     data = pd.concat((pd.DataFrame(np.ones((data.shape[0], 20), dtype=int)), data), axis=1, ignore_index=True)
     data.columns = cols
-    print(data.shape)
     ingredient_locs = {name: i for i, name in enumerate(AA_NAMES)}
     for row_idx, row in data.iterrows():
         idxs = [i for i in row[leave_out_cols] if i != ""]
         data.loc[row_idx, idxs] = 0
     
     data = data.drop(columns=leave_out_cols)
-
-
-    print(data.shape)
-    print(plate_controls.shape)
-    print(plate_controls.shape)
-    print()
+    
     return data, plate_controls, plate_blanks
