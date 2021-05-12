@@ -1,10 +1,10 @@
 import datetime
+import os
 
 import torch
 from torch import nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
-
 from torch.optim import Adam
 import pandas as pd
 import numpy as np
@@ -364,6 +364,87 @@ def run_optuna(n_trials=100):
     print(f"Finished experiment: {start_date}")
 
 
+def train_bagged(
+    X_train,
+    y_train_true,
+    model_path_folder,
+    n_bags,
+    bag_proportion,
+    epochs,
+    batch_size,
+    lr,
+):
+    model_paths = []
+
+    n_train_data = int(bag_proportion * len(X_train))
+
+    for b in range(n_bags):
+        print(f"\nBag {b}, p={bag_proportion:.2f}")
+
+        train_indexes = np.random.choice(
+            range(len(X_train)), n_train_data, replace=True
+        )
+        X_train_bag = X_train[train_indexes, :]
+        y_train_true_bag = y_train_true[train_indexes]
+        dataset_bag = DatasetAminoAcids(X_train_bag, y_train_true_bag)
+
+        model = NeuralNetwork(lr=lr).to("cuda")
+
+        # Training Model
+        for epoch in range(1, epochs + 1):  # loop over the dataset multiple times
+            train_loss_epoch = []
+            train_mse_epoch = []
+
+            for batch_data in iter(
+                DataLoader(dataset=dataset_bag, batch_size=batch_size, shuffle=True)
+            ):
+                # Train
+                train_inputs = batch_data[0].to("cuda")
+                train_labels = batch_data[1].to("cuda").unsqueeze(1)
+
+                # zero the parameter gradients
+                model.optimizer.zero_grad()
+
+                # forward + backward + optimize
+                train_outputs = model.forward(train_inputs)
+                train_loss = model.criterion(train_outputs, train_labels)
+                train_loss.backward()
+                model.optimizer.step()
+
+                train_mse = model.mse(train_outputs, train_labels)
+
+                train_loss_epoch.append(train_loss.item())
+                train_mse_epoch.append(train_mse.item())
+
+            tr_l = sum(train_loss_epoch) / len(train_loss_epoch)
+            tr_mse = sum(train_mse_epoch) / len(train_mse_epoch)
+
+            print(
+                f"\tEPOCH {epoch:2}/{epochs} | Train Loss: {tr_l:.4f}, Train MSE: {tr_mse:.4f}"
+            )
+
+        # Save model
+        if not os.path.exists(model_path_folder):
+            os.makedirs(model_path_folder)
+
+        model_path = os.path.join(model_path_folder, f"bag_model_{b}.pkl")
+        torch.save(model, model_path)
+        model_paths.append(model_path)
+
+
+def eval_bagged(X, model_path_folder):
+    model_names = [f for f in os.listdir(model_path_folder) if "bag_model" in f]
+    preds = np.zeros((len(X), len(model_names)))
+    for i, name in enumerate(model_names):
+        model = torch.load(os.path.join(model_path_folder, name))
+        y_pred = model.evaluate(X)
+        preds[:, i] = y_pred
+
+    bagged_pred = np.mean(preds, axis=1)
+    bagged_var = np.var(preds, axis=1, ddof=0)
+    return bagged_pred, bagged_var
+
+
 # if __name__ == "__main__":
 #     run_optuna(1000)
 
@@ -374,11 +455,40 @@ LR = 0.001
 
 if __name__ == "__main__":
     # # data_path = "L1IO-L2IO-L3O All Rands SMU UA159 Processed-Aerobic.csv"
-    splits = [0.05, 0.10, 0.25, 0.50]  # [0.01, 0.05, 0.10, 0.25, 0.50]
-    n_bags = 50
-    n_boost = 50
-    bag_proportions = [0.05, 0.10, 0.25, 0.50, 1.00]
-    boost_proportions = [0.01, 0.05, 0.10, 0.25, 0.50]
+    # splits = [0.05, 0.10, 0.25, 0.50]  # [0.01, 0.05, 0.10, 0.25, 0.50]
+    # n_bags = 25
+    # n_boost = 50
+    # bag_proportions = [0.05, 0.10, 0.25, 0.50, 1.00]
+    # boost_proportions = [0.01, 0.05, 0.10, 0.25, 0.50]
+
+    train_split = 0.25
+    train_path = f"GPRvNN_train_pred_{train_split:.2f}.csv"
+    train_set = pd.read_csv(train_path, index_col=None)
+    X_train = train_set.iloc[:, :20].values
+    y_train_true = train_set.loc[:, "y_true"].values
+    model_path_folder = "bag_models"
+    n_bags = 25
+    bag_proportion = 1.0
+    # train_bagged(
+    #     X_train,
+    #     y_train_true,
+    #     model_path_folder,
+    #     n_bags,
+    #     bag_proportion,
+    #     EPOCHS,
+    #     BATCH_SIZE,
+    #     LR,
+    # )
+
+    test_path = f"GPRvNN_test_pred_{train_split:.2f}.csv"
+    test_set = pd.read_csv(test_path, index_col=None)
+    X_test = test_set.iloc[:, :20].values
+    y_test_true = test_set.loc[:, "y_true"].values
+    preds, variances = eval_bagged(X_test, model_path_folder)
+
+    print(preds)
+    print(variances)
+    mean_squared_error(preds, y_test_true)
 
     # for idx, train_split in enumerate(splits):
     #     print(f"SPLIT {train_split:.2f}")
@@ -549,58 +659,58 @@ if __name__ == "__main__":
     #     #         f"bag_tests/BagTrain_{train_split:.2f}_{p:.2f}.csv", index=None
     #     #     )
 
-    fig, axs = plt.subplots(
-        nrows=2, ncols=len(splits), sharex=True, sharey="row", figsize=(18, 8)
-    )
-    proportions = boost_proportions
-    # proportions = bag_proportions
-    N = n_boost
-    # N = n_bags
-    for idx, train_split in enumerate(splits):
-        if idx == 0:
-            axs[0, idx].set_ylabel("Train MSE")
-            axs[1, idx].set_ylabel("Test MSE")
-        for p in proportions:
-            train_preds = pd.read_csv(
-                f"boost_tests/BoostTrain_{train_split:.2f}_{p:.2f}.csv", index_col=None
-            )
-            test_preds = pd.read_csv(
-                f"boost_tests/BoostTrain_{train_split:.2f}_{p:.2f}.csv", index_col=None
-            )
-            # train_preds = pd.read_csv(
-            #     f"bag_tests/BagTrain_{train_split:.2f}_{p:.2f}.csv", index_col=None
-            # )
-            # test_preds = pd.read_csv(
-            #     f"bag_tests/BagTrain_{train_split:.2f}_{p:.2f}.csv", index_col=None
-            # )
+    # fig, axs = plt.subplots(
+    #     nrows=2, ncols=len(splits), sharex=True, sharey="row", figsize=(18, 8)
+    # )
+    # proportions = boost_proportions
+    # # proportions = bag_proportions
+    # N = n_boost
+    # # N = n_bags
+    # for idx, train_split in enumerate(splits):
+    #     if idx == 0:
+    #         axs[0, idx].set_ylabel("Train MSE")
+    #         axs[1, idx].set_ylabel("Test MSE")
+    #     for p in proportions:
+    #         train_preds = pd.read_csv(
+    #             f"boost_tests/BoostTrain_{train_split:.2f}_{p:.2f}.csv", index_col=None
+    #         )
+    #         test_preds = pd.read_csv(
+    #             f"boost_tests/BoostTrain_{train_split:.2f}_{p:.2f}.csv", index_col=None
+    #         )
+    #         # train_preds = pd.read_csv(
+    #         #     f"bag_tests/BagTrain_{train_split:.2f}_{p:.2f}.csv", index_col=None
+    #         # )
+    #         # test_preds = pd.read_csv(
+    #         #     f"bag_tests/BagTrain_{train_split:.2f}_{p:.2f}.csv", index_col=None
+    #         # )
 
-            train_y_true = train_preds["y_true"]
-            test_y_true = test_preds["y_true"]
-            train_mses = [
-                mean_squared_error(train_y_true, train_preds.iloc[:, j])
-                for j in range(N)
-            ]
-            test_mses = [
-                mean_squared_error(test_y_true, test_preds.iloc[:, j]) for j in range(N)
-            ]
+    #         train_y_true = train_preds["y_true"]
+    #         test_y_true = test_preds["y_true"]
+    #         train_mses = [
+    #             mean_squared_error(train_y_true, train_preds.iloc[:, j])
+    #             for j in range(N)
+    #         ]
+    #         test_mses = [
+    #             mean_squared_error(test_y_true, test_preds.iloc[:, j]) for j in range(N)
+    #         ]
 
-            x = np.arange(N) + 1
-            axs[0, idx].plot(x, train_mses, "-", label=f"P={p:.2f}")
-            axs[1, idx].plot(x, test_mses, "-", label=f"P={p:.2f}")
-            axs[0, idx].yaxis.set_tick_params(labelleft=True)
-            axs[1, idx].yaxis.set_tick_params(labelleft=True)
+    #         x = np.arange(N) + 1
+    #         axs[0, idx].plot(x, train_mses, "-", label=f"P={p:.2f}")
+    #         axs[1, idx].plot(x, test_mses, "-", label=f"P={p:.2f}")
+    #         axs[0, idx].yaxis.set_tick_params(labelleft=True)
+    #         axs[1, idx].yaxis.set_tick_params(labelleft=True)
 
-        axs[1, idx].set_xlabel("N bags")
-        axs[0, idx].set_title(f"Train Set (train={train_split:.2f})")
-        axs[1, idx].set_title(f"Test Set (train={train_split:.2f})")
+    #     axs[1, idx].set_xlabel("N bags")
+    #     axs[0, idx].set_title(f"Train Set (train={train_split:.2f})")
+    #     axs[1, idx].set_title(f"Test Set (train={train_split:.2f})")
 
-    handles, labels = axs[1, 0].get_legend_handles_labels()
-    fig.legend(handles, labels, loc="lower center", ncol=len(proportions))
-    fig.tight_layout()
-    fig.subplots_adjust(bottom=0.1)
+    # handles, labels = axs[1, 0].get_legend_handles_labels()
+    # fig.legend(handles, labels, loc="lower center", ncol=len(proportions))
+    # fig.tight_layout()
+    # fig.subplots_adjust(bottom=0.1)
 
-    plt.savefig("boost_tests/BoostComparison.png", dpi=400)
-    # plt.savefig("bag_tests/BagComparison.png", dpi=400)
+    # plt.savefig("boost_tests/BoostComparison.png", dpi=400)
+    # # plt.savefig("bag_tests/BagComparison.png", dpi=400)
 
 
 # TRAIN AND PLOT SCATTERS
