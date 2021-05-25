@@ -1,4 +1,6 @@
 
+import time
+
 import numpy as np
 import pandas as pd
 
@@ -11,7 +13,8 @@ def process_mapped_data(path):
 
     data = pd.read_csv(path, index_col=None).fillna("")
     if "bad" not in data.columns:
-        data["bad"] = None
+        data["bad"] = False
+        print("Added \'bad\' column")
 
     plate_control_indexes = data[data["plate_control"]].index
     plate_blank_indexes = data[data["plate_blank"]].index
@@ -46,5 +49,34 @@ def process_mapped_data(path):
         data.loc[row_idx, idxs] = 0
     
     data = data.drop(columns=leave_out_cols)
-    
+
     return data, plate_controls, plate_blanks
+
+
+def softmax(scores):
+    """
+    Compute softmax with random tiebreak.
+    """
+
+    exps = np.exp(scores)
+    softmax_scores = exps / exps.sum()
+
+    return softmax_scores
+
+
+def decoratortimer(decimal):
+    def decoratorfunction(f):
+        def wrap(*args, **kwargs):
+            time1 = time.monotonic()
+            result = f(*args, **kwargs)
+            time2 = time.monotonic()
+            print(
+                "{:s} function took {:.{}f} ms".format(
+                    f.__name__, ((time2 - time1) * 1000.0), decimal
+                )
+            )
+            return result
+
+        return wrap
+
+    return decoratorfunction

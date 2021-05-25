@@ -20,3 +20,26 @@ AA_NAMES = [
     "l_tyrosine_75x",
     "l_valine_75x",
 ]
+
+AA_SHORT = [
+    "ala",
+    "arg",
+    "asp",
+    "asn",
+    "cys",
+    "glu",
+    "gln",
+    "gly",
+    "his",
+    "ile",
+    "leu",
+    "lys",
+    "met",
+    "phe",
+    "pro",
+    "ser",
+    "thr",
+    "trp",
+    "tyr",
+    "val",
+]

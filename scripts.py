@@ -43,7 +43,7 @@ import pandas as pd
 
 file = "experiments/04-07-2021/Round10/gpr_train_pred.csv"
 df = pd.read_csv(file, index_col=None)
-unique = set(map(tuple, df.values[:, :20]))
+unique = set(map(tuple, df.to_numpy()[:, :20]))
 print(len(unique))
 print(len(df))
 print(len(unique) / len(df))

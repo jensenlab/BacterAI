@@ -46,7 +46,7 @@ def split_data(path, train_size=0.15, test_size=0.25):
     if "environment" in data.columns:
         data = data.drop(columns="environment")
 
-    X, y = data[data.columns[:-1]].values, data["growth"].values
+    X, y = data[data.columns[:-1]].to_numpy(), data["growth"].to_numpy()
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, train_size=train_size, test_size=test_size
     )
@@ -260,8 +260,12 @@ def train(
 def optuna_objective(trial):
     data_train = pd.read_csv("data/gpr_train_pred_0.20.csv", index_col=None)
     data_test = pd.read_csv("data/gpr_test_pred_0.20.csv", index_col=None)
-    data_train = DatasetAminoAcids(data_train.values[:, :-3], data_train.values[:, -3])
-    data_test = DatasetAminoAcids(data_test.values[:, :-3], data_test.values[:, -3])
+    data_train = DatasetAminoAcids(
+        data_train.to_numpy()[:, :-3], data_train.to_numpy()[:, -3]
+    )
+    data_test = DatasetAminoAcids(
+        data_test.to_numpy()[:, :-3], data_test.to_numpy()[:, -3]
+    )
 
     # Generate the model.
     # model = define_model(trial).to("cuda")
@@ -368,14 +372,14 @@ def train_bagged(
     X_train,
     y_train_true,
     model_path_folder,
-    n_bags,
-    bag_proportion,
-    epochs,
-    batch_size,
-    lr,
+    n_bags=25,
+    bag_proportion=1.0,
+    epochs=50,
+    batch_size=360,
+    lr=0.001,
 ):
     model_paths = []
-
+    models = []
     n_train_data = int(bag_proportion * len(X_train))
 
     for b in range(n_bags):
@@ -430,13 +434,15 @@ def train_bagged(
         model_path = os.path.join(model_path_folder, f"bag_model_{b}.pkl")
         torch.save(model, model_path)
         model_paths.append(model_path)
+        models.append(model)
+    return models
 
 
-def eval_bagged(X, model_path_folder):
-    model_names = [f for f in os.listdir(model_path_folder) if "bag_model" in f]
-    preds = np.zeros((len(X), len(model_names)))
-    for i, name in enumerate(model_names):
-        model = torch.load(os.path.join(model_path_folder, name))
+def eval_bagged(X, models):
+    # model_names = [f for f in os.listdir(model_path_folder) if "bag_model" in f]
+    preds = np.zeros((len(X), len(models)))
+    for i, model in enumerate(models):
+        # model = torch.load(os.path.join(model_path_folder, name)).to("cuda")
         y_pred = model.evaluate(X)
         preds[:, i] = y_pred
 
@@ -464,12 +470,12 @@ if __name__ == "__main__":
     train_split = 0.25
     train_path = f"GPRvNN_train_pred_{train_split:.2f}.csv"
     train_set = pd.read_csv(train_path, index_col=None)
-    X_train = train_set.iloc[:, :20].values
-    y_train_true = train_set.loc[:, "y_true"].values
+    X_train = train_set.iloc[:, :20].to_numpy()
+    y_train_true = train_set.loc[:, "y_true"].to_numpy()
     model_path_folder = "bag_models"
     n_bags = 25
     bag_proportion = 1.0
-    # train_bagged(
+    # models = train_bagged(
     #     X_train,
     #     y_train_true,
     #     model_path_folder,
@@ -482,9 +488,9 @@ if __name__ == "__main__":
 
     test_path = f"GPRvNN_test_pred_{train_split:.2f}.csv"
     test_set = pd.read_csv(test_path, index_col=None)
-    X_test = test_set.iloc[:, :20].values
-    y_test_true = test_set.loc[:, "y_true"].values
-    preds, variances = eval_bagged(X_test, model_path_folder)
+    X_test = test_set.iloc[:, :20].to_numpy()
+    y_test_true = test_set.loc[:, "y_true"].to_numpy()
+    preds, variances = eval_bagged(X_test, models)
 
     print(preds)
     print(variances)
@@ -497,13 +503,13 @@ if __name__ == "__main__":
     #     test_set = pd.read_csv(test_path, index_col=None)
     #     train_set = pd.read_csv(train_path, index_col=None)
 
-    #     X_test = test_set.iloc[:, :20].values
-    #     y_test_true = test_set.loc[:, "y_true"].values
+    #     X_test = test_set.iloc[:, :20].to_numpy()
+    #     y_test_true = test_set.loc[:, "y_true"].to_numpy()
     #     data_test = DatasetAminoAcids(X_test, y_test_true)
 
     #     # BOOSTING
-    #     X_train = train_set.iloc[:, :20].values
-    #     y_train_true = train_set.loc[:, "y_true"].values
+    #     X_train = train_set.iloc[:, :20].to_numpy()
+    #     y_train_true = train_set.loc[:, "y_true"].to_numpy()
     #     data_train = DatasetAminoAcids(X_train, y_train_true)
     #     for p in boost_proportions:
     #         mean_vars_test = []
@@ -589,16 +595,16 @@ if __name__ == "__main__":
 
     #     #     for b in range(n_bags):
     #     #         print(f"\nBag {b}, p={p:.2f}")
-    #     #         X_train = train_set.iloc[:, :20].values
-    #     #         y_train_true = train_set.loc[:, "y_true"].values
+    #     #         X_train = train_set.iloc[:, :20].to_numpy()
+    #     #         y_train_true = train_set.loc[:, "y_true"].to_numpy()
     #     #         data_train = DatasetAminoAcids(X_train, y_train_true)
 
     #     #         if n_bags > 1:
     #     #             train_indexes = np.random.choice(
     #     #                 train_set.index, n_train_data, replace=True
     #     #             )
-    #     #             X_train_bag = train_set.iloc[train_indexes, :20].values
-    #     #             y_train_true_bag = train_set.loc[train_indexes, "y_true"].values
+    #     #             X_train_bag = train_set.iloc[train_indexes, :20].to_numpy()
+    #     #             y_train_true_bag = train_set.loc[train_indexes, "y_true"].to_numpy()
     #     #             data_train_bag = DatasetAminoAcids(X_train_bag, y_train_true_bag)
     #     #         else:
     #     #             data_train_bag = data_train
@@ -730,8 +736,8 @@ if __name__ == "__main__":
 #         test_set = pd.read_csv(test_path, index_col=None)
 #         train_set = pd.read_csv(train_path, index_col=None)
 
-#         X_test = test_set.iloc[:, :20].values
-#         y_test_true = test_set.loc[:, "y_true"].values
+#         X_test = test_set.iloc[:, :20].to_numpy()
+#         y_test_true = test_set.loc[:, "y_true"].to_numpy()
 #         data_test = DatasetAminoAcids(X_test, y_test_true)
 
 #         n_train_data = int(bag_proportion * len(train_set))
@@ -745,11 +751,11 @@ if __name__ == "__main__":
 #                 train_indexes = np.random.choice(
 #                     train_set.index, n_train_data, replace=True
 #                 )
-#                 X_train = train_set.iloc[train_indexes, :20].values
-#                 y_train_true = train_set.loc[train_indexes, "y_true"].values
+#                 X_train = train_set.iloc[train_indexes, :20].to_numpy()
+#                 y_train_true = train_set.loc[train_indexes, "y_true"].to_numpy()
 #             else:
-#                 X_train = train_set.iloc[:, :20].values
-#                 y_train_true = train_set.loc[:, "y_true"].values
+#                 X_train = train_set.iloc[:, :20].to_numpy()
+#                 y_train_true = train_set.loc[:, "y_true"].to_numpy()
 
 #             data_train = DatasetAminoAcids(X_train, y_train_true)
 #             model = NeuralNetwork(lr=LR).to("cuda")
@@ -837,7 +843,7 @@ if __name__ == "__main__":
 #         test_set.iloc[:, :20] = test_set.iloc[:, :20].astype(int)
 #         test_set.to_csv(f"GPRvNN_test_pred_{train_split:.2f}.csv", index=None)
 
-#         X_train = train_set.iloc[:, :20].values
+#         X_train = train_set.iloc[:, :20].to_numpy()
 #         train_preds = model.evaluate(X_train)
 #         train_preds = np.clip(train_preds, 0, 1)
 #         train_set["y_pred_bag"] = train_preds
@@ -857,16 +863,16 @@ if __name__ == "__main__":
 #         test_set = pd.read_csv(test_path, index_col=None)
 #         train_set = pd.read_csv(train_path, index_col=None)
 
-#         y_test_true = test_set.loc[:, "y_true"].values
-#         y_train_true = train_set.loc[:, "y_true"].values
+#         y_test_true = test_set.loc[:, "y_true"].to_numpy()
+#         y_train_true = train_set.loc[:, "y_true"].to_numpy()
 
-#         gpr_test_pred = test_set.loc[:, "y_pred_bag"].values
-#         gpr_train_pred = train_set.loc[:, "y_pred_bag"].values
+#         gpr_test_pred = test_set.loc[:, "y_pred_bag"].to_numpy()
+#         gpr_train_pred = train_set.loc[:, "y_pred_bag"].to_numpy()
 #         gpr_test_mse = mean_squared_error(y_test_true, gpr_test_pred)
 #         gpr_train_mse = mean_squared_error(y_train_true, gpr_train_pred)
 
-#         nn_test_pred = test_set.loc[:, "y_pred_boost_nn"].values
-#         nn_train_pred = train_set.loc[:, "y_pred_boost_nn"].values
+#         nn_test_pred = test_set.loc[:, "y_pred_boost_nn"].to_numpy()
+#         nn_train_pred = train_set.loc[:, "y_pred_boost_nn"].to_numpy()
 #         nn_test_mse = mean_squared_error(y_test_true, nn_test_pred)
 #         nn_train_mse = mean_squared_error(y_train_true, nn_train_pred)
 
