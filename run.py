@@ -1,6 +1,8 @@
+import argparse
 import collections
 import csv
 from enum import Enum
+import json
 import math
 import multiprocessing as mp
 import os
@@ -53,6 +55,7 @@ class SimDirection(Enum):
 
     DOWN = 0
     UP = 1
+    BOTH = 2
 
     def action_value(self):
         """The value of the action to be taken.
@@ -252,8 +255,15 @@ def perform_simulations(
     not_timed_out = True
     start_time = time.time()
     loops = 1
+    n_found_but_exists = 0
+
+    # n_matches_softmax = 0
+    # n_softmax = 0
+    # n_matches_custom = 0
+    # n_custom = 0
+
     while len(batch) < n and not_timed_out:
-        tq.desc = f"{desc} ({loops} its)"
+        tq.desc = f"{desc} ({loops} loops)"
         current_state = state.copy()
 
         current_grow_pred = 0
@@ -296,30 +306,54 @@ def perform_simulations(
                 # print("choices:", choices)
                 if sim_type == SimType.ROLLOUT_PROB:
                     # Pick an action idx from a distribution based on softmax of rollout results
-                    p = utils.softmax(rollout_results)
-                    action_idx = np.random.choice(choices.size, 1, p=p)
+                    # Adaptive K, defaults to 100, where softmax() acts as ~max(). Then as
+                    # the number of duplicate media increases, K decreases. At K=1, it
+                    # is the standard softmax(). At K=0, the choice become random. The
+                    # percent of actions remaining is also calculated to contribute a
+                    # depth decay effect as well.
+                    n_actions_remaining = (
+                        current_state == sim_direction.target_value()
+                    ).sum()
+                    percent_remaining = n_actions_remaining / len(current_state)
+                    a = 100
+                    k = -a * (1 - np.exp(-np.power(n_found_but_exists / 30, 3))) + a
+                    k = (k * 0.50) * (1 + percent_remaining)
+
+                    # Weighted softmax
+                    p = utils.softmax(rollout_results, k=k)
+                    action_idx = np.random.choice(choices.size, 1, p=p)[0]
+                    max_action_idx = np.argsort(rollout_results)[-1]
+
+                    # if match:
+                    #     n_matches_custom += 1
+                    # n_custom += 1
+
+                    # # pure softmax
+                    # p = utils.softmax(rollout_results)
+                    # action_idx = np.random.choice(choices.size, 1, p=p)[0]
+                    # match = max_action_idx == action_idx
+                    # if match:
+                    #     n_matches_softmax += 1
+                    # n_softmax += 1
+
+                    # match = max_action_idx == action_idx
+                    # match_text = "MATCH" if match else "NO MATCH"
+                    # print()
+                    # print(f"{rollout_results}")
+                    # print(f"{match_text}\t{action_idx=}, {max_action_idx=}")
+                    # print(f"{n_found_but_exists=}, {k=}")
                 else:
                     # Pick highest predicted reward (mean # removed)
                     action_idx = np.argsort(rollout_results)[-1]
 
-                # print("action_idx:", action_idx)
                 action = choices[action_idx]
-                # print("action:", action)
-                # print("test_state before:", test_states)
                 test_states = test_states[action_idx].reshape((1, -1))
-                # print("test_state after:", test_states)
                 choices = [action]
-                # print("choices after:", choices)
 
             results, results_vars = model.evaluate(test_states)
-            # print("FINISHED EVAL:")
-            # print(test_states, results)
-
-            best_action_idx = np.argsort(results)[-1]  # Pick highest predicted growth
+            # Pick highest predicted growth as best action
+            best_action_idx = np.argsort(results)[-1]
             best_action = choices[best_action_idx]
-            # print(
-            #     best_action_idx, best_action
-            # )  # Idx should be always 0 for rollout and random
 
             # Keep track of prev state values
             old_state = current_state.copy()
@@ -352,30 +386,30 @@ def perform_simulations(
                 # If going UP terminate if:
                 #   - there are grows present or added all ingredients
                 #   - Use new state (first known growth predicted)
+                if is_down:
+                    f_state, b_state = old_state, new_state
+                    f_grow_result, b_grow_result = old_growth_result, new_growth_result
+                    f_grow_var, b_grow_var = old_growth_var, new_growth_var
+                else:
+                    f_state, b_state = new_state, old_state
+                    f_grow_result, b_grow_result = new_growth_result, old_growth_result
+                    f_grow_var, b_grow_var = new_growth_var, old_growth_var
+
                 if go_beyond_frontier:
                     # Add both the "frontier" and "beyond frontier" states
-                    states = [old_state, new_state]
-                    growth_preds = [old_growth_result, new_growth_result]
-                    var_preds = [old_growth_var, new_growth_var]
-                    frontier_types = (
-                        ["FRONTIER", "BEYOND"] if is_down else ["BEYOND", "FRONTIER"]
-                    )
+                    states = [f_state, b_state]
+                    growth_preds = [f_grow_result, b_grow_result]
+                    var_preds = [f_grow_var, b_grow_var]
+                    frontier_types = ["FRONTIER", "BEYOND"]
                 else:
-                    if is_down:
-                        states = [old_state]
-                        growth_preds = [old_growth_result]
-                        var_preds = [old_growth_var]
-                    else:
-                        states = [new_state]
-                        growth_preds = [new_growth_result]
-                        var_preds = [new_growth_var]
+                    states = [f_state]
+                    growth_preds = [f_grow_result]
+                    var_preds = [f_grow_var]
                     frontier_types = ["FRONTIER"]
 
                 for st, gr, va, ft in zip(
                     states, growth_preds, var_preds, frontier_types
                 ):
-                    if ft == "BEYOND" and len(states) > 1 and len(batch) >= n:
-                        continue
                     key = tuple(st)
                     if key not in batch_set or not unique:
                         batch.append(st)
@@ -384,10 +418,17 @@ def perform_simulations(
                         batch_frontier_types.append(ft)
                         batch_set.add(key)
                         tq.update()
-                    #     print(f"ADDED: {st} - {ft}")
-                    # else:
-                    #     print(f"EXISTS: {st} - {ft}")
+                        print(f"ADDED: {st} - {ft}")
+                        if sim_type == SimType.ROLLOUT_PROB:
+                            n_found_but_exists -= 1
+                            n_found_but_exists = max(n_found_but_exists, 0)
+                    else:
+                        if sim_type == SimType.ROLLOUT_PROB:
+                            n_found_but_exists += 1
+                        print(f"EXISTS: {st} - {ft}")
 
+                    if len(batch) >= n:
+                        break
                 break
 
         if timeout is not None:
@@ -404,6 +445,11 @@ def perform_simulations(
         batch["var"] = terminating_variances
     else:
         batch = pd.DataFrame()
+
+    # print("MATCH RESULTS")
+    # print(f"Softmax: {n_matches_softmax/n_softmax:.4f}")
+    # print(f"Weighted Softmax: {n_matches_custom/n_custom:.4f}")
+
     return batch, batch_set
 
 
@@ -446,10 +492,10 @@ def make_batch(
     redo_experiments=None,
 ):
     n_types = len(sim_types)
+    n_exps = batch_size // n_types
     batch_set = used_experiments
     sub_batches = []
     for idx, sim_type in enumerate(sim_types):
-        n_exps = batch_size // n_types
         if idx == n_types - 1:
             n_exps = batch_size - sum([len(x) for x in sub_batches])
         print(idx, sim_type, batch_size, n_exps, sum([len(x) for x in sub_batches]))
@@ -533,7 +579,7 @@ def make_batch(
 #     plt.savefig(f"result_gpr.png")
 
 
-def process_results(prev_folder, new_folder, threshold, n_redos=0):
+def process_results(prev_folder, new_folder, threshold, n_redos=0, plot_only=False):
     """Process the results of the previous round, generate plots, and
     return batch information to be used when generating the new round's
     batch.
@@ -550,6 +596,8 @@ def process_results(prev_folder, new_folder, threshold, n_redos=0):
     n_redos : int, optional
         The number of experiments from the previous batch to rescreen,
         by default 0
+    plot_only : bool, optional
+        Only save plot, don't save/export any other files.
 
     Returns
     -------
@@ -584,10 +632,19 @@ def process_results(prev_folder, new_folder, threshold, n_redos=0):
     results.iloc[:, :20] = results.iloc[:, :20].astype(int)
     results["depth"] = 20 - results.iloc[:, :20].sum(axis=1)
     results = results.sort_values(["depth", "fitness"], ascending=False)
-    results.to_csv(os.path.join(prev_folder, "results_all.csv"), index=None)
+    if "frontier_type" not in results.columns:
+        results["frontier_type"] = "FRONTIER"
+        print("Added 'frontier_type' column")
+    if not plot_only:
+        results.to_csv(os.path.join(prev_folder, "results_all.csv"), index=None)
+
+    # Generate results figure
+    plot_results(prev_folder, results, threshold)
+    if plot_only:
+        quit()
 
     # Keep experiments where all replicate wells are not marked "bad"
-    results_bad = results.loc[results["bad"] != 0, :].drop(columns="bad")
+    results_bad = results.loc[results["bad"] == 1, :].drop(columns="bad")
     results = results.loc[results["bad"] == 0, :].drop(columns="bad")
 
     # Assemble new training data set, either from scratch or appending to previous Round's set
@@ -612,6 +669,7 @@ def process_results(prev_folder, new_folder, threshold, n_redos=0):
     y_train = new_dataset.loc[:, "y_true"].to_numpy()
 
     # Assemble redo experiments, starting with bad experiments
+    results_grow_only = results[results["fitness"] >= threshold]
     remove_cols = [
         "fitness",
         "environment",
@@ -624,7 +682,7 @@ def process_results(prev_folder, new_folder, threshold, n_redos=0):
     ]
     redo_experiments = results_bad.drop(columns=remove_cols)
     if n_redos > 0:
-        redos_chosen = results.iloc[:n_redos, :].drop(columns=remove_cols)
+        redos_chosen = results_grow_only.iloc[:n_redos, :].drop(columns=remove_cols)
         redo_experiments = pd.concat(
             (redo_experiments, redos_chosen), ignore_index=True
         )
@@ -632,7 +690,6 @@ def process_results(prev_folder, new_folder, threshold, n_redos=0):
     redo_experiments.columns = list(range(20)) + list(redo_experiments.columns[20:])
 
     # Save and output successful results
-    results_grow_only = results[results["fitness"] >= threshold]
     results_grow_only.to_csv(
         os.path.join(prev_folder, "results_grow_only.csv"), index=False
     )
@@ -649,123 +706,113 @@ def process_results(prev_folder, new_folder, threshold, n_redos=0):
         f"Total redo experiments chosen: {len(redo_experiments)} ({len(results_bad)} 'bad' repeats)"
     )
 
-    # Generate results figure
-    plot_results(prev_folder, results, threshold)
-
     return X_train, y_train, used_experiments, redo_experiments
 
 
 def plot_results(prev_folder, results, threshold):
     results = results.sort_values(by="growth_pred").reset_index(drop=True)
     fig, axs = plt.subplots(
-        nrows=1,
+        nrows=2,
         ncols=2,
         sharex=False,
         sharey=False,
-        figsize=(12, 5),
+        figsize=(12, 8),
         gridspec_kw={"width_ratios": [1.25, 2]},
     )
-    greedy = results[results["type"] == "GREEDY"]
-    rollout = results[
-        (results["type"] == "ROLLOUT") | (results["type"] == "ROLLOUT_PROB")
-    ]
-    random = results[results["type"] == "RANDOM"]
-    colors = ["orange", "magenta", "blue"]
-    for data, color in zip([greedy, rollout, random], colors):
-        axs[0].plot(
-            data.index, data["fitness"], ".", color=color, markersize=3, alpha=0.75
-        )
-    axs[0].plot(results.index, results["growth_pred"], "-", color="black")
-    # axs[0].fill_between(
-    #     results.index,
-    #     results["growth_pred"] - results["var"],
-    #     results["growth_pred"] + results["var"],
-    #     facecolor="black",
-    #     alpha=0.25,
-    # )
-    axs[0].set_xlabel("Assay N")
-    axs[0].set_ylabel("Growth")
-    axs[0].legend(
-        [
-            "Fitness - Greedy",
-            "Fitness - Rollout",
-            "Fitness - Random",
-            "Model Prediction",
-        ]
-    )
-    axs[0].set_title("Experiment Results")
 
-    width = 0.25
-    for i, (data, color) in enumerate(zip((greedy, rollout, random), colors)):
-        data_g = collections.Counter(list(data[data["fitness"] >= threshold]["depth"]))
-        data_ng = collections.Counter(list(data[data["fitness"] < threshold]["depth"]))
-        bottom = [data_g[k] if k in data_g else 0 for k in data_ng.keys()]
-
-        axs[1].bar(
-            np.array(list(data_ng.keys())) + width * i,
-            data_ng.values(),
-            bottom=bottom,
-            width=width,
-            color=color,
-            edgecolor=color,
-            hatch="////",
-            alpha=0.25,
-            linewidth=0,
+    colors = {
+        "ROLLOUT": "violet",
+        "ROLLOUT_PROB": "violet",
+        "RANDOM": "dodgerblue",
+        "GREEDY": "orangered",
+        "REDO": "limegreen",
+    }
+    frontier_grouped = results.groupby(by=["frontier_type"], as_index=False)
+    for row_idx, (frontier_type, results) in enumerate(
+        reversed(list(frontier_grouped))
+    ):
+        results = results.reset_index(drop=True)
+        sim_type_grouped = results.groupby(by=["type"], as_index=False)
+        present_groups = []
+        for group_name, data in sim_type_grouped:
+            present_groups.append(group_name)
+            axs[row_idx, 0].plot(
+                data.index,
+                data["fitness"],
+                ".",
+                color=colors[group_name],
+                markersize=3,
+                alpha=0.75,
+            )
+        axs[row_idx, 0].plot(results.index, results["growth_pred"], "-", color="black")
+        axs[row_idx, 0].set_xlabel("Assay N")
+        axs[row_idx, 0].set_ylabel("Fitness")
+        axs[row_idx, 0].legend(
+            [f"{g.title()}" for g in present_groups] + ["Model Prediction"]
         )
-        axs[1].bar(
-            np.array(list(data_g.keys())) + width * i,
-            data_g.values(),
-            width=width,
-            color=color,
-        )
+        axs[row_idx, 0].set_title(f"Experiment Results - {frontier_type.title()}")
 
-    axs[1].set_title("Depth")
-    axs[1].set_xlabel("Depth (n_removed)")
-    axs[1].set_ylabel("Count")
-    axs[1].set_xticks(np.arange(0, 21) + 2 * width / 2)
-    axs[1].set_xticklabels(np.arange(0, 21))
-    axs[1].legend(
-        [
-            "Greedy - No Grow",
-            "Greedy - Grow",
-            "Rollout - No Grow",
-            "Rollout - Grow",
-            "Random - No Grow",
-            "Random - Grow",
-        ],
-    )
+        width = 0.25
+        legend_labels = []
+        for i, (group_name, data) in enumerate(sim_type_grouped):
+            color = colors[group_name]
+            grows = data[data["fitness"] >= threshold]
+            no_grows = data[data["fitness"] < threshold]
+            data_g = collections.Counter(list(grows["depth"]))
+            data_ng = collections.Counter(list(no_grows["depth"]))
+            bottom = [data_g[k] if k in data_g else 0 for k in data_ng.keys()]
+            if len(no_grows) > 0:
+                legend_labels.append(f"{group_name.title()} - No Grow")
+                axs[row_idx, 1].bar(
+                    np.array(list(data_ng.keys())) + width * i,
+                    data_ng.values(),
+                    bottom=bottom,
+                    width=width,
+                    color=color,
+                    edgecolor=color,
+                    hatch="////",
+                    alpha=0.25,
+                    linewidth=0,
+                )
+            if len(grows) > 0:
+                legend_labels.append(f"{group_name.title()} - Grow")
+                axs[row_idx, 1].bar(
+                    np.array(list(data_g.keys())) + width * i,
+                    data_g.values(),
+                    width=width,
+                    color=color,
+                )
+
+        axs[row_idx, 1].set_title(f"Depth - {frontier_type.title()}")
+        axs[row_idx, 1].set_xlabel("Depth (n_removed)")
+        axs[row_idx, 1].set_ylabel("Count")
+        axs[row_idx, 1].set_xticks(np.arange(0, 21) + 2 * width / 2)
+        axs[row_idx, 1].set_xticklabels(np.arange(0, 21))
+        axs[row_idx, 1].legend(legend_labels)
+
     plt.suptitle(f"Experiment: {prev_folder}")
     plt.tight_layout()
     plt.savefig(os.path.join(prev_folder, "results_graphic.png"), dpi=400)
 
 
-def main():
-    GROW_THRESHOLD = 0.25
-    NEW_ROUND_N = 5
+def main(args):
+    NEW_ROUND_N = args.round
 
-    # EXPT_FOLDER = "experiments/04-05-2021"
-    # EXPT_FOLDER = "experiments/04-07-2021"
-    # EXPT_FOLDER = "experiments/04-07-2021 copy"
-    # EXPT_FOLDER = "experiments/04-30-2021/both"
+    with open(args.path) as f:
+        config = json.load(f)
 
-    # EXPT_FOLDER = "experiments/05-18-2021_4"
-    # EXPT_FOLDER = "experiments/05-18-2021_5"
-    # BATCH_SIZE = 448
-
-    EXPT_FOLDER = "experiments/05-18-2021_6"
-    BATCH_SIZE = 224
-
-    MODEL_TYPE = ModelType.NEURAL_NET
-    # MODEL_TYPE = ModelType.GPR
-
-    BEYOND_FRONTIER = True
-    TIMEOUT_MIN = 30
-    NICKNAME = f"{EXPT_FOLDER.split('_')[-1]}R{NEW_ROUND_N}"
+    GROW_THRESHOLD = config["grow_threshold"]
+    EXPT_FOLDER = config["experiment_path"]
+    NICKNAME = f"{config['nickname']}R{NEW_ROUND_N}"
+    BATCH_SIZE = config["batch_size"]
+    TIMEOUT_MIN = config["timeout_min"]
+    N_ROLLOUTS = config["n_rollouts"]
+    MODEL_TYPE = ModelType(config["model_type"])
+    DIRECTION = SimDirection(config["direction"])
+    SIMULATION_TYPE = [SimType(x) for x in config["simulation_types"]]
+    BEYOND_FRONTIER = config["beyond_frontier"]
+    USE_UNIQUE = config["use_unique"]
     N_REDOS = int(BATCH_SIZE * 0.10)
-    USE_UNIQUE = True
-    DIRECTION = SimDirection.DOWN
-    N_ROLLOUTS = 500
-    # N_ROLLOUTS = 50
 
     date = datetime.datetime.now().isoformat().replace(":", ".")
     prev_round_folder = os.path.join(EXPT_FOLDER, f"Round{NEW_ROUND_N-1}")
@@ -774,16 +821,19 @@ def main():
         os.makedirs(new_round_folder)
     if NEW_ROUND_N > 1:
         X_train, y_train, used_experiments, redo_experiments = process_results(
-            prev_round_folder, new_round_folder, GROW_THRESHOLD, N_REDOS
+            prev_round_folder, new_round_folder, GROW_THRESHOLD, N_REDOS, args.plot_only
         )
-        # BATCH_SIZE -= N_REDOS
-        BATCH_SIZE -= N_REDOS // 2
+        BATCH_SIZE -= N_REDOS
+
     else:
         # data = pd.read_csv(
         #     "experiments/04-30-21/up/Round1/random_train_kickstart.csv", index_col=None
         # )
         # X_train, y_train = data.iloc[:, :20].to_numpy(), data.iloc[:, -1].to_numpy()
-        n_examples = 1000
+        if MODEL_TYPE == ModelType.NEURAL_NET:
+            n_examples = BATCH_SIZE
+        else:
+            n_examples = 1000
         X_train = np.random.rand(n_examples, 20)
         X_train[X_train >= 0.5] = 1
         X_train[X_train < 0.5] = 0
@@ -805,7 +855,7 @@ def main():
         if MODEL_TYPE == ModelType.NEURAL_NET:
             data = data.rename(columns={"y_true": "growth_pred"})
             data["var"] = 0
-            export_to_dp_batch(new_round_folder, data, date)
+            export_to_dp_batch(new_round_folder, data, date, NICKNAME)
             return
 
     if MODEL_TYPE == ModelType.GPR:
@@ -819,7 +869,7 @@ def main():
             X_train,
             y_train,
             # n_bags=1,
-            n_bags=25,
+            n_bags=config["n_bags"],
             bag_proportion=1.0,
             epochs=50,
             batch_size=360,
@@ -828,41 +878,51 @@ def main():
 
     if DIRECTION == SimDirection.DOWN:
         starting_media = np.ones(20)
-    else:
+        direction = SimDirection.DOWN
+        batch_size = BATCH_SIZE
+    elif DIRECTION == SimDirection.UP:
         starting_media = np.zeros(20)
+        direction = SimDirection.UP
+        batch_size = BATCH_SIZE
+    elif DIRECTION == SimDirection.BOTH:
+        starting_media = np.ones(20)
+        direction = SimDirection.DOWN
+        batch_size = BATCH_SIZE // 2
 
     batch, batch_used = make_batch(
         model,
         starting_media,
-        batch_size=BATCH_SIZE,
-        sim_types=(SimType.ROLLOUT_PROB, SimType.RANDOM),
+        batch_size=batch_size,
+        sim_types=SIMULATION_TYPE,
         rollout_trajectories=N_ROLLOUTS,
         threshold=GROW_THRESHOLD,
         timeout=60 * TIMEOUT_MIN,
         unique=USE_UNIQUE,
-        direction=DIRECTION,
+        direction=direction,
         go_beyond_frontier=BEYOND_FRONTIER,
         used_experiments=used_experiments,
         redo_experiments=redo_experiments,
     )
 
     #################### UP DIRECTION ####################
-    DIRECTION = SimDirection.UP
-    starting_media = np.zeros(20)
-    batch2, batch_used = make_batch(
-        model,
-        starting_media,
-        batch_size=BATCH_SIZE,
-        sim_types=(SimType.ROLLOUT_PROB, SimType.RANDOM),
-        rollout_trajectories=25,
-        threshold=GROW_THRESHOLD,
-        timeout=60 * TIMEOUT_MIN,
-        unique=USE_UNIQUE,
-        direction=DIRECTION,
-        go_beyond_frontier=BEYOND_FRONTIER,
-        used_experiments=batch_used,
-    )
-    batch = pd.concat((batch, batch2), ignore_index=True)
+    if DIRECTION == SimDirection.BOTH:
+        # batch_size = BATCH_SIZE - len(batch)
+        direction = SimDirection.UP
+        starting_media = np.zeros(20)
+        batch2, batch_used = make_batch(
+            model,
+            starting_media,
+            batch_size=batch_size,
+            sim_types=SIMULATION_TYPE,
+            rollout_trajectories=N_ROLLOUTS,
+            threshold=GROW_THRESHOLD,
+            timeout=60 * TIMEOUT_MIN,
+            unique=USE_UNIQUE,
+            direction=direction,
+            go_beyond_frontier=BEYOND_FRONTIER,
+            used_experiments=batch_used,
+        )
+        batch = pd.concat((batch, batch2), ignore_index=True)
     #######################################################
 
     model.close()
@@ -870,71 +930,29 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="BacterAI Experiment Generator")
 
-    # test = pd.read_csv("gpr_test_pred_2021-04-05T14:14:36.096451.csv", index_col=None)
-    # train = pd.read_csv("gpr_train_pred_2021-04-05T14:14:36.096451.csv", index_col=None)
-    # X_train, y_train = train.to_numpy()[:, :-1], train.to_numpy()[:, -1]
-    # X_test, y_test = test.to_numpy()[:, :-1], test.to_numpy()[:, -1]
+    parser.add_argument(
+        "path",
+        type=str,
+        help="The path to the configuration file (.json)",
+    )
 
-    # for train_size in [0.01, 0.05, 0.1, 0.25, 0.5]:
-    #     print(f"TRAINING {train_size}")
-    #     X_train, X_test, y_train, y_test = get_data(
-    #         "L1IO-L2IO-L3O All Rands SMU UA159 Processed-Aerobic.csv",
-    #         train_size=train_size,
-    #         test_size=0.5,
-    #     )
+    parser.add_argument(
+        "-r",
+        "--round",
+        type=int,
+        required=True,
+        help="The new round number",
+    )
 
-    #     X_trainR = robjects.r.matrix(
-    #         X_train, nrow=X_train.shape[0], ncol=X_train.shape[1]
-    #     )
-    #     X_testR = robjects.r.matrix(X_test, nrow=X_test.shape[0], ncol=X_test.shape[1])
-    #     y_trainR = robjects.r.matrix(y_train, nrow=y_train.shape[0], ncol=1)
-    #     y_testR = robjects.r.matrix(y_test, nrow=y_test.shape[0], ncol=1)
+    parser.add_argument(
+        "-p",
+        "--plot_only",
+        action="store_true",
+        help="Only export plots",
+    )
 
-    #     model = train_new_GP(X_trainR, y_trainR)
+    args = parser.parse_args()
 
-    #     y_train_pred, y_train_var = sample_GP(model, X_trainR)
-    #     y_test_pred, y_test_var = sample_GP(model, X_testR)
-
-    #     train_data = pd.DataFrame(
-    #         np.hstack(
-    #             (
-    #                 X_train,
-    #                 y_train.reshape((-1, 1)),
-    #                 y_train_pred.reshape((-1, 1)),
-    #                 y_train_var.reshape((-1, 1)),
-    #             )
-    #         )
-    #     )
-    #     train_data.columns = list(range(20)) + [
-    #         "y_true",
-    #         "y_pred_gpr",
-    #         "y_pred_var_gpr",
-    #     ]
-    #     test_data = pd.DataFrame(
-    #         np.hstack(
-    #             (
-    #                 X_test,
-    #                 y_test.reshape((-1, 1)),
-    #                 y_test_pred.reshape((-1, 1)),
-    #                 y_test_var.reshape((-1, 1)),
-    #             )
-    #         )
-    #     )
-    #     test_data.columns = list(range(20)) + ["y_true", "y_pred_gpr", "y_pred_var_gpr"]
-    #     train_data.to_csv(f"GPRvNN_train_pred_{train_size:.2f}.csv", index=None)
-    #     test_data.to_csv(f"GPRvNN_test_pred_{train_size:.2f}.csv", index=None)
-    #     delete_GP(model)  # clean up model
-
-    # X_trainR = robjects.r.matrix(X_train, nrow=X_train.shape[0], ncol=X_train.shape[1])
-    # y_trainR = robjects.r.matrix(y_train, nrow=y_train.shape[0], ncol=1)
-
-    # X_testR = robjects.r.matrix(X_test, nrow=X_test.shape[0], ncol=X_test.shape[1])
-    # y_testR = robjects.r.matrix(y_test, nrow=y_test.shape[0], ncol=1)
-
-    # model = train_new_GP(X_trainR, y_trainR)
-
-    # date = datetime.datetime.now().isoformat().replace(":", ".")
-    # plot_and_export_data(model, X_trainR, X_testR, X_train, X_test, y_train, y_test, date)
-    # delete_GP(model)  # clean up model
+    main(args)

@@ -1,10 +1,10 @@
-
 import time
 
 import numpy as np
 import pandas as pd
 
 from global_vars import *
+
 
 def process_mapped_data(path):
     """Processes DeepPhenotyping data. It normalizes the
@@ -14,7 +14,7 @@ def process_mapped_data(path):
     data = pd.read_csv(path, index_col=None).fillna("")
     if "bad" not in data.columns:
         data["bad"] = False
-        print("Added \'bad\' column")
+        print("Added 'bad' column")
 
     plate_control_indexes = data[data["plate_control"]].index
     plate_blank_indexes = data[data["plate_blank"]].index
@@ -33,34 +33,52 @@ def process_mapped_data(path):
     )
 
     data = data.drop(data[(data["plate_control"] | data["plate_blank"])].index)
-    data = data.drop(columns=["plate_control", "plate_blank",  "parent_well", "parent_well_index", "replicate", "solution_id_hex"])
+    data = data.drop(
+        columns=[
+            "plate_control",
+            "plate_blank",
+            "parent_well",
+            "parent_well_index",
+            "replicate",
+            "solution_id_hex",
+        ]
+    )
     data_grouped = data.groupby(
         by=leave_out_cols + ["environment", "strain", "parent_plate"],
         as_index=False,
     )
 
+    # data = data_grouped.median()
     data = data_grouped.mean()
     cols = list(AA_NAMES) + list(data.columns)
-    data = pd.concat((pd.DataFrame(np.ones((data.shape[0], 20), dtype=int)), data), axis=1, ignore_index=True)
+    data = pd.concat(
+        (pd.DataFrame(np.ones((data.shape[0], 20), dtype=int)), data),
+        axis=1,
+        ignore_index=True,
+    )
     data.columns = cols
     ingredient_locs = {name: i for i, name in enumerate(AA_NAMES)}
     for row_idx, row in data.iterrows():
-        idxs = [i for i in row[leave_out_cols] if i != ""]
+        idxs = pd.unique([i for i in row[leave_out_cols] if i != ""])
         data.loc[row_idx, idxs] = 0
-    
-    data = data.drop(columns=leave_out_cols)
 
+    data = data.drop(columns=leave_out_cols)
     return data, plate_controls, plate_blanks
 
 
-def softmax(scores):
+def softmax(scores, k=1):
     """
     Compute softmax with random tiebreak.
     """
+    exps = np.exp(k * scores)
+    if np.isinf(exps.sum()):
+        # perform max if sum is infinite, split among all maxes
+        row_maxes = scores.max()
+        matches = scores == row_maxes
+        scores = np.where(matches, 1 / matches.sum(), 0)
+        return scores
 
-    exps = np.exp(scores)
     softmax_scores = exps / exps.sum()
-
     return softmax_scores
 
 
@@ -80,3 +98,8 @@ def decoratortimer(decimal):
         return wrap
 
     return decoratorfunction
+
+
+if __name__ == "__main__":
+    m = softmax(np.array([0.1, 0.8, 0.6, 1, 0.9]), 0.2)
+    print(m, m.sum())
