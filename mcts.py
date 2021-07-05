@@ -1,6 +1,7 @@
 import argparse
 import collections
 import copy
+import datetime
 import logging
 import operator
 import os
@@ -12,12 +13,13 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-import multiprocess as mp
-import tensorflow as tf
-from tqdm import tqdm, trange
+
+import multiprocessing as mp
+from multiprocessing import shared_memory
 
 import neural_pretrain as neural
 import utils
+from utils import decoratortimer
 
 # Logging set up
 logger = logging.getLogger(__name__)
@@ -32,7 +34,12 @@ INDENT = "  "
 parser = argparse.ArgumentParser(description="Run mcts.py")
 
 parser.add_argument(
-    "-g", "--gpu", type=int, default=0, choices=[0, 1], help="Choose GPU (0 or 1).",
+    "-g",
+    "--gpu",
+    type=int,
+    default=0,
+    choices=[0, 1],
+    help="Choose GPU (0 or 1).",
 )
 
 parser.add_argument(
@@ -66,27 +73,80 @@ class MCTS(object):
         self.growth_model_weights_dir = growth_model_weights_dir
         self.growth_model_weights = None
         self.ingredient_names = ingredient_names
+        # if use_multiprocessing:
+        #     self.mp_manager = mp.Manager()
+        #     self.state_memory = self.mp_manager.dict()
+        # else:
         self.state_memory = {}
-        if state_memory:
+
+        if state_memory is not None:
             self.state_memory.update(state_memory)
 
         self.growth_cutoff = growth_cutoff
         self.np_state = utils.seed_numpy_state(seed)
+        self.load_value_weights()
 
     def get_value_weights(self):
         """
         Helper function for setting growth_model_weights when instantiating the class.
         """
-        if not self.growth_model_weights:
-            self.growth_model_weights = np.load(self.growth_model_weights_dir)
-
         return self.growth_model_weights
 
-    def evaluate_growth_model(self, inputs, return_bool=False):
+    def load_value_weights(self):
+        """
+        Helper function for loading growth_model_weights.
+        """
+        self.reset_state_memory()
+        self.growth_model_weights = np.load(self.growth_model_weights_dir)
+
+        self.n_layers = self.growth_model_weights["num_layers"].tolist()
+        self.weights = []
+        self.biases = []
+        self.w_shapes = []
+        self.b_shapes = []
+        self.w_split_sizes = []
+        self.b_split_sizes = []
+        for layer in range(self.n_layers):
+            w = self.growth_model_weights[f"W{layer}"].astype(np.float64)
+            self.w_shapes.append(w.shape)
+            w = w.flatten()
+            if layer == 0:
+                idx = w.size
+            else:
+                idx = self.w_split_sizes[-1] + w.size
+            self.w_split_sizes.append(idx)
+            self.weights.append(w)
+
+            b = self.growth_model_weights[f"b{layer}"].astype(np.float64)
+            self.b_shapes.append(b.shape)
+            b = b.flatten()
+            if layer == 0:
+                idx = b.size
+            else:
+                idx = self.b_split_sizes[-1] + b.size
+            self.b_split_sizes.append(idx)
+            self.biases.append(b)
+
+        self.weights = np.concatenate(self.weights)
+        self.biases = np.concatenate(self.biases)
+
+    def evaluate_growth_model(
+        self,
+        inputs,
+        n_layers,
+        weights,
+        biases,
+        w_shapes,
+        b_shapes,
+        w_split_sizes,
+        b_split_sizes,
+        return_bool=False,
+        **kwargs,
+    ):
         """
         Computes the inference value using the stored neural network weights from self.growth_model_weights
-        of the inputs. This corresponds to the predicted probability of growth of a media. Using 
-        these cached weights allows for multiprocessing and reduced overhead compared to 
+        of the inputs. This corresponds to the predicted probability of growth of a media. Using
+        these cached weights allows for multiprocessing and reduced overhead compared to
         an equivalent call to Tensorflow on the trained model, while provinding the same value.
 
         Inputs
@@ -101,48 +161,65 @@ class MCTS(object):
         answer: float or bool
             The neural network output prediction.
         """
-
-        n = self.get_value_weights()["num_layers"]
-        answer = inputs
-        for i in range(n):
-            answer = np.matmul(answer, self.get_value_weights()[f"W{i}"])
-            answer += self.get_value_weights()[f"b{i}"]
-            if i < n - 1:
-                answer[answer <= 0] = 0  # ReLU activation function
+        weights = np.split(weights, w_split_sizes)
+        biases = np.split(biases, b_split_sizes)
+        ans = inputs
+        for layer in range(n_layers):
+            w = weights[layer].reshape(w_shapes[layer])
+            b = biases[layer].reshape(b_shapes[layer])
+            ans = np.matmul(ans, w) + b
+            if layer < n_layers - 1:
+                ans = np.maximum(0, ans)  # ReLU activation function
             else:
-                answer = 1 / (1 + np.exp(-1 * answer))  # Sigmoid activation function
-        answer = answer[0, 0]
+                ans = 1 / (1 + np.exp(-1 * ans))  # Sigmoid activation function
+
         if return_bool:
-            answer = 1 if answer >= self.growth_cutoff else 0
-        return answer
+            ans = ans >= self.growth_cutoff
 
-    def get_value_cache(self, state):
-        """
-        Gets the cached predicted value from self.state_memory if the state has been evaluated
-        already, otherwise it computes the prediction and caches it in self.state_memory.
+        return ans.ravel()
 
-        Inputs
-        ------
-        state: list(str)
-            The present ingredients in the solution.
-        
-        Return
-        -------
-        result: float
-            The cached value.
-        """
+    # def evaluate_growth_model_cached(self, inputs, cache):
+    #     """
+    #     Gets the cached predicted value from self.state_memory if the state has been evaluated
+    #     already, otherwise it computes the prediction and caches it in self.state_memory.
+    #     """
 
-        state = self.ingredients_to_input(state)
+    #     l = inputs.shape[0]
+    #     unused_indexes = np.arange(l)
+    #     used_indexes = []
+    #     answers = np.zeros((l,), dtype=np.float64)
+    #     for idx, row in enumerate(inputs):
+    #         cached_ans = cache.get(row.tobytes(), None)
+    #         if cached_ans != None:
+    #             # print("CACHED:", answers)
+    #             answers[idx] = cached_ans
+    #             used_indexes.append(idx)
+    #     if len(used_indexes) > 0:
+    #         inputs = np.delete(inputs, used_indexes, axis=0)
+    #         unused_indexes = np.delete(unused_indexes, used_indexes)
 
-        key = tuple(state.tolist()[0])
-        if key in self.state_memory.keys():
-            result = self.state_memory[key]
-        else:
-            result = self.evaluate_growth_model(state)
-            self.state_memory[key] = result
-        return result
+    #     ans = inputs.copy()
+    #     n = self.get_value_weights()["num_layers"]
+    #     for layer in range(n + 1):
+    #         ans = (
+    #             np.matmul(ans, self.get_value_weights()[f"W{layer}"])
+    #             + self.get_value_weights()[f"b{layer}"]
+    #         )
+    #         if layer < n - 1:
+    #             ans = np.maximum(0, ans)  # ReLU activation function
+    #         else:
+    #             ans = 1 / (1 + np.exp(-1 * ans))  # Sigmoid activation function
 
-    def find_candidates(self, state):
+    #     if inputs.size > 0:
+    #         for k, v in zip(inputs, ans):
+    #             # print(f"{k}: {v}")
+    #             cache[k.tobytes()] = v[0]
+
+    #     np.put(answers, unused_indexes, ans.ravel())
+    #     return answers
+
+    @decoratortimer(2)
+    def find_candidates(self, state, **kwargs):
         """
         Finds candidate ingredients to remove. Without these inputs, the `self.growth_model`
         still predicts `grow.` State results are cached in `self.state_memory` for improved
@@ -152,19 +229,20 @@ class MCTS(object):
         ------
         state: list(str)
             The present ingredients in the solution.
-        
+
         Return
         -------
         candidates: list(str)
             The candidate ingredients.
         """
 
-        does_grow = {}
-        for ingredient in state:
-            test_state = self.remove_from_list(state, ingredient)
-            does_grow[ingredient] = self.get_value_cache(test_state)
+        size = state.size
+        does_grow = np.empty((size, size))
+        for i in range(state.size):
+            does_grow[i] = self.remove_ingredient(state, i)
 
-        candidates = [k for k, v in does_grow.items() if v >= self.growth_cutoff]
+        does_grow = self.evaluate_growth_model(does_grow, **kwargs)
+        candidates = np.argwhere(does_grow >= self.growth_cutoff).ravel()
         return candidates
 
     def get_state_memory(self):
@@ -174,9 +252,22 @@ class MCTS(object):
 
         return self.state_memory
 
+    def reset_state_memory(self):
+        """
+        Reset state_memory
+        """
+
+        self.state_memory = {}
+
+    def save_state_memory(self):
+        mem = pd.DataFrame([list(k) + [v] for k, v in self.state_memory.items()])
+        mem.to_csv(
+            f"state_memory_{datetime.datetime.now().isoformat()}.csv", index=None
+        )
+
     def __getstate__(self):
         """
-        Automatically called when pickling this class, to avoid pickling errors 
+        Automatically called when pickling this class, to avoid pickling errors
         when saving model weights .npz object.
         """
         state = dict(self.__dict__)
@@ -186,14 +277,14 @@ class MCTS(object):
     def trajectory(
         self,
         state,
-        horizon,
-        length,
         numpy_state,
+        horizon,
+        limit,
         grow_advantage=None,
-        double_step=False,
+        **kwargs,
     ):
         """
-        Calculates the trajectory reward of a given state. A random ingredient is chosen from remaining 
+        Calculates the trajectory reward of a given state. A random ingredient is chosen from remaining
         ingredients until the solution results in a 'no grow' prediction from the `self.growth_model`.
 
         Inputs
@@ -206,189 +297,165 @@ class MCTS(object):
             The length the full media
         grow_advantage: int or None
             Parameter used to set the relative probability of choosing an ingredient that is
-            predicted to grow. Values <1 will skew the choice towards an ingredient that 
+            predicted to grow. Values <1 will skew the choice towards an ingredient that
             results in no growth, and the opposite for values >1. If 1 or None is passed in,
             the probabilites for each ingredient are set to 1/N where N=len(state). Otherwise,
             ingredients' values will be set to `grow_advantage`/N or 1/N, if they grow or don't grow,
             respectively.
-        
+
         Return
         -------
         reward: float
-            Reward = # of ingredients removed (len full media + current step) * growth_result (of 
-            most recent simulation above the growth cutoff). 
+            Reward = # of ingredients removed (len full media + current step) * growth_result (of
+            most recent simulation above the growth cutoff).
         """
-        trajectory_state = copy.copy(state)
-        length = len(trajectory_state)
 
-        prev_reward = 0
-        step_size = 2 if double_step else 1
+        trajectory_states = np.tile(state, (limit, 1))
+        length = trajectory_states[0].sum()
+        rewards = np.zeros((limit,))
+        order = list(range(limit))
+
         # Random walk to remove 'horizon' ingredients
-        for step in range(1, horizon + 1, step_size):
-            if length <= 0:
+        for step in range(1, horizon + 1):
+            if trajectory_states.size <= 0:
                 break
-            # Set choice probabilities
-            p = np.ones(length)
-            if grow_advantage != None and grow_advantage != 1:
-                candidates = self.find_candidates(trajectory_state)
-                for idx, i in enumerate(trajectory_state):
-                    if i in candidates:
-                        p[idx] = grow_advantage
-            p /= p.sum()
 
-            # Pick a random ingredient from the current state
-            ingredients = numpy_state.choice(
-                trajectory_state, (step_size,), p=p
-            ).tolist()
-
-            trajectory_state = self.remove_from_list(trajectory_state, ingredients)
-            length = len(trajectory_state)
-
-            # Cache calculated state values if we haven't seen the state yet,
-            # otherwise ask the value model for the prediction
-            grow_result = self.get_value_cache(trajectory_state)
-
-            cardinality_reward = grow_result * (length + step)
-            if grow_result <= self.growth_cutoff:
+            choices = np.argwhere(trajectory_states == 1)
+            if choices.size == 0:
                 break
-            prev_reward = cardinality_reward
-        return prev_reward
 
-    def dict_to_ingredients(self, state):
-        """
-        Converts a dictionary of ingredients to a list of present ingredients.
+            s0 = np.r_[
+                0,
+                np.flatnonzero(choices[1:, 0] > choices[:-1, 0]) + 1,
+                choices.shape[0],
+            ]
 
-        Inputs
-        ------
-        state: dict(str -> int)
-            A dictionary mapping the ingredient to a 0 or 1, corresponding to not present or
-            present in the solution, respectively.
+            for i in range(s0.shape[0] - 1):
+                row = choices[s0[i], 0]
+                trajectory_states[
+                    row, numpy_state.choice(choices[s0[i] : s0[i + 1], 1], 1, False)
+                ] = 0
 
-        Return
-        -------
-        state: list(str)
-            The present ingredients in a solution.
-        """
+            length = trajectory_states[0].sum()
+            # grow_results = self.evaluate_growth_model_cached(
+            #     trajectory_states, state_memory
+            # )
+            grow_results = self.evaluate_growth_model(
+                trajectory_states,
+                **kwargs,
+            )
+            cardinality_rewards = grow_results * (length + step)
 
-        ingredients = [k for k, v in state.items() if v == 1]
-        return ingredients
+            idx_dels = list()
+            for i, r in enumerate(grow_results):
+                if r <= self.growth_cutoff:
+                    idx_dels.append(i)
+                    continue
+                rewards[order[i]] = cardinality_rewards[i]
 
-    def remove_from_list(self, state, to_remove):
+            trajectory_states = np.delete(trajectory_states, idx_dels, axis=0)
+            order = [o for idx, o in enumerate(order) if idx not in idx_dels]
+
+        # # Set choice probabilities
+        # p = np.ones(length)
+        # if grow_advantage != None and grow_advantage != 1:
+        #     candidates = self.find_candidates(trajectory_state, state_memory)
+        #     for idx, i in enumerate(trajectory_state):
+        #         if i in candidates:
+        #             p[idx] = grow_advantage
+        # p /= p.sum()
+
+        return rewards
+
+    # @decoratortimer(2)
+    def remove_ingredient(self, state, idxs):
         """
         Removes the ingredient `to_remove` from state if it is present.
-        
+
         Inputs
         ------
-        state: list(str)
+        state: np.array(int)
             The present ingredients in the solution.
-        to_remove: str or list(str)
-            The ingredient(s) to remove
-        
+        idx: np.array(int)
+            The indexes to remove
+
         Return
         -------
-        state: list(str)
+        state: np.array(int)
             The remaining ingredients in the solution.
         """
-        if isinstance(to_remove, list):
-            state = [i for i in state if i not in to_remove]
-        else:
-            state = [i for i in state if i != to_remove]
-        return state
 
-    def ingredients_to_input(self, state):
-        """
-        Converts to numpy a state into the input form for `self.growth_model`.
-        
-        Inputs
-        ------
-        state: list(str)
-            The present ingredients in the solution.
-        
-        Return
+        s = state.copy()
+        np.put(s, idxs, 0)
+        return s
+
+    def partition(self, n, k):
+        """Split an integer n into k groups as evenly as possible.
+
+        Example
         -------
-        inputs: np.array(int)
-            A boolean array representation of the state.
+        >>> partition(13, 5)
+        [3, 3, 3, 2, 2]
         """
-        inputs = np.array(self.ingredient_names)
-        inputs = np.isin(inputs, state).astype(float).reshape((1, -1))
-        return inputs
 
-    def run(self, starting_state, n=2, **kwargs):
+        sizes = [n // k for _ in range(k)]
+        for i in range(n % k):
+            sizes[i] += 1
+        return sizes
 
-        if n > 1:
-            results = self.run_n_stage(starting_state, n, **kwargs)
-        else:
-            results = self.perform_rollout(starting_state, **kwargs)
+    def _rollout_helper(
+        self,
+        state,
+        limit,
+        reward_shape,
+        starting_idx,
+        action,
+        action_idx,
+        seed=None,
+        **kwargs,
+    ):
+        """
+        Helper function for multiprocessing
+        """
 
-        # print(results)
-        return results
+        kwargs["limit"] = limit
+        existing_shm = shared_memory.SharedMemory(name="rw_shm")
+        rewards = np.ndarray(reward_shape, dtype=np.float64, buffer=existing_shm.buf)
+        numpy_state = utils.seed_numpy_state(seed)
+        test_state = self.remove_ingredient(state, action)
+        results = self.trajectory(
+            test_state,
+            numpy_state,
+            **kwargs,
+        )
+        rewards[action_idx, starting_idx : starting_idx + limit] = results
+        existing_shm.close()
 
-    def run_n_stage(self, state, n, **kwargs):
-        # print(f"stage: {n}")
-        if n == 1:
-            # print("performing rollout")
-            return self.perform_rollout(state, **kwargs)
-        else:
-
-            def _run_helper(_state, _n, args):
-                print(f"\tremoving: {set(state) - set(_state)}")
-                return self.run_n_stage(_state, _n, **args)
-
-            n_items = len(state)
-            if n - 1 == 1:
-                kwargs["use_multiprocessing"] = False
-                threads = mp.cpu_count() - 1
-                with mp.get_context("spawn").Pool(threads) as pool:
-                    all_results = pool.starmap(
-                        _run_helper,
-                        zip(
-                            [self.remove_from_list(state, c) for c in state],
-                            [n - 1] * n_items,
-                            [kwargs] * n_items,
-                        ),
-                    )
-                mapped_results = dict(zip(state, all_results))
-            else:
-                all_results = map(
-                    _run_helper,
-                    [self.remove_from_list(state, c) for c in state],
-                    [n - 1] * n_items,
-                    [kwargs] * n_items,
-                )
-                mapped_results = dict(zip(state, all_results))
-            return mapped_results
-
+    @decoratortimer(2)
     def perform_rollout(
         self,
         state,
         limit,
         horizon,
         available_actions=None,
-        grow_advantage=None,
         log_graph=True,
-        use_multiprocessing=True,
+        threads=None,
     ):
         """
-        Performs an Monte Carlo Rollout Simulation for the solution `self`. The 
+        Performs an Monte Carlo Rollout Simulation for the solution `self`. The
         trajectories for each remaining ingredient are averaged over `limit` times. The
-        ingredient with the lowest predicted score (equivalent to the cardinality of the 
+        ingredient with the lowest predicted score (equivalent to the cardinality of the
         solution) is returned.
-        
+
         Inputs
         ------
         limit: int
             The number of times a trajectory will be calculated for each ingredient.
         horizon: int
             The depth of the rollout.
-        grow_advantage: int or None
-            Parameter used to set the relative probability of choosing an ingredient that is
-            predicted to grow.
         log_graph: boolean
             Flag to enable the graphical output.
-        use_multiprocessing: boolean or int
-            Flag to enable the multiprocessing. If enabled it defaults to using n-1 threads, or
-            the number of threads passed in.
-        
+
         Return
         -------
         rewards: dict(str -> float)
@@ -397,108 +464,96 @@ class MCTS(object):
         Outputs
         ------
         'rollout_result.png': PNG image
-            Graph of each ingredient's average trajectories over time when `log_graph` 
+            Graph of each ingredient's average trajectories over time when `log_graph`
             is set to `True`.
         """
 
+        if isinstance(state, list):
+            ing = np.array(self.ingredient_names)
+            state = np.isin(ing, state).astype(int).reshape((1, -1))
+        elif not isinstance(state, np.ndarray):
+            raise Error("Invalid state, must be type list or np.ndarray")
+
+        size = len(self.ingredient_names)
         if available_actions is None:
-            available_actions = self.find_candidates(state)
-        rewards = {}
+            available_actions = self.find_candidates(
+                state,
+                self.n_layers,
+                self.weights,
+                self.biases,
+                self.w_shapes,
+                self.b_shapes,
+                self.w_split_sizes,
+                self.b_split_sizes,
+            )
+        else:
+            ing = np.array(self.ingredient_names)
+            available_actions = (
+                np.isin(ing, available_actions).astype(int).reshape((1, -1))
+            )
+
         LOG.debug(f"Available actions: {available_actions}")
 
         if log_graph:
-            all_results = np.empty((len(available_actions), limit))
+            all_results = np.empty((size, limit))
 
-        full_media_length = len(state)
-        if use_multiprocessing is False:
-            # t1 = tqdm(available_actions, desc="Exploring Actions", leave=True)
-            # t2 = tqdm(total=limit, desc="Calculating Trajectory", leave=True)
-            for i, action in enumerate(available_actions):
-                # t1.set_description(f"Exploring ({action})")
-                # t1.refresh()  # to show immediately the update
-                test_state = self.remove_from_list(state, action)
+        actions = np.argwhere(available_actions.ravel() == 1).ravel()
 
-                results = np.zeros(limit)
-                # t2.reset()
-                for j in range(limit):
-                    results[j] = self.trajectory(
-                        test_state,
-                        horizon,
-                        full_media_length,
-                        self.np_state,
-                        grow_advantage=grow_advantage,
-                    )
+        # Create a NumPy array backed by shared memory
+        rewards = np.zeros((len(actions), limit), dtype=np.float64)
+        shm = shared_memory.SharedMemory(
+            name="rw_shm", create=True, size=rewards.nbytes
+        )
+        rewards_shared = np.ndarray(rewards.shape, dtype=np.float64, buffer=shm.buf)
+        rewards_shared[:] = rewards[:]
 
-                    intermediate_result = np.nanmean(results) if j is not 0 else 0
-                    # t2.set_description(
-                    #     f"Calculating Trajectory ({round(intermediate_result, 3)})"
-                    # )
-                    # t2.update()  # to show immediately the update
-                    if log_graph:
-                        all_results[i, j] = intermediate_result
-                rewards[action] = (np.min(results), np.max(results), np.mean(results))
+        # Set up multiprocessing groups
+        if threads == None:
+            threads = mp.cpu_count()
 
-            # t2.close()
-            # t1.close()
+        if threads > len(actions):
+            process_groups = self.partition(threads, len(actions))
         else:
-            # Set up multiprocessing helper function
-            def _rollout_multi_helper(action, limit, grow_advantage, seed=None):
-                numpy_state = utils.seed_numpy_state(seed)
-                test_state = self.remove_from_list(state, action)
-                results = np.zeros(limit)
+            process_groups = [1] * len(actions)
 
-                # Use TQDM if logging level is INFO or below
-                if args.log <= 2:
-                    t_range = trange(limit, desc="Calculating Trajectory", leave=True)
-                else:
-                    t_range = range(limit)
+        n_per_group = [
+            [i for i in self.partition(limit, n) if i > 0] for n in process_groups
+        ]
 
-                for j in t_range:
-                    # print(f"_rollout_multi_helper j:{j}")
-                    if args.log <= 2:
-                        intermediate_result = np.nanmean(results) if j is not 0 else 0
-                        t_range.set_description(
-                            f"Calculating Trajectory ({round(intermediate_result, 3)})"
-                        )
-                        t_range.update()  # to show immediately the update
-
-                    results[j] = self.trajectory(
-                        test_state,
-                        horizon,
-                        full_media_length,
-                        numpy_state,
-                        grow_advantage=grow_advantage,
-                    )
-
-                if args.log <= 2:
-                    t_range.close()
-
-                results = (np.min(results), np.max(results), np.mean(results))
-                LOG.debug(f"Results: {results}")
-
-                return results
-
-            # Set up multiprocessing
-            if isinstance(use_multiprocessing, bool):
-                threads = mp.cpu_count() - 1
-            elif isinstance(use_multiprocessing, int):
-                threads = use_multiprocessing
-
-            # with mp.get_context("spawn").Pool(threads) as pool:
-            with mp.get_context("spawn").Pool(threads) as pool:
-                # pool = mp.Pool(threads)
-                n_actions = len(available_actions)
-                rewards = pool.starmap(
-                    _rollout_multi_helper,
-                    zip(
-                        available_actions,
-                        [limit] * n_actions,
-                        [grow_advantage] * n_actions,
-                        self.np_state.randint(2 * 32 - 1, size=n_actions).tolist(),
+        keywords = {
+            "horizon": horizon,
+            "n_layers": self.n_layers,
+            "weights": self.weights,
+            "biases": self.biases,
+            "w_shapes": self.w_shapes,
+            "b_shapes": self.b_shapes,
+            "w_split_sizes": self.w_split_sizes,
+            "b_split_sizes": self.b_split_sizes,
+            "state_memory": self.state_memory,
+        }
+        processes = []
+        for action_idx, (action, limits) in enumerate(zip(actions, n_per_group)):
+            reward_idx = 0
+            for limit in limits:
+                p = mp.Process(
+                    target=self._rollout_helper,
+                    args=(
+                        state,
+                        limit,
+                        rewards_shared.shape,
+                        reward_idx,
+                        action,
+                        action_idx,
+                        self.np_state.randint(2 * 32 - 1, size=1),
                     ),
+                    kwargs=keywords,
                 )
-                # pool.close()
-            rewards = dict(zip(available_actions, rewards))
+                processes.append(p)
+                p.start()
+                reward_idx += limit
+
+        for p in processes:
+            p.join()
 
         if log_graph:
             for y in all_results:
@@ -510,14 +565,22 @@ class MCTS(object):
             plt.tight_layout()
             plt.savefig("rollout_result.png")
 
-        if not rewards:
-            return None
+        # if not rewards:
+        #     return None
 
         # Sort rewards based on value, descending
         rewards = {
-            k: v
+            a: (r.min(), r.max(), r.mean()) for a, r in zip(actions, rewards_shared)
+        }
+        rewards = {
+            self.ingredient_names[k]: v
             for k, v in sorted(rewards.items(), key=lambda x: x[1][2], reverse=True)
         }
+
+        # Closed shared memory
+        shm.close()
+        shm.unlink()
+
         LOG.info("Calculated Rewards:")
         for k, v in rewards.items():
             LOG.info(f"{k} ->\t{v}")
@@ -527,88 +590,90 @@ class MCTS(object):
 
 if __name__ == "__main__":
 
-    with tf.device(f"/device:gpu:{args.gpu}"):
-        # data_path = "models/iSMU-test/data_20_extrapolated.csv"
-        # data = pd.read_csv(data_path)
-        # data = data.drop(columns=["grow"])
-        # starting_state = data.sample(1).to_dict("records")[0]
-        # starting_state = {
-        #     "ala_exch": 0,
-        #     "gly_exch": 0,
-        #     "arg_exch": 1,
-        #     "asn_exch": 0,
-        #     "asp_exch": 0,
-        #     "cys_exch": 1,
-        #     "glu_exch": 0,
-        #     "gln_exch": 1,
-        #     "his_exch": 0,
-        #     "ile_exch": 1,
-        #     "leu_exch": 1,
-        #     "lys_exch": 0,
-        #     "met_exch": 1,
-        #     "phe_exch": 1,
-        #     "ser_exch": 0,
-        #     "thr_exch": 1,
-        #     "trp_exch": 1,
-        #     "tyr_exch": 1,
-        #     "val_exch": 0,
-        #     "pro_exch": 1,
-        # }
+    # data_path = "models/iSMU-test/data_20_extrapolated.csv"
+    # data = pd.read_csv(data_path)
+    # data = data.drop(columns=["grow"])
+    # starting_state = data.sample(1).to_dict("records")[0]
+    # starting_state = {
+    #     "ala": 0,
+    #     "gly": 0,
+    #     "arg": 1,
+    #     "asn": 0,
+    #     "asp": 0,
+    #     "cys": 1,
+    #     "glu": 0,
+    #     "gln": 1,
+    #     "his": 0,
+    #     "ile": 1,
+    #     "leu": 1,
+    #     "lys": 0,
+    #     "met": 1,
+    #     "phe": 1,
+    #     "ser": 0,
+    #     "thr": 1,
+    #     "trp": 1,
+    #     "tyr": 1,
+    #     "val": 0,
+    #     "pro": 1,
+    # }
 
-        starting_state = {
-            "ala_exch": 1,
-            "gly_exch": 1,
-            "arg_exch": 1,
-            "asn_exch": 1,
-            "asp_exch": 1,
-            "cys_exch": 1,
-            "glu_exch": 1,
-            "gln_exch": 1,
-            "his_exch": 1,
-            "ile_exch": 1,
-            "leu_exch": 1,
-            "lys_exch": 1,
-            "met_exch": 1,
-            "phe_exch": 1,
-            "ser_exch": 1,
-            "thr_exch": 1,
-            "trp_exch": 1,
-            "tyr_exch": 1,
-            "val_exch": 1,
-            "pro_exch": 1,
-        }
+    ingredients = [
+        "ala",
+        "gly",
+        "arg",
+        "asn",
+        "asp",
+        "cys",
+        "glu",
+        "gln",
+        "his",
+        "ile",
+        "leu",
+        "lys",
+        "met",
+        "phe",
+        "ser",
+        "thr",
+        "trp",
+        "tyr",
+        "val",
+        "pro",
+    ]
+    starting_state = np.ones((1, 20))
+    available_actions = ingredients.copy()
 
-        available_actions = [k for k, v in starting_state.items() if v == 1]
-        # starting_state = data.iloc[112123, :]
-        # starting_state = starting_state.to_dict()
-        search = MCTS(
-            # growth_model_dir="data/neuralpy_optimization_expts/052220-sparcity-3/working_model",
-            growth_model_weights_dir="data/neuralpy_optimization_expts/052220-sparcity-3/working_model/weights.npz",
-            ingredient_names=list(starting_state.keys()),
-            # seed=0,
-        )
-        # dill.detect.trace(True)
-        # dill.detect.errors(mcts)
-        # import pprint
+    # starting_state[0, 3:8] = 0
+    # del available_actions[3:8]
+    # print(available_actions)
+    # print(starting_state)
 
-        # pprint.pprint(dill.detect.errors(mcts, depth=1))
-        # print("\nStarting State:", starting_state)
-        # rollout.simulate(1000)
-        # best_action = search.perform_rollout(
-        #     available_actions=None,
-        #     state=search.current_state,
-        #     horizon=4,
-        #     limit=10,
-        #     grow_advantage=1,
-        #     use_multiprocessing=True,
-        # )
+    search = MCTS(
+        growth_model_weights_dir="models/SMU_NN_oracle/weights.npz",
+        ingredient_names=ingredients,
+        # seed=0,
+    )
+    # import pprint
+    # dill.detect.trace(True)
+    # pprint.pprint(dill.detect.errors(search, depth=1))
+    # dill.detect.errors(search)
+    # dill.pickles(search)
 
-        best_action = search.run(
-            starting_state=starting_state,
-            n=2,
-            available_actions=None,
-            horizon=4,
-            limit=10,
-            grow_advantage=1,
-            use_multiprocessing=True,
-        )
+    # print("\nStarting State:", starting_state)
+
+    search.perform_rollout(
+        state=starting_state,
+        limit=200,
+        horizon=5,
+        available_actions=available_actions,
+        log_graph=False,
+    )
+
+    # print(len(search.get_state_memory()))  # , search.get_state_memory())
+
+    # from timeit import Timer
+
+    # t1 = Timer(lambda: _f1(trajectory_states))
+    # t2 = Timer(lambda: _f2(trajectory_states))
+    # print()
+    # print(f"1 avg: {round(t1.timeit(number=100),3) * 10}ms",)
+    # print(f"2 avg: {round(t2.timeit(number=100),3) * 10}ms",)
