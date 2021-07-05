@@ -84,7 +84,6 @@ class NeuralNetModel(Model):
     def __init__(self, models_path):
         self.models_path = models_path
         self.models = []
-        self.check_path()
         self.is_trained = False
         super().__init__(self, ModelType.NEURAL_NET)
 
@@ -93,6 +92,7 @@ class NeuralNetModel(Model):
             os.makedirs(self.models_path)
 
     def train(self, X_train, y_train, **kwargs):
+        self.check_path()
         self.models = net.train_bagged(X_train, y_train, self.models_path, **kwargs)
         self.is_trained = True
 

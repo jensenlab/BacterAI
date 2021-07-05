@@ -269,6 +269,7 @@ def perform_simulations(
         current_grow_pred = 0
         current_grow_var = 0
         while (current_state == sim_direction.target_value()).sum() > 0:
+            print(f"Current state: {current_state}")
             choices = np.argwhere(current_state == sim_direction.target_value())[:, 0]
             # print(f"CHOICES: {choices}")
             if choices.size == 0:
@@ -302,6 +303,7 @@ def perform_simulations(
                     threshold,
                     sim_direction,
                 )
+                print(rollout_results)
 
                 # print("choices:", choices)
                 if sim_type == SimType.ROLLOUT_PROB:
@@ -354,6 +356,7 @@ def perform_simulations(
             # Pick highest predicted growth as best action
             best_action_idx = np.argsort(results)[-1]
             best_action = choices[best_action_idx]
+            print(best_action, results)
 
             # Keep track of prev state values
             old_state = current_state.copy()
@@ -458,13 +461,13 @@ def export_to_dp_batch(parent_path, batch, date, nickname=None):
         print("Empty Batch: No files generated.")
         return
 
-    batch = batch.rename(columns={a: b for a, b in zip(range(20), AA_NAMES)})
+    batch = batch.rename(columns={a: b for a, b in zip(range(20), AA_NAMES_TEMPEST)})
     batch = batch.sort_values(by=["growth_pred", "var"], ascending=[False, True])
     batch.to_csv(os.path.join(parent_path, f"batch_gpr_meta_{date}.csv"), index=None)
 
     # DeepPhenotyping compatible list
     batch = batch.drop(columns=batch.columns[20:])
-    # batch = batch.sort_values(by=AA_NAMES, ascending=False)
+    # batch = batch.sort_values(by=AA_NAMES_TEMPEST, ascending=False)
     nickname = f"_{nickname}" if nickname != None else ""
 
     with open(
@@ -625,10 +628,12 @@ def process_results(prev_folder, new_folder, threshold, n_redos=0, plot_only=Fal
 
     # Merge results (mapped data) with predictions (batch data)
     data, plate_controls, plate_blanks = utils.process_mapped_data(mapped_path)
-    batch_df = pd.read_csv(batch_path, index_col=None)
+    batch_df = utils.normalize_ingredient_names(pd.read_csv(batch_path, index_col=None))
     results = pd.merge(
-        batch_df, data, how="left", left_on=AA_NAMES, right_on=AA_NAMES, sort=True
+        batch_df, data, how="left", left_on=AA_SHORT, right_on=AA_SHORT, sort=True
     )
+
+    # results.to_csv("results.csv")
     results.iloc[:, :20] = results.iloc[:, :20].astype(int)
     results["depth"] = 20 - results.iloc[:, :20].sum(axis=1)
     results = results.sort_values(["depth", "fitness"], ascending=False)
@@ -656,7 +661,9 @@ def process_results(prev_folder, new_folder, threshold, n_redos=0, plot_only=Fal
             columns=cols_new,
         )
     else:
-        dataset = pd.read_csv(dataset_path, index_col=None)
+        dataset = utils.normalize_ingredient_names(
+            pd.read_csv(dataset_path, index_col=None)
+        )
         data_batch = results.loc[:, cols]
         data_batch.iloc[:, :20] = data_batch.iloc[:, :20].astype(int)
         dataset.columns = data_batch.columns = cols_new
@@ -906,7 +913,6 @@ def main(args):
 
     #################### UP DIRECTION ####################
     if DIRECTION == SimDirection.BOTH:
-        # batch_size = BATCH_SIZE - len(batch)
         direction = SimDirection.UP
         starting_media = np.zeros(20)
         batch2, batch_used = make_batch(

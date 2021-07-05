@@ -177,7 +177,10 @@ def main(folder, threshold=0.25):
     print(folders)
     results_data = []
 
-    round_data = [pd.read_csv(f, index_col=None) for f in folders]
+    round_data = [
+        utils.normalize_ingredient_names(pd.read_csv(f, index_col=None))
+        for f in folders
+    ]
     round_data = pd.concat(round_data, ignore_index=True)
     round_data["direction"] = "DOWN"
 
