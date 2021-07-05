@@ -1,4 +1,4 @@
-AA_NAMES = [
+AA_NAMES_TEMPEST = [
     "dl_alanine_75x",
     "l_arginine_75x",
     "l_asparagine_75x",
@@ -21,11 +21,34 @@ AA_NAMES = [
     "l_valine_75x",
 ]
 
+AA_NAMES_2 = [
+    "dl_alanine_100x",
+    "l_arginine_100x",
+    "l_asparagine_100x",
+    "l_aspartic_acid_45x",
+    "l_cysteine_100x",
+    "l_glutamic_acid_75x",
+    "l_glutamine_100x",
+    "glycine_100x",
+    "l_histidine_100x",
+    "l_isoleucine_100x",
+    "l_leucine_100x",
+    "l_lysine_100x",
+    "l_methionine_100x",
+    "l_phenylalanine_100x",
+    "prolines_100x",
+    "l_serine_100x",
+    "l_threonine_100x",
+    "l_tryptophan_100x",
+    "l_tyrosine_100x",
+    "l_valine_100x",
+]
+
 AA_SHORT = [
     "ala",
     "arg",
-    "asp",
     "asn",
+    "asp",
     "cys",
     "glu",
     "gln",
