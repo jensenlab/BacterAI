@@ -16,6 +16,7 @@ def process_mapped_data(path):
         data["bad"] = False
         print("Added 'bad' column")
 
+    data = normalize_ingredient_names(data)
     plate_control_indexes = data[data["plate_control"]].index
     plate_blank_indexes = data[data["plate_blank"]].index
 
@@ -48,22 +49,33 @@ def process_mapped_data(path):
         as_index=False,
     )
 
-    # data = data_grouped.median()
-    data = data_grouped.mean()
-    cols = list(AA_NAMES) + list(data.columns)
+    data = data_grouped.median()
+    # data = data_grouped.mean()
+
+    cols = list(AA_SHORT) + list(data.columns)
+
     data = pd.concat(
         (pd.DataFrame(np.ones((data.shape[0], 20), dtype=int)), data),
         axis=1,
         ignore_index=True,
     )
     data.columns = cols
-    ingredient_locs = {name: i for i, name in enumerate(AA_NAMES)}
     for row_idx, row in data.iterrows():
         idxs = pd.unique([i for i in row[leave_out_cols] if i != ""])
         data.loc[row_idx, idxs] = 0
 
     data = data.drop(columns=leave_out_cols)
     return data, plate_controls, plate_blanks
+
+
+def normalize_ingredient_names(data):
+    names1 = {AA_NAMES_TEMPEST[i]: AA_SHORT[i] for i in range(len(AA_NAMES_TEMPEST))}
+    names2 = {AA_NAMES_2[i]: AA_SHORT[i] for i in range(len(AA_NAMES_2))}
+    name_map = dict(names1, **names2)
+
+    data = data.replace(name_map)
+    data = data.rename(columns=name_map, index=name_map)
+    return data
 
 
 def softmax(scores, k=1):
