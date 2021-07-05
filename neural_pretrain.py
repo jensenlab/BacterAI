@@ -340,7 +340,7 @@ class PredictNet:
             test_ds = (
                 tf.data.Dataset.from_tensor_slices((x_test, y_test))
                 .shuffle(test_buffer)
-                .take(self.n_test)
+                # .take(self.n_test)
                 .batch(self.train_batch_size * 2)
                 .prefetch(tf.data.experimental.AUTOTUNE)
             )
@@ -435,7 +435,7 @@ class PredictNet:
         if self.save_model_path:
             self.save()
             weights_path = os.path.join(self.save_model_path, "weights")
-            weights = {"num_layers": len(self.layer_order)}
+            weights = {"num_layers": len(self.model.layers)}
             for idx, layer in enumerate(self.model.layers):
                 k, b = layer.get_weights()
                 weights[f"W{idx}"] = k
@@ -545,36 +545,13 @@ class PredictNet:
             return num_grow, grow_correct, num_no_grow, no_grow_correct
 
     def predict_probability(self, data):
-        return self.model.predict_proba(data)
+        return self.model.predict(data)
 
     def predict_class(self, data):
-        predictions = self.model.predict(data)
+        predictions = self.model.predict_classes(data)
         predictions = predictions >= self.growth_cutoff
         predictions = predictions.astype(np.int)
         return predictions
-
-    # # Hotfix function
-    # def make_keras_picklable(self):
-    #     def __reduce__(self):
-    #         def unpack(model, training_config, weights):
-    #             restored_model = tf.keras.layers.deserialize(model)
-    #             if training_config is not None:
-    #                 restored_model.compile(
-    #                     **tf.python.keras.saving.saving_utils.compile_args_from_training_config(
-    #                         training_config
-    #                     )
-    #                 )
-    #             restored_model.set_weights(weights)
-    #             return restored_model
-
-    #         model_metadata = tf.python.keras.saving.saving_utils.model_metadata(self)
-    #         training_config = model_metadata.get("training_config", None)
-    #         model = tf.keras.layers.serialize(self)
-    #         weights = self.get_weights()
-    #         return (unpack, (model, training_config, weights))
-
-    #     cls = tf.keras.models.Model
-    #     cls.__reduce__ = __reduce__
 
 
 def pretrain_scheme(
@@ -590,7 +567,8 @@ def pretrain_scheme(
     evaluate_distribution=False,
 ):
     experimental_design = pd.read_csv(
-        os.path.join(experiment_dir, design_file_name), index_col=0,
+        os.path.join(experiment_dir, design_file_name),
+        index_col=0,
     )
     x, y = load_data(
         filepath=os.path.join(experiment_dir, train_data_name),
@@ -776,7 +754,8 @@ def standard_train_scheme(experiment_dir, design_file_name, train_sizes, n_test)
     #     "files/hyperparameters_regularization.csv",
     # )
     experimental_design = pd.read_csv(
-        os.path.join(experiment_dir, design_file_name), index_col=0,
+        os.path.join(experiment_dir, design_file_name),
+        index_col=0,
     )
     # design_low_high["train_accuracy"] = 0.0
     # design_low_high["test_accuracy"] = 0.0
@@ -944,21 +923,42 @@ def get_distribution(data, pred, epoch, loss_name):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run neural_pretrain.py")
     parser.add_argument(
-        "-g", "--gpu", type=int, default=0, help="Choose GPU (0 or 1).",
+        "-g",
+        "--gpu",
+        type=int,
+        default=0,
+        help="Choose GPU (0 or 1).",
     )
     args = parser.parse_args()
 
+    for g in tf.config.list_physical_devices("GPU"):
+        tf.config.experimental.set_memory_growth(g, True)
     with tf.device(f"/device:gpu:{args.gpu}"):
         N_TEST = 10000
         print(f"GPU: {tf.test.is_built_with_cuda()}")
 
-        experiment_dir = "data/L1L2IO-Rand-Tempest-SMU"
-        train_data_name = "L1IO-L2IO-Rand SMU UA159 (2)_data_clean.csv"
-        design_file_name = "experiments_sparcity_10.csv"
-        save_file_name = "experiments_sparcity_10_results_no_first_train_500.csv"
-        save_model_path = "data/L1L2IO-Rand-Tempest-SMU/no_training"
+        ####### SMU Oracle #######
+        experiment_dir = "models/SMU_NN_oracle"
+        # train_data_name = "L1IO-L2IO-L3O-All Rands SMU UA159 Processed-aerobic.csv"
+        train_data_name = "SMU_training_data_aerobic_L1L2IO_rands.csv"
+        design_file_name = "train_params.csv"
+        save_file_name = "neural_oracle.csv"
+        save_model_path = "models/SMU_NN_oracle/"
 
-        # make_keras_picklable()
+        ####### SMU extrapolated Oracle #######
+        # experiment_dir = "models/SMU_NN_oracle_extrapolated"
+        # train_data_name = "data_20_extrapolated.csv"
+        # design_file_name = "train_params.csv"
+        # save_file_name = "neural_oracle_extrapolated.csv"
+        # save_model_path = "models/SMU_NN_oracle_extrapolated/"
+
+        ####### Untrained Growth NN #######
+        # experiment_dir = "models/untrained_growth_NN"
+        # train_data_name = "SMU_training_data_aerobic_L1L2IO_rands.csv"
+        # design_file_name = "train_params.csv"
+        # save_file_name = "untrained_growth_NN.csv"
+        # save_model_path = "models/untrained_growth_NN"
+
         # standard_train_scheme(
         #     experiment_dir,
         #     design_file_name,
@@ -971,9 +971,9 @@ if __name__ == "__main__":
             design_file_name,
             save_file_name,
             save_model_path=save_model_path,
-            n_pretrain_layers=0,
+            n_pretrain_layers=1,
             n_test=N_TEST,
-            train_sizes=[0.80],
+            train_sizes=[0.99999],
             final_retrain=True,
             evaluate_distribution=False,
         )
