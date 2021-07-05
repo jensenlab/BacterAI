@@ -4,12 +4,31 @@ import itertools
 import math
 import os
 import sys
+import time
 
 import numpy as np
 import pandas as pd
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 
 from protocols import CDM_NH4_rescale as protocol
+
+
+def decoratortimer(decimal):
+    def decoratorfunction(f):
+        def wrap(*args, **kwargs):
+            time1 = time.monotonic()
+            result = f(*args, **kwargs)
+            time2 = time.monotonic()
+            print(
+                "{:s} function took {:.{}f} ms".format(
+                    f.__name__, ((time2 - time1) * 1000.0), decimal
+                )
+            )
+            return result
+
+        return wrap
+
+    return decoratorfunction
 
 
 def get_LXO(n_reagents, X=1):
@@ -28,7 +47,7 @@ def get_LXO(n_reagents, X=1):
 
 
 def parse_data_map(
-    name_mappings_csv, mapped_data_csv, components, binary_threshold=False
+    name_mappings_csv, mapped_data_csv, components, binary_threshold=False,
 ):
     """Processes DeepPhenotyping data for use in BacterAI framework. It normalizes the 
     change in OD (delta OD) to their plate controls' mean delta OD. It parses the 
@@ -98,8 +117,9 @@ def parse_data_map(
     data_growth = data["delta_od_normalized"].to_frame()
     nn_experiments = data["media"].apply(pd.Series)
     nn_experiments.columns = components
-    # nn_experiments["aerobic"] = data["environment"]
+    nn_experiments["environment"] = data["environment"]
     nn_experiments["grow"] = data["delta_od_normalized"]
+    nn_experiments = nn_experiments.sort_values(by="environment")
     return data, nn_experiments, data_growth
 
 
@@ -390,40 +410,59 @@ def numpy_state_int(state):
 
 def normalize_dict_values(d):
     total = sum(d.values())
+    if total == 0:
+        return d
     d = {key: value / total for key, value in d.items()}
     return d
 
 
 if __name__ == "__main__":
-    components = [
-        "ala_exch",
-        "gly_exch",
-        "arg_exch",
-        "asn_exch",
-        "asp_exch",
-        "cys_exch",
-        "glu_exch",
-        "gln_exch",
-        "his_exch",
-        "ile_exch",
-        "leu_exch",
-        "lys_exch",
-        "met_exch",
-        "phe_exch",
-        "ser_exch",
-        "thr_exch",
-        "trp_exch",
-        "tyr_exch",
-        "val_exch",
-        "pro_exch",
+
+    file_names = [
+        "data/L1L2IO-Rand-Tempest-SMU/MappedData/L1IO-L2IO-Rand SMU UA159 (3)_mapped.csv",
+        "data/L1L2IO-Rand-Tempest-SMU/MappedData/L3O-Rand SMU UA159 aerobic_mapped.csv",
+        "data/L1L2IO-Rand-Tempest-SMU/MappedData/Randoms SMU UA159 aerobic (1) mapped.csv",
+        "data/L1L2IO-Rand-Tempest-SMU/MappedData/Randoms SMU UA159 aerobic (2) mapped .csv",
+        "data/L1L2IO-Rand-Tempest-SMU/MappedData/Randoms SMU UA159 aerobic (3) mapped .csv",
+        "data/L1L2IO-Rand-Tempest-SMU/MappedData/Randoms SMU UA159 aerobic (4) mapped .csv",
+        "data/L1L2IO-Rand-Tempest-SMU/MappedData/Randoms SMU UA159 aerobic (5) mapped .csv",
+        "data/L1L2IO-Rand-Tempest-SMU/MappedData/Randoms SMU UA159 aerobic (6) mapped .csv",
+        "data/L1L2IO-Rand-Tempest-SMU/MappedData/Randoms SMU UA159 aerobic (7) mapped (removed plate 1).csv",
     ]
-    _, nn_experiments, _ = parse_data_map(
-        "files/name_mappings_tempest_aa.csv",
-        "data/L1L2IO-Rand-Tempest-SMU/L1IO-L2IO-Rand SMU UA159 (2)_mapped_data.csv",
-        components,
-    )
-    nn_experiments.to_csv(
-        "data/L1L2IO-Rand-Tempest-SMU/L1IO-L2IO-Rand SMU UA159 (2)_data_clean.csv",
+    components = [
+        "ala",
+        "arg",
+        "asn",
+        "asp",
+        "cys",
+        "glu",
+        "gln",
+        "gly",
+        "his",
+        "ile",
+        "leu",
+        "lys",
+        "met",
+        "phe",
+        "pro",
+        "ser",
+        "thr",
+        "trp",
+        "tyr",
+        "val",
+    ]
+    dfs = []
+    for f in file_names:
+        _, nn_data, _ = parse_data_map("files/name_mappings_both.csv", f, components)
+
+        dfs.append(nn_data)
+
+    dfs = pd.concat(dfs)
+    dfs = dfs.sort_values(by="environment")
+    dfs = dfs[dfs["environment"] == "anaerobic"]
+    dfs.to_csv(
+        # "data/L1L2IO-Rand-Tempest-SMU/L1IO-L2IO-All Rands SMU UA159 Processed.csv",
+        "data/L1L2IO-Rand-Tempest-SMU/L1IO-L2IO-L3O-All Rands SMU UA159 Processed-anaerobic.csv",
         index=False,
     )
 

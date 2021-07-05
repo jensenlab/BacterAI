@@ -77,6 +77,7 @@ class Rule(object):
         poisson_mu_OR=None,
         poisson_mu_AND=None,
         definition=None,
+        ingredient_names=None,
         seed=None,
     ):
         """
@@ -134,15 +135,27 @@ class Rule(object):
         self.definition = definition
         self.dimension = dimension
         self.minimum_cardinality = self.get_minimum_cardinality()
+        self.ingredient_names = ingredient_names
 
-    def get_definition(self, pretty=True):
+    def get_definition(self, pretty=True, use_names=False):
         if pretty:
             return f"({')∨('.join(['∧'.join(map(str, ands)) for ands in self.definition])})"
+        elif use_names:
+            new_def = []
+            for or_ in self.definition:
+                new_ands = []
+                for and_ in or_:
+                    new_ands.append(self.ingredient_names[and_])
+                new_def.append(new_ands)
+            return f"({')∨('.join(['∧'.join(ands) for ands in new_def])})"
         else:
             return str(self.definition)
 
     def __str__(self):
-        return f"Rule({self.get_definition()}, {self.dimension})"
+        if self.ingredient_names:
+            return f"Rule({self.get_definition(pretty=False, use_names=True)}, Dim: {self.dimension}, Min: {self.minimum_cardinality})"
+
+        return f"Rule({self.get_definition()}, Dim: {self.dimension}, Min: {self.minimum_cardinality})"
 
     def evaluate(self, data, use_bool=False):
         """

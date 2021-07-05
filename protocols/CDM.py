@@ -13,7 +13,7 @@ from deepphenotyping import (
     constants,
     ingredients,
     makeids,
-    formulatrix,
+    liquid_handlers,
     mapper,
     models,
     scheduling,
@@ -433,7 +433,7 @@ def schedule_CDM_l2o(
 
     print("# of solutions:", len(solutions))
 
-    return scheduling.schedule_formulatrix(
+    return scheduling.schedule_liquid_handlers(
         solutions,
         constants.strains["SMU"],
         ["5% CO2 @ 37 C"],
@@ -562,7 +562,7 @@ def from_batch_list(batch_name, batch_removals, development=True):
             )
 
         # filepath = os.path.join(settings.BASE_DIR, "data/")
-        formulatrix.generate_experiment_files(
+        liquid_handlers.generate_experiment_files(
             instruction_set, layout, "2 ul", path_to_worklists=filepath
         )
         mapper.save_well_map(
