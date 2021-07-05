@@ -13,7 +13,6 @@ matplotlib = "*"
 tqdm = "*"
 sklearn = "*"
 scipy = "*"
-black = "*"
 mongoengine = "*"
 deepphenotyping = {editable = true,path = "./../DeepPhenotyping/module/deepphenotyping"}
 tensorflow = "*"
@@ -24,11 +23,11 @@ multiprocess = "*"
 dill = "*"
 yaspin ="*"
 prompt_toolkit = "*"
-cobra = {editable = true,path = "./../cobrapy"}
+cobra = "*"
 depinfo = "*"
 
 [requires]
-python_version = "3.7.6"
+python_version = "3.8"
 
 [pipenv]
 allow_prereleases = true

@@ -59,7 +59,7 @@ from deepphenotyping import (
     constants,
     ingredients,
     makeids,
-    formulatrix,
+    liquid_handlers,
     mapper,
     models,
     scheduling,
@@ -594,7 +594,7 @@ def schedule_FDSA_SPSA(
 
     n_stocks = 6 if use_tempest else 24
     drop_size = "0.2 ul" if use_tempest else "0.1 ul"
-    return scheduling.schedule_formulatrix(
+    return scheduling.schedule_liquid_handlers(
         solutions,
         constants.strains["SMU"],
         ["aerobic"],
@@ -672,7 +672,7 @@ def generate_random_experiments(
 
     n_stocks = 6 if use_tempest else 24
     drop_size = "0.2 ul" if use_tempest else "0.1 ul"
-    return scheduling.schedule_formulatrix(
+    return scheduling.schedule_liquid_handlers(
         solutions,
         constants.strains["SMU"],
         ["aerobic"],
@@ -811,7 +811,7 @@ def create_experiment(
             )
 
         # filepath = os.path.join(settings.BASE_DIR, "data/")
-        formulatrix.generate_experiment_files(
+        liquid_handlers.generate_experiment_files(
             instruction_set,
             layout,
             "2 ul",
