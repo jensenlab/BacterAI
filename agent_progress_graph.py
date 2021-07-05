@@ -1,91 +1,97 @@
+import datetime
 import os
-
-import numpy as np
+import json
+import statistics
 
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
+import numpy as np
 
-main_folder = "data/"
-# main_folder = "data/agent_state_save_ROLL1"
-# main_folder = "data/agent_state_save_GF1"
-expt_names = [
-    # "agent_state_save_testing",
-    # "agent_state_save_ROLL1_2",
-    # "agent_state_save_ROLL1_3",
-    # "agent_state_save_GF1",
-    # "agent_state_save_GF1_2",
-    # "agent_state_save_fixed_reinforce",
-    "agent_state_save_fixed_reinforce4",
-    # "data/agent_state_save_GF1_2",
+# main_folder = "data/experiment-2021-02-14T02:00:39.072492"
+# exp_folder = "experiment-2021-03-05T16:02:08.194718"
+folders = [
+    f
+    for f in os.listdir("data/agent_logs")
+    if os.path.isdir(os.path.join("data/agent_logs", f))
 ]
 
-folders = [os.path.join("data", f) for f in expt_names]
+exp_folder = sorted(
+    folders, key=lambda x: datetime.datetime.fromisoformat(x.split("experiment-")[1])
+)[-1]
+
+main_folder = os.path.join("data/agent_logs", exp_folder)
+# main_folder = os.path.join("data", exp_folder)
+expt_names = [
+    f
+    for f in sorted(os.listdir(main_folder))
+    if os.path.isdir(os.path.join(main_folder, f))
+]
+print(expt_names)
+folders = [os.path.join(main_folder, fold) for fold in expt_names]
 line_colors = iter(["r", "g", "b", "c", "m", "y", "k"])
 line_styles = []
-plt.figure(figsize=(12, 6))
+fig, axs = plt.subplots(nrows=2, ncols=2, sharex=False, sharey=False, figsize=(16, 10))
+
 for i, folder in enumerate(folders):
-    all_old_policies = []
-    states = []
+    new_policies = []
+    policy_deltas = []
+    final_cardinalities = []
+    mean_eval_reward = []
     for folder_name in sorted(os.listdir(folder), key=lambda x: int(x.split("_")[-1])):
-        summary_info = os.path.join(folder, folder_name, "summary_info.txt")
-        if not os.path.exists(summary_info):
-            continue
+        if "eval" not in folder_name:
+            summary_info = os.path.join(folder, folder_name, "summary_info.json")
+            with open(summary_info, "r") as f:
+                data = json.load(f)
+                policy = list(data["new_policy"].values())
+                policy_delta = list(data["policy_delta"].values())
+                media_cardinalities = data["media_cardinalities"][0]
 
-        with open(summary_info, "r") as f:
-            lines = f.readlines()
-            new_policy = [
-                float(lines[1].split(":")[1]),
-                float(lines[2].split(":")[1]),
-                float(lines[3].split(":")[1]),
-                float(lines[4].split(":")[1]),
-            ]  # , float(lines[2].split(":")[1])]
-            old_policy = [
-                float(lines[6].split(":")[1]),
-                float(lines[7].split(":")[1]),
-                float(lines[8].split(":")[1]),
-                float(lines[9].split(":")[1]),
-            ]  # , float(lines[5].split(":")[1])]
+                new_policies.append(policy)
+                policy_deltas.append(policy_delta)
+                final_cardinalities.append(media_cardinalities)
+        else:
+            eval_info = os.path.join(folder, folder_name, "summary_info_eval.json")
+            with open(eval_info, "r") as f:
+                data = json.load(f)
 
-            final_states = lines[11][1:].strip().strip("][").split(", ")
+                r = []
+                for eval_n, cards in data.items():
+                    r += cards
 
-            # final_card = lines[9][1:]
-            # print(folder_name)
-            # # print(new_policy)
-            # print(old_policy)
-            # print()
-            all_old_policies.append(old_policy)
-            states.append(final_states)
+                mean_eval_reward.append(statistics.mean(r))
 
-    all_old_policies = np.array(all_old_policies)
-    length = all_old_policies.shape[0]
-    its = range(0, length)
-    print("policy history:")
-    print(all_old_policies)
+    new_policies = np.array(new_policies)
+    policy_deltas = np.array(policy_deltas)
+    final_reward = 20 - np.array(final_cardinalities).astype(int)
+    mean_eval_reward = np.array(mean_eval_reward)
+
     print()
-    print("policy deltas:")
-    for x in range(length - 1):
-        print(all_old_policies[x + 1, :] - all_old_policies[x, :])
-    print()
+    print("New new_policies:", new_policies)
+    print("policy_deltas:", policy_deltas)
+    print("final_reward:", final_reward)
+    print("mean_eval_reward:", mean_eval_reward)
 
-    # r = all_old_policies[:, 0]
-    # for x in range(length - 1):
-    #     print(r[x + 1] - r[x])
-
-    states = np.array(states).astype(int)
-    print("final states:")
-    print(states)
-    print(states.sum(axis=1))
-    print()
-
+    length = new_policies.shape[0]
+    x_range = range(0, length)
     color = next(line_colors)
 
-    # plt.plot(
-    #     its, all_old_policies[:, 0], "--", its, all_old_policies[:, 1], "-", c=color,
-    # )
-    plt.plot(its, all_old_policies[:, 0], "--", c=color)
-    plt.plot(its, all_old_policies[:, 1], "-", c=color)
-    plt.plot(its, all_old_policies[:, 2], "-.", c=color)
-    plt.plot(its, all_old_policies[:, 3], ":", c=color)
+    axs[0, 0].plot(x_range, new_policies[:, 0], "--", c=color)
+    axs[0, 0].plot(x_range, new_policies[:, 1], "-", c=color)
+    axs[0, 0].plot(x_range, new_policies[:, 2], "-.", c=color)
+    axs[0, 0].plot(x_range, new_policies[:, 3], ":", c=color)
+
+    axs[1, 0].plot(x_range, policy_deltas[:, 0], "--", c=color)
+    axs[1, 0].plot(x_range, policy_deltas[:, 1], "-", c=color)
+    axs[1, 0].plot(x_range, policy_deltas[:, 2], "-.", c=color)
+    axs[1, 0].plot(x_range, policy_deltas[:, 3], ":", c=color)
+
+    n_evals = len(mean_eval_reward)
+    skip = int(len(new_policies) / n_evals) if n_evals else 0
+    if skip > 0:
+        axs[1, 1].plot(
+            range(0, len(mean_eval_reward) * skip, skip), mean_eval_reward, "-", c=color
+        )
+    axs[1, 1].plot(x_range, final_reward, "-.", c=color)
 
     line_styles.append(Line2D([0], [0], color=color, label=expt_names[i]))
 
@@ -101,17 +107,38 @@ legend_elements = [
 
 
 # plt.legend(handles=legend_elements)
-legend1 = plt.legend(
+legend1 = axs[0, 0].legend(
     handles=legend_elements, bbox_to_anchor=(1, 1), loc="upper left", ncol=1
 )
-plt.legend(handles=line_styles, bbox_to_anchor=(1, 0.85), loc="upper left", ncol=1)
-plt.gca().add_artist(legend1)
+axs[0, 0].legend(
+    handles=line_styles, bbox_to_anchor=(1, 0.75), loc="upper left", ncol=1
+)
+axs[0, 0].add_artist(legend1)
 
-plt.ylabel("param value")
-plt.xlabel("policy iteration")
+axs[0, 0].set_ylabel("Parameter Values")
+axs[0, 0].set_xlabel("Policy Iteration")
+
+axs[1, 0].set_ylabel("Parameter Deltas")
+axs[1, 0].set_xlabel("Policy Iteration")
+
+axs[1, 1].set_ylabel("Mean Eval Reward")
+axs[1, 1].set_xlabel("Policy Iteration")
+axs[1, 1].set_yticks(range(0, 21))
+
+axs[0, 1].remove()
 plt.tight_layout()
-plt.savefig(f"agent_progress_graph.png")
+plt.savefig(f"agent_progress_graph-{exp_folder}.png")
 
 
-# final states results (unclipped using dist)
-# [3 2 2 2 2 2 2 2 2 2 2 2 2 2 2 3 2 3 2 2 2 3 2 2 2 2 2 2 2 3 2 2 2 2 3 2 3 2 2 3 3 2 2 2 2 3 2 2 3 2 2 2 2 2]
+# axs[0].plot(x_range, list(nonconvex_counts.values()))
+
+# ax2 = axs[0].twinx()
+# ax2.set_ylabel("n non-convex (normalized)", color="g")
+# for tl in ax2.get_yticklabels():
+#     tl.set_color("g")
+# ax2.plot(x_range, list(normalized_results.values()), "g-")
+
+# axs[0].set_xlabel("n_components")
+# axs[0].set_ylabel("n non-convex")
+# axs[0].set_xticks(x_range)
+#
