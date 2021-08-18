@@ -14,3 +14,13 @@ boost_tests/
 data/
 __pycache__/
 plots/
+img/
+benchmark_results/
+models/
+tensorboard_logs/
+gurobi.log
+.vscode/
+*.out
+Pipfile.lock
+plots/
+COBRANet/models
