@@ -1,0 +1,2 @@
+﻿,include_dropout,dropout_percent,lr,beta_1,beta_2,n_retrain_epochs,n_epochs,train_batch_size,kr_l1,ar_l1,br_l1
+0,FALSE,0,0.001,0.9,0.999,25,25,64,0.001,0.0005,0.001
