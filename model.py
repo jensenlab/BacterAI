@@ -1,654 +1,502 @@
+import pprint
 import copy
-import csv
-import datetime
 import time
 import itertools
-import math
-import multiprocessing
-import os
+import math 
 import random
 
 import cobra
+import reframed
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import scipy.stats as sp
 from tqdm import tqdm, trange
 
+PP = pprint.PrettyPrinter(indent=4)
+# KO_RXN_IDS = ["ac_CDM_exch",
+#               "ala_CDM_exch",
+#               "arg_CDM_exch",
+#               "asp_CDM_exch",
+#               "asn_CDM_exch",
+#               "cys_CDM_exch",
+#               "glu_CDM_exch",
+#               "gln_CDM_exch",
+#               "gly_CDM_exch",
+#               "his_CDM_exch",
+#               "ile_CDM_exch",
+#               "leu_CDM_exch",
+#               "lys_CDM_exch",
+#               "met_CDM_exch",
+#               "phe_CDM_exch",
+#               "pro_CDM_exch",
+#               "ser_CDM_exch",
+#               "thr_CDM_exch",
+#               "trp_CDM_exch",
+#               "tyr_CDM_exch",
+#               "val_CDM_exch",
+#               "ade_CDM_exch",
+#               "gua_CDM_exch",
+#               "ura_CDM_exch",
+#               "4abz_CDM_exch",
+#               "btn_CDM_exch",
+#               "fol_CDM_exch",
+#               "ncam_CDM_exch",
+#               "NADP_CDM_exch",
+#               "pnto_CDM_exch",
+#               "pydx_pydam_CDM_exch",
+#               "ribflv_CDM_exch",
+#               "thm_CDM_exch",
+#               "vitB12_CDM_exch",
+#               "FeNO3_CDM_exch",
+#               "MgSO4_CDM_exch",
+#               "MnSO4_CDM_exch",
+#               "CaCl2_CDM_exch",
+#               "NaBic_CDM_exch",
+#               "KPi_CDM_exch",
+#               "NaPi_CDM_exch"]
 
-CDM_AA_RXN_IDS = [
-    "ala_exch",
-    "gly_exch",
-    "arg_exch",
-    "asn_exch",
-    "asp_exch",
-    "cys_exch",
-    "glu_exch",
-    "gln_exch",
-    "his_exch",
-    "ile_exch",
-    "leu_exch",
-    "lys_exch",
-    "met_exch",
-    "phe_exch",
-    "ser_exch",
-    "thr_exch",
-    "trp_exch",
-    "tyr_exch",
-    "val_exch",
-    "pro_exch",
-]
+KO_RXN_IDS = ["ac_media_exch",
+              "ala_media_exch",
+              "arg_media_exch",
+              "asp_media_exch",
+              "asn_media_exch",
+              "cys_media_exch",
+              "glu_media_exch",
+              "gln_media_exch",
+              "gly_media_exch",
+              "his_media_exch",
+              "ile_media_exch",
+              "leu_media_exch",
+              "lys_media_exch",
+              "met_media_exch",
+              "phe_media_exch",
+              "pro_media_exch",
+              "ser_media_exch",
+              "thr_media_exch",
+              "trp_media_exch",
+              "tyr_media_exch",
+              "val_media_exch",
+              "ade_media_exch",
+              "gua_media_exch",
+              "ura_media_exch",
+              "4abz_media_exch",
+              "btn_media_exch",
+              "fol_media_exch",
+              "ncam_media_exch",
+              "NADP_media_exch",
+              "pnto_media_exch",
+              "pydx_pydam_media_exch",
+              "ribflv_media_exch",
+              "thm_media_exch",
+              "vitB12_media_exch",
+              "FeNO3_media_exch",
+              "MgSO4_media_exch",
+              "MnSO4_media_exch",
+              "CaCl2_media_exch",
+              "NaBic_media_exch",
+              "KPi_media_exch",
+              "NaPi_media_exch"]
 
-CDM_O2_RXN_IDS = ["O2_exch", "O2s_exch"]
+KO_RXN_IDS_RF = ["R_ac_CDM_exch",
+              "R_ala_CDM_exch",
+              "R_arg_CDM_exch",
+              "R_asp_CDM_exch",
+              "R_asn_CDM_exch",
+              "R_cys_CDM_exch",
+              "R_glu_CDM_exch",
+              "R_gln_CDM_exch",
+              "R_gly_CDM_exch",
+              "R_his_CDM_exch",
+              "R_ile_CDM_exch",
+              "R_leu_CDM_exch",
+              "R_lys_CDM_exch",
+              "R_met_CDM_exch",
+              "R_phe_CDM_exch",
+              "R_pro_CDM_exch",
+              "R_ser_CDM_exch",
+              "R_thr_CDM_exch",
+              "R_trp_CDM_exch",
+              "R_tyr_CDM_exch",
+              "R_val_CDM_exch",
+              "R_ade_CDM_exch",
+              "R_gua_CDM_exch",
+              "R_ura_CDM_exch",
+              "R_4abz_CDM_exch",
+              "R_btn_CDM_exch",
+              "R_fol_CDM_exch",
+              "R_ncam_CDM_exch",
+              "R_NADP_CDM_exch",
+              "R_pnto_CDM_exch",
+              "R_pydx_pydam_CDM_exch",
+              "R_ribflv_CDM_exch",
+              "R_thm_CDM_exch",
+              "R_vitB12_CDM_exch",
+              "R_FeNO3_CDM_exch",
+              "R_MgSO4_CDM_exch",
+              "R_MnSO4_CDM_exch",
+              "R_CaCl2_CDM_exch",
+              "R_NaBic_CDM_exch",
+              "R_KPi_CDM_exch",
+              "R_NaPi_CDM_exch"]
 
-CDM_RXN_IDS = [
-    "glc_exch",
-    "ac_exch",
-    "ala_exch",
-    "arg_exch",
-    "asp_exch",
-    "asn_exch",
-    "cys_exch",
-    "glu_exch",
-    "gln_exch",
-    "gly_exch",
-    "his_exch",
-    "ile_exch",
-    "leu_exch",
-    "lys_exch",
-    "met_exch",
-    "phe_exch",
-    "pro_exch",
-    "ser_exch",
-    "thr_exch",
-    "trp_exch",
-    "tyr_exch",
-    "val_exch",
-    "ade_exch",
-    "gua_exch",
-    "ura_exch",
-    "4abz_exch",
-    "btn_exch",
-    "fol_exch",
-    "ncam_exch",
-    "NADP_exch",
-    "pnto_exch",
-    # "pydx_pydam_exch",
-    "ribflv_exch",
-    "thm_exch",
-    # "vitB12_exch",
-    # "FeNO3_exch",
-    # "MgSO4_exch",
-    # "MnSO4_exch",
-    # "CaCl2_exch",
-    # "NaBic_exch",
-    # "KPi_exch",
-    # "NaPi_exch",
-    # "H2O_exch",
-    # "CO2_exch",
-    # "H_exch",
-    # "O2_exch",
-    # "O2s_exch",
-]
+def load_cobra(model_path):
+    # model_path - str: path to model
+    model = cobra.io.read_sbml_model(model_path)
+    return model
 
-# CDM_RXN_IDS = [
-#     "ac_exch",
-#     "ala_exch",
-#     "arg_exch",
-#     "asp_exch",
-#     "asn_exch",
-#     "cys_exch",
-#     "glc_exch",
-#     "glu_exch",
-#     "gln_exch",
-#     "gly_exch",
-#     "his_exch",
-#     "ile_exch",
-#     "leu_exch",
-#     "lys_exch",
-#     "met_exch",
-#     "phe_exch",
-#     "pro_exch",
-#     "ser_exch",
-#     "thr_exch",
-#     "trp_exch",
-#     "tyr_exch",
-#     "val_exch",
-#     "ade_exch",
-#     "gua_exch",
-#     "ura_exch",
-#     "4abz_exch",
-#     "btn_exch",
-#     "fol_exch",
-#     "ncam_exch",
-#     "NADP_exch",
-#     "pnto_exch",
-#     "ribflv_exch",
-#     "thm_exch",
-#     "vitB12_exch,
-#     "pydx_pydam_exch",
-#     "FeNO3_exch",
-#     "MgSO4_exch",
-#     "MnSO4_exch",
-#     "CaCl2_exch",
-#     "NaBic_exch",
-#     "KPi_exch",
-#     "NaPi_exch"
-# ]
+def load_reframed(model_path):
+    # model_path - str: path to model
+    
+    model = reframed.load_cbmodel(model_path, 
+                                  flavor="fbc2", 
+                                  use_infinity=False, 
+                                  load_gprs=False,
+                                  reversibility_check=False,
+                                  external_compartment=False,
+                                  load_metadata=False)
+    return model
+    
+
+def random_reactions(num_to_remove=5):
+    # num_to_remove - int: number of reactions to remove (set to 0)
+    
+    remove_indexes = np.random.choice(len(KO_RXN_IDS), num_to_remove, replace=False)
+    remove_arr = np.ones(len(KO_RXN_IDS))
+    remove_arr[remove_indexes] = 0
+    return reactions_to_knockout(remove_arr, KO_RXN_IDS), reactions_to_knockout(remove_arr, KO_RXN_IDS_RF)
+
+def get_LXO(n_reactions, X=1):
+    # n_reactions - int: number of reactions
+    # X - int: number to leave out for leave-X-out experiments
+    
+    all_indexes = np.arange(n_reactions)
+    combos = itertools.combinations(all_indexes, X)
+    remove_indexes = [list(c) for c in combos] 
+    remove_arrs = list()
+    for to_remove in remove_indexes:
+        remove_arr = np.ones(n_reactions)
+        remove_arr[to_remove] = 0
+        remove_arrs.append(remove_arr)
+    # print(remove_arrs)
+    return remove_arrs
 
 
-class Model:
-    def __init__(self, path, num_components=None, new_data=False, components=None):
-        self.model_path = path
-        self.num_components = num_components if num_components else len(components)
-        self.model = self.load_cobra(self.model_path)
-        self.growth_cutoff = self.get_growth_cutoff()
-        self.media_ids = components if components else self.get_media_ids(new_data)
-        self.minimal_components = self.get_minimal_components()
 
-    def reload_model(self):
-        self.model = self.load_cobra(self.model_path)
+def reactions_to_knockout(remove_arr, reactions):
+    # remove_arr - np.array[int]: binary array (0 = remove, 1 = keep)
+    # reactions - [str]: list of reactions
+    
+    ones = np.where(remove_arr == 1)[0]
+    reactions = np.delete(reactions, ones)
+    return reactions
+    
+def reaction_knockout_cobra(model, reactions, growth_cutoff, dummy=None,
+                            use_media=False, use_names=True):
+    # model - cobrapy.Model: model with reactions to knockout
+    # reactions - [str]: list of reactions to knockout
+    # growth_cutoff - float: grow/no grow cutoff
+    
+    # model = copy.deepcopy(model)
+    if dummy:
+        model.add_reactions([dummy_rxn])
 
-    def load_cobra(self, model_path):
-        """Load a CobraPy model.
-        
-        model_path: str
-            Path to model.
-        """
-        model = cobra.io.read_sbml_model(model_path)
-        return model
-
-    def random_reactions(self, num_to_remove=5):
-        # num_to_remove - int: number of reactions to remove (set to 0)
-
-        remove_indexes = np.random.choice(
-            len(CDM_RXN_IDS), num_to_remove, replace=False
-        )
-        remove_arr = np.ones(len(CDM_RXN_IDS))
-        remove_arr[remove_indexes] = 0
-        return reactions_to_knockout(remove_arr, CDM_RXN_IDS), remove_arr
-
-    def get_reactions_of_interest(self):
-        # Return a list of reactions and their bounds
-        # exluding exchange and biomass reactions
-        reactions = []
-        bounds = []
-        for rxn in self.model.reactions:
-            if "exch" not in rxn.id and rxn.id is not "R_bio00001":
-                reactions.append(rxn)
-                bounds.append(rxn.bounds)
-        return reactions, bounds
-
-    def get_non_essential_genes(self, threshold=0.50):
-        # Return a list of genes that are nonessential, such that when removed
-        # individually, do not cause the objective value to fall below
-        # (threshold * default objective value)
-        obj_value = self.model.slim_optimize()
-        deletion_results = cobra.flux_analysis.deletion.single_gene_deletion(self.model)
-
-        non_essential_genes = deletion_results[
-            deletion_results["growth"] >= threshold * obj_value
-        ]
-        non_essential_genes = non_essential_genes.index.to_list()
-        non_essential_genes = [list(idx)[0] for idx in non_essential_genes]
-        return non_essential_genes
-
-    # def knockout_and_simulate(self, num_to_remove, return_boolean=False):
-    #     min_growth = 0.50 * self.model.slim_optimize()
-    #     reactions, remove_arr = self.random_reactions(num_to_remove)
-    #     grow, objective_value = self.reaction_knockout(reactions, min_growth)
-    #     if return_boolean:
-    #         return int(grow), remove_arr
-    #     return objective_value, remove_arr
-
-    # def reactions_to_knockout(self, remove_arr, reactions):
-    #     # remove_arr - np.array[int]: binary array (0 = remove, 1 = keep)
-    #     # reactions - [str]: list of reactions
-
-    #     ones = np.where(remove_arr == 1)[0]
-    #     reactions = np.delete(reactions, ones)
-    #     return reactions
-
-    # def reaction_knockout_cobra(self, reactions, growth_cutoff, dummy=None,
-    #                             use_media=False, use_names=True):
-    #     # model - cobrapy.Model: model with reactions to knockout
-    #     # reactions - [str]: list of reactions to knockout
-    #     # growth_cutoff - float: grow/no grow cutoff
-
-    #     # model = copy.deepcopy(model)
-    #     if dummy:
-    #         self.model.add_reactions([dummy_rxn])
-
-    #     if use_media:
-    #         with self.model as m:
-    #             medium = m.medium
-    #             for reaction in reactions:
-    #                 medium[reaction] = 0.0
-    #             self.medium = medium
-    #             objective_value = m.slim_optimize()
-    #     else:
-    #         reaction_bounds = {}
-    #         for r in reactions:
-    #             if use_names:
-    #                 reaction_bounds[r] = (
-    #                     self.model.reactions.get_by_id(r).bounds)
-    #                 self.model.reactions.get_by_id(r).bounds = (0,0)
-    #             else:
-    #                 reaction_bounds[r] = r.bounds
-    #                 r.bounds = (0,0)
-    #         objective_value = self.model.slim_optimize()
-    #         for r, bounds in reaction_bounds.items():
-    #             if use_names:
-    #                 self.model.reactions.get_by_id(r).bounds = bounds
-    #             else:
-    #                 r.bounds = bounds
-
-    #     grow = False if objective_value < growth_cutoff else True
-
-    #     if dummy:
-    #         self.model.reactions.get_by_id(dummy.name).remove_from_model()
-
-    #     return objective_value, grow
-
-    def print_compartments(self):
-        print(self.model.compartments)
-
-        print("############## BOUNDARY ##############")
-        for rxn in self.model.boundary:
-            print(rxn, rxn.bounds)
-        print("\n\n")
-        print("############## EXCHANGE ##############")
-        for rxn in self.model.exchanges:
-            print(rxn, rxn.bounds)
-        print("\n\n")
-        print("############## SINKS ##############")
-        for rxn in self.model.sinks:
-            print(rxn, rxn.bounds)
-        print("\n\n")
-        print("############## DEMANDS ##############")
-        for rxn in self.model.demands:
-            print(rxn, rxn.bounds)
-
-    def benchmark(self, n=1000):
-        start = time.time()
-        with self.model as m:
-            for _ in trange(n):
-                r = random.randint(1, 3)
-                reactions = random.sample(m.reactions, r)
-                self.reaction_knockout(reactions, 0)
-                # m.slim_optimize()
-        print(f"Finished in {time.time() - start} seconds.")
-
-    def reaction_knockout(self, reactions, min_growth):
-        """Knock outs reactions in a given model.
-        
-        Inputs
-        ------
-        model: cobrapy.Model
-            Model to use when knocking out reactions.
-        reactions: list[cobrapy.Reaction]
-            Reactions in `model` to be knocked out.
-        min_growth: float
-            Threshold value for determining growth.
-        
-        Returns
-        -------
-        grow: boolean
-            Returns `True` if the model's objective value after knocking out 
-            reactions is larger that the `min_growth` threshold, and `False`
-            otherwise.
-        objective_value: float
-            The objective value of `model` after knocking out the reactions.
-            
-        """
-
-        with self.model as m:
-            for rxn in reactions:
-                rxn.knock_out()
-                # print(f"KO --> {rxn.id}")
-            objective_value = m.slim_optimize()
-            # print("OBJ:", objective_value)
-        grow = True if objective_value > min_growth else False
-        return grow, objective_value
-
-    def get_number_knocked_out(self):
-        """Return number of reactions knocked out in a given model
-        """
-        return sum([1 if rxn.bounds == (0, 0) else 0 for rxn in self.model.reactions])
-
-    def knockout_walk(self, valid_reactions, growth_threshold=0.50):
-        """Performs a 'knockout walk' in which a random number of reactions are
-        removed one at a time. Each cycle of the walk, a list of 'candidate
-        reactions' is built, i.e. all of the reactions in `valid_reactions` that 
-        are predicted to still lead to growth in `model` when removed. A single 
-        random reaction is chosen from the candidates and is knocked out. The 
-        cycle repeats.
-        
-            
-        Inputs
-        ------
-        model: cobrapy.Model
-            Model to use when knocking out reactions.
-        valid_reactions: list[cobrapy.Reaction]
-            Reactions in `model` to be knocked out.
-        growth_threshold: float, default: 0.50
-            Threshold percentage for determining growth.
-        
-        Returns
-        -------
-        valid_reactions: list[cobrapy.Reaction]
-            A list of reactions which is a subset of `valid_reactions` and can be 
-            knocked out in the future. Reactions that have been knocked out in this
-            walk are the ones that have been removed.
-        valid_reactions: list[cobrapy.Reaction]
-            A list of reactions that were knocked out.
-        """
-
-        max_objective = self.model.slim_optimize()
-        growth_cutoff = growth_threshold * max_objective
-
-        num_knockouts = sp.poisson.rvs(5)
-        print("Number of KOs:", num_knockouts)
-        removed_reactions = []
-        for _ in range(num_knockouts):
-            candidate_reactions = []
-            for rxn in valid_reactions:
-                does_grow, _ = self.reaction_knockout([rxn], growth_cutoff)
-                if does_grow:
-                    candidate_reactions.append(rxn)
-
-            reaction_to_remove = random.choice(candidate_reactions)
-            self.model.reactions.get_by_id(reaction_to_remove.id).knock_out()
-            # reaction_to_remove.knock_out()
-            valid_reactions.remove(reaction_to_remove)
-            removed_reactions.append(reaction_to_remove)
-            print(
-                f"\tREMOVED: {reaction_to_remove.id}, # KO'd: {self.get_number_knocked_out()}, # Valid RXNs: {len(valid_reactions)}"
-            )
-
-        return valid_reactions, removed_reactions
-
-    def get_non_media_reactions(self):
-        """Return a list of all reactions in `model` that are not the media 
-        (CDM) reactions
-        """
-
-        with self.model as m:
-            all_reactions = set(m.reactions)
-            CDM_reactions = []
-            for id_ in CDM_RXN_IDS:
-                if m.reactions.has_id(id_):
-                    CDM_reactions.append(m.reactions.get_by_id(id_))
-            non_media_reactions = all_reactions.difference(CDM_reactions)
-        return non_media_reactions
-
-    def make_minimal_media_models(self, max_n=10):
-        """Generate and save derivations of a CobraPy model (at location 
-        `model_path`) and their respective minimal medias. 
-        
-        Each cycle, a 'knockout walk' is performed and a minimal media is calculated. 
-        The cycle repeats, knocking out more reactions and saving a new derivation 
-        of current model with its minimal media, only when the length of the 
-        minimal media increases (as to not have many model derivations of the same
-        length minimal medias). When critical reactions are eventually removed, the 
-        current model derivation cannot grow. When this happens, then the model is 
-        reset to its original state and the cycle continues until `max_n` is 
-        reached.
-        
-        Inputs
-        ------
-        model_path: str
-            Path to cobrapy.Model to use.
-        max_n: int, default: 10
-            The number of new model derivation to generate and save.
-        
-        Outputs
-        -------
-        CobraPy model derivations, along with a CSV listing their minimal media
-        components and the reactions removed. They are stored in the parent folder
-        of the parent model in a new directory structure:
-            > `model_path` parent folder
-                > '[model name]_[timestamp]'
-                    > length of minimal media
-                        > '[model name]_[length of minimal media].xml'
-                        > '[model name]_[length of minimal media]_info.csv'
-                        
-        Returns
-        -------
-        enclosing_folder: str
-            The newly generated folder where all files are saved in.
-        """
-
-        max_objective = self.model.slim_optimize()
-        print("Growth threshold:", self.growth_cutoff)
-
-        parent_folder = "/".join(self.model_path.split("/")[:-1])
-        timestamp = datetime.datetime.now().isoformat(sep="T", timespec="milliseconds")
-        model_name = (self.model_path.split("/")[-1]).split(".")[0]
-        enclosing_folder = os.path.join(parent_folder, f"{model_name}_{timestamp}")
-
-        valid_reactions = self.get_non_media_reactions()
-        removed_reactions = []
-        max_length_media = 0
-        for _ in range(max_n):
-            try:
-                valid_reactions, removed = self.knockout_walk(valid_reactions)
-                removed_reactions += removed
-                minimal_medium = cobra.medium.minimal_medium(
-                    self.model, self.growth_cutoff, minimize_components=True
-                )
-                current_length_media = len(minimal_medium)
-            except Exception as e:
-                print("\nModel Failed: {}".format(str(e)))
-                print("Resetting model...")
-                max_length_media = 0
-                self.reload_model()
-                valid_reactions = self.get_non_media_reactions()
-                removed_reactions = []
+    if use_media:
+        with model:
+            medium = model.medium
+            for reaction in reactions:
+                medium[reaction] = 0.0
+            model.medium = medium
+            objective_value = model.slim_optimize()
+    else:
+        reaction_bounds = dict()
+        for r in reactions:
+            if use_names:
+                reaction_bounds[r] = model.reactions.get_by_id(r).bounds
+                model.reactions.get_by_id(r).bounds = (0,0)
             else:
-                if current_length_media > max_length_media:
-                    print("\n###########  Found New Minimum!  ############")
-                    max_length_media = current_length_media
-                    # reactions.append((current_length_media, None))
-                    folder = os.path.join(enclosing_folder, str(max_length_media))
-                    if not os.path.exists(folder):
-                        os.makedirs(folder)
-                    new_model_path = os.path.join(
-                        folder, f"{model_name}_{max_length_media}.xml"
-                    )
-                    cobra.io.write_sbml_model(self.model, new_model_path)
+                reaction_bounds[r] = r.bounds
+                r.bounds = (0,0)
+        objective_value = model.slim_optimize()
+        for r, bounds in reaction_bounds.items():
+            if use_names:
+                model.reactions.get_by_id(r).bounds = bounds
+            else:
+                r.bounds = bounds
+                
+    
+    grow = False if objective_value < growth_cutoff else True
+    
+    if dummy:
+        model.reactions.get_by_id(dummy.name).remove_from_model()
+    
+    return objective_value, grow
 
-                    new_csv_path = os.path.join(
-                        folder, f"{model_name}_{max_length_media}_info.csv"
-                    )
-                    with open(new_csv_path, "w") as file:
-                        writer = csv.writer(file, delimiter=",")
-                        writer.writerow(["Minimal Media", "Removed Reactions"])
-                        reaction_ids = [r.id for r in removed_reactions]
-                        rows = itertools.zip_longest(
-                            list(minimal_medium.index), reaction_ids
-                        )
-                        writer.writerows(rows)
-                print("Minimal media length:", len(minimal_medium))
-                print("Media:", list(minimal_medium.index))
+def reaction_knockout(model, reaction, min_growth):
+    with model:
+        model.reactions.get_by_id(reaction.id).knock_out()
+        objective_value = model.slim_optimize()
 
-        return new_model_path
+    grow = True if objective_value > min_growth else False
+    return grow
 
-    def get_growth_cutoff(self, k=0.30):
-        return k * self.model.slim_optimize()
+def reaction_knockout_reframed(model, reactions, growth_cutoff):
+    reaction_bounds = dict()
+    # model = copy.deepcopy(model)
 
-    def get_minimal_components(self):
-        minimal_medium = cobra.medium.minimal_medium(
-            self.model,
-            self.growth_cutoff,
-            minimize_components=True,
-            media_components=self.media_ids,
-        )
-        reaction_ids = [rxn.id for rxn in self.model.exchanges]
-        non_media_exchanges = set(reaction_ids) - set(self.media_ids)
-        components_of_interest = set(minimal_medium.index) - non_media_exchanges
-        return components_of_interest
+    # solution = reframed.reaction_knockout(model, reactions)
+    # print(solution)
+    for r in reactions:
+        reaction_bounds[r] = (model.reactions[r].lb,
+                             model.reactions[r].ub)
+        model.reactions[r].lb = 0
+        model.reactions[r].ub = 0
+    objective_value = reframed.FBA(model).fobj
+    for r, bounds in reaction_bounds.items():
+        model.reactions[r].lb = bounds[0]
+        model.reactions[r].ub = bounds[1]
+    grow = False if objective_value < growth_cutoff else True
+    return objective_value, grow
+    
+def timed_run(model_cobra, model_reframed, c_reactions, r_reactions, 
+              growth_cutoff, dummy=None):
+    # COBRA BENCHMARK
+    # Default
+    t_start = time.time()
+    cobra_solution, _ = reaction_knockout_cobra(model_cobra, c_reactions, 
+                                             growth_cutoff)
+    t1 = time.time()
+    
+    # Adding dummy to force model rebuild
+    cobra_solution, _ = reaction_knockout_cobra(model_cobra, c_reactions, 
+                                             growth_cutoff, dummy=dummy)
+    t2 = time.time()
+    
+    # Using media instead of exch reaction knockout
+    cobra_solution = reaction_knockout_cobra(model_cobra, c_reactions, 
+                                             growth_cutoff, 
+                                             use_media=True)
+    t3 = time.time()
 
-    class Error(Exception):
-        """Base class for other exceptions"""
+    # REFRAMED BENCHMARK
+    reframed_solution, _ = reaction_knockout_reframed(model_reframed, r_reactions, 
+                                                   growth_cutoff)
+    t4 = time.time()
+    
+    cobra_time_1 = t1 - t_start
+    cobra_time_2 = t2 - t1
+    cobra_time_3 = t3 - t2
+    reframed_time = t4 - t3
+    return cobra_time_1, cobra_time_2, cobra_time_3, reframed_time, cobra_solution, reframed_solution
 
-        pass
 
-    def _reaction_result_mp(self, row):
-        reactions_to_knockout = []
-        for idx, val in enumerate(row):
-            if val == 0:
-                reactions_to_knockout.append(
-                    self.model.reactions.get_by_id(self.media_ids[idx])
-                )
-        result = int(
-            self.reaction_knockout(reactions_to_knockout, self.growth_cutoff)[0]
-        )
-        return result
+def bench():
+    t_start = time.time()
+    modelcb = load_cobra("models/iSMUv01_CDM_LOO.xml")
+    t1 = time.time()
+    modelrf = load_reframed("models/iSMUv01_CDM_LOO.xml")
+    t2 = time.time()
+    print("\nLoad Times")
+    print(f"cobra: {t1-t_start}, reframed: {t2-t_start}")
+    
+    dummy_rxn = cobra.Reaction('DUMMY')
+    dummy_rxn.name = 'DUMMY'
+    dummy = cobra.Metabolite(
+        'dummy',
+        formula='H30',
+        name='water',
+        compartment='e')
+    
+    dummy_rxn.add_metabolites({
+        dummy: -1.0,
+        dummy: 1.0,
+    })
+    
+    dummy_rxn.gene_reaction_rule = '( DUMMY_GENE )'
+    
+    max_objective = modelcb.slim_optimize()
+    growth_cutoff = 0.07 * max_objective
+    
+    
+    
+    # cobra_time1 = 0.0
+    # cobra_time2 = 0.0
+    # cobra_time3 = 0.0
+    # reframed_time = 0.0
+    # n = 100
+    # for i in trange(len(KO_RXN_IDS)):
+    #     n2 = n//len(KO_RXN_IDS)
+    #     for j in range(n2):
+    #         c_reactions, r_reactions = random_reactions(num_to_remove=j)
+    #         c1, c2, c3, r, cs, rs = timed_run(modelcb, modelrf, 
+    #                                  c_reactions, r_reactions,
+    #                                  growth_cutoff, dummy_rxn)
+    #         cobra_time1 += c1
+    #         cobra_time2 += c2
+    #         cobra_time3 += c3
+    #         reframed_time += r
+    #         # print(round(cs,6), round(rs,6))
 
-    def evaluate(self, inputs, use_bool=True, use_multiprocessing=True):
-        """Evaluates the model with a given media input.
-        """
+    
+    # print(f"\nTotal Time for {n} Runs")
+    # print(f"cobra default: {cobra_time1}")
+    # print(f"cobra dummy: {cobra_time2}")
+    # print(f"cobra media: {cobra_time3}")
+    # print(f"reframed: {reframed_time}")
+    
 
-        class DataLengthMismatchError(self.Error):
-            """Raised when the input data length does not match the rule's
-            data length
+    cobra_time = 0.0
+    reframed_time = 0.0
+    plot_points_c = list()
+    plot_points_r = list()
+    n = 2
+    no_growth_reactions = list()
+    data_all = list()
+    data_no_growth = list()
+    for i in range(1, n):
+        runs = get_LXO(len(KO_RXN_IDS), X=i)
+        nested_no_growth = list()
+        for j in tqdm(range(len(runs)), desc=f"L{i}Os", 
+                      unit=" experiments", dynamic_ncols=True):
+            knockouts = reactions_to_knockout(runs[j], KO_RXN_IDS)
+            objective_value, grow = (
+                reaction_knockout_cobra(modelcb, knockouts, growth_cutoff))
+            if not grow:
+                nested_no_growth.append((knockouts, objective_value))
+                data_no_growth.append([knockouts, f"L{i}O", objective_value, grow])
+            data_all.append([knockouts, f"L{i}O", objective_value, grow])
+        no_growth_reactions.append(nested_no_growth)
+
+    results_all = pd.DataFrame(data_all, 
+                               columns=["Reactions", "Experiment", 
+                                        "Objective Value", "Growth"])
+    results_no_growth = pd.DataFrame(data_no_growth, 
+                                     columns=["Reactions", "Experiment", 
+                                              "Objective Value", "Growth"])
+    
+    results_no_growth.to_csv("data/no_growth.csv", index=False)
+    print(f"cobra: {cobra_time}")
+    print(f"reframed: {reframed_time}")
+    # print(results_all)
+    
+    
+    print("\n\nL1O")    
+    print(no_growth_reactions[0])
+    print("\n\nL2O")
+    print(no_growth_reactions[1])
+    
+def knockout_walk(model, valid_reactions):
+    max_objective = model.slim_optimize()
+    growth_cutoff = 0.50 * max_objective
+    
+    num_knockouts = sp.poisson.rvs(5)
+    print("Number of KOs:", num_knockouts)
+        
+    for _ in range(num_knockouts):
+        # candidate_reactions = list()
+        # for rxn in list(valid_reactions):
+        #     grow = reaction_knockout(model, rxn, growth_cutoff)
+        #     if grow:
+        #         candidate_reactions.append(rxn)
+                
+        candidate_reactions = [rxn for rxn in valid_reactions 
+                               if reaction_knockout(model, rxn, growth_cutoff)]
+        
+        # deletion_results = (cobra.flux_analysis
+        #                     .single_reaction_deletion(model, list(valid_reactions)))
+        # deletion_results = deletion_results[~(deletion_results == 0).any(axis=1)]
+        # deletion_results = deletion_results[(deletion_results != 0).all(1)]
+        # candidate_reactions = [model.reactions.get_by_id(tuple(r)[0]) 
+        #                        for r in deletion_results.index.values]
+        
+        reaction_to_remove = random.choice(candidate_reactions)
+        model.reactions.get_by_id(reaction_to_remove.id).knock_out()
+        valid_reactions.remove(reaction_to_remove)
+        print(f"\t{reaction_to_remove.id}")
             
-            Inputs
-            ------
-            l1: int
-                Length of input data.
-            l2: int
-                Length of data the rule can accept.  
-            """
+    # print(cobra.flux_analysis.single_reaction_deletion(model, valid_reactions))
+    
+    # # removed_reactions = random.sample(valid_reactions, k=num_knockouts)
+    # for rxn in removed_reactions:
+    #     print(f"\t{rxn.id}")
+    #     # rxn.remove_from_model(remove_orphans=False)
+    #     rxn.bounds = (0, 0)
+    
+    return model, valid_reactions
 
-            def __init__(self, l1, l2):
-                self.message = (
-                    f"Input data length ({l1}) does not match with the rule ({l2})."
-                )
+def print_compartments():
+    model = load_cobra("models/iSMUv01_CDM_LOO_v2.xml")
+    print(model.compartments)
+    
+    print("############## BOUNDARY ##############")
+    for rxn in model.boundary:
+        print(rxn, rxn.bounds)
+    print("\n\n")
+    print("############## EXCHANGE ##############")
+    for rxn in model.exchanges:
+        print(rxn, rxn.bounds)
+    print("\n\n")
+    print("############## SINKS ##############")
+    for rxn in model.sinks:
+        print(rxn, rxn.bounds)
+    print("\n\n")
+    print("############## DEMANDS ##############")
+    for rxn in model.demands:
+        print(rxn, rxn.bounds)
 
-        class DimensionError(self.Error):
-            """Raised when the number of dimensions of the input data is not 1 or 2.
-            
-            Inputs
-            ------
-            shape: tuple
-                Shape of input data.
-            """
-
-            def __init__(self, shape):
-                self.message = f"Input data needs to be 1-D or 2-D: {shape}"
-
+def find_minimal_media():
+    model = load_cobra("models/iSMUv01_CDM_LOO_v2.xml")
+    model_backup = load_cobra("models/iSMUv01_CDM_LOO_v2.xml")
+    
+    max_objective = model.slim_optimize()
+    max_growth = 0.90 * max_objective
+    print("Max growth:", max_growth)
+    
+    all_reactions = set(model.reactions)
+    CDM_reactions = set([model.reactions.get_by_id(id) 
+                         for id in KO_RXN_IDS])
+    valid_reactions = all_reactions.difference(CDM_reactions)
+    valid_reactions_backup = copy.deepcopy(valid_reactions)
+    
+    previous_length_media = 0
+    reactions = list()
+    for _ in range(1000):
+        model, valid_reactions = knockout_walk(model, 
+                                               valid_reactions)
         try:
-            if inputs.ndim == 1:
-                n_rows = 1
-            elif inputs.ndim == 2:
-                n_rows = inputs.shape[0]
-            else:
-                raise DimensionError(inputs.shape)
-        except DataLengthMismatchError as e:
-            print(f"DataLengthMismatchError: {e.message}")
+            minimal_medium = cobra.medium.minimal_medium(model, 
+                                        max_growth,
+                                        minimize_components=True)
+            current_length_media = len(minimal_medium)
+        except:
+            print("Reverting to backup.")
+            previous_length_media = 0
+            valid_reactions = copy.deepcopy(valid_reactions_backup)
+            model = copy.deepcopy(model_backup)
         else:
-            if use_multiprocessing:
-                with multiprocessing.Pool(processes=30) as p:
-                    results = p.map(self._reaction_result_mp, inputs)
-                    results = np.array(results)
-                    return results
-            else:
-                results = np.empty(n_rows)
-                for i in trange(n_rows):
-                    reactions_to_knockout = []
-                    for idx, val in enumerate(inputs[i]):
-                        if val == 0:
-                            reactions_to_knockout.append(
-                                self.model.reactions.get_by_id(self.media_ids[idx])
-                            )
-                    result = int(
-                        self.reaction_knockout(
-                            reactions_to_knockout, self.growth_cutoff
-                        )[0]
-                    )
-                    if not use_bool:
-                        result = int(result)
-                    results[i] = result
-                return results
-
-    def get_media_ids(self, new_data):
-        """Retrieves a list of the media component ids from file if the data exists
-        already. If not, it generates the list de novo.
-        """
-        data_path = os.path.join(
-            os.path.split(self.model_path)[0], f"data_{self.num_components}.csv"
-        )
-
-        if os.path.exists(data_path) and not new_data:
-            with open(data_path, mode="r") as file:
-                header = file.readline().split(",")[:-1]
-                return header
-        else:
-            reactions = []
-            for rxn in CDM_RXN_IDS:
-                if self.model.reactions.has_id(rxn):
-                    reactions.append(rxn)
-            # TODO: Check if num_components is <= number of CDM_RXN_IDS
-            return random.sample(reactions, self.num_components)
-
-    def generate_data_csv(self, use_multiprocessing=False):
-        """Automatically generates inputs and evaluates them. Data is saved
-        to a CSV file with the last column being the evaluation result,
-        and the subsequent columns being a 1 or 0.
-        """
-        output_filename = os.path.join(
-            os.path.split(self.model_path)[0], f"data_{self.num_components}.csv"
-        )
-        # if os.path.exists(output_filename):
-        #     raise FileExistsError
-
-        if self.num_components > len(CDM_RXN_IDS):
-            raise NotImplementedError
-
-        with open(output_filename, mode="w") as file:
-            writer = csv.writer(
-                file, delimiter=",", quotechar="'", quoting=csv.QUOTE_MINIMAL
-            )
-            writer.writerow(self.media_ids + ["growth"])
-            data = np.array(
-                list(itertools.product((0, 1), repeat=self.num_components)),
-                dtype=np.int8,
-            )
-            results = self.evaluate(data, use_multiprocessing=use_multiprocessing)
-
-            print(f"T: {results[results == 1].size}, F: {results[results == 0].size}")
-            data = np.hstack((data, np.array([results]).T))
-            np.savetxt(file, data, delimiter=",", fmt="%i")
-
-    def evaluate_bounds(self, lb, ub):
-        with self.model as m:
-            for idx, (lb, ub) in zip(lb, ub):
-                m.reactions[idx] = (lb, ub)
-                v = m.slim_optimize()
-            return v
+            if current_length_media > previous_length_media:
+                print("Found New Minimum!")
+                previous_length_media = current_length_media
+                # reactions = (current_length_media, model.reactions)
+                reactions.append((current_length_media, None))
+                
+            print("Minimal media:", len(minimal_medium))
+    
+    return reactions
 
 
 if __name__ == "__main__":
     # model = load_cobra("models/iSMUv01_CDM_LOO_v2.xml")
-
     # for rxn in model.reactions:
-    #     if "CDM_exch" in rxn.id
-
-    #         print(rxn.id)
+    #     if "CDM_exch" in rxn.id:
+    #         print(rxn.id)            
     #         rxn.id = rxn.id[:-8] + "media_exch"
     #     print(rxn.id)
-
+            
     # cobra.io.write_sbml_model(
     #     model, "models/iSMUv01_CDM_LOO_v2.xml")
 
     # bench()
-    m = Model("models/iSMUv01_CDM.xml", 16)
-    for rxn in m.model.reactions:
-        if "exch" in rxn.id:
-            print(f'"{rxn.id}",', rxn)
-    # m.print_compartments()
-    # # m.benchmark(n=1000000)
-    # folder_name = m.make_minimal_media_models(max_n=1)
-    # print(f"DONE!: {folder_name}")
+    reactions = find_minimal_media()
+    print("DONE!")
+    print(reactions)

@@ -1,3 +1,21 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+.Rproj
+GPRegGrowth/
+R-*
+rpy2*
+experiments/
+Bag\ v\ Boost\ figs\ and\ data/
+bag_models/
+bag_tests/
+boost_tests/
+__pycache__/
+plots/
+img/
+benchmark_results/
+models/
 data/
 img/
 benchmark_results/
@@ -9,4 +27,5 @@ gurobi.log
 *.out
 Pipfile.lock
 SPSAvFDSA_expt/
-*.png
+plots/
+COBRANet/models

@@ -4,30 +4,10 @@ url = "https://pypi.org/simple"
 verify_ssl = true
 
 [dev-packages]
-black = "*"
 
 [packages]
-numpy = "*"
-pandas = "*"
-matplotlib = "*"
-tqdm = "*"
-sklearn = "*"
-scipy = "*"
-mongoengine = "*"
-deepphenotyping = {editable = true,path = "./../DeepPhenotyping/module/deepphenotyping"}
-tensorflow = "*"
-tensorboard-plugin-profile = "*"
-termcolor = "*"
-pathos = "*"
-multiprocess = "*"
-dill = "*"
-yaspin ="*"
-prompt_toolkit = "*"
-cobra = "*"
-depinfo = "*"
+geneticalgorithm = "*"
+sympy = "*"
 
 [requires]
 python_version = "3.8"
-
-[pipenv]
-allow_prereleases = true
