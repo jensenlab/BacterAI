@@ -463,7 +463,7 @@ EPOCHS = 50
 LR = 0.001
 
 if __name__ == "__main__":
-    # # data_path = "L1IO-L2IO-L3O All Rands SMU UA159 Processed-Aerobic.csv"
+    # # data_path = "data/L1IO-L2IO-L3O All Rands SMU UA159 Processed-Aerobic.csv"
     # splits = [0.05, 0.10, 0.25, 0.50]  # [0.01, 0.05, 0.10, 0.25, 0.50]
     # n_bags = 25
     # n_boost = 50
@@ -726,7 +726,7 @@ if __name__ == "__main__":
 # if __name__ == "__main__":
 #     # LR = 1.02e-5
 
-#     # # data_path = "L1IO-L2IO-L3O All Rands SMU UA159 Processed-Aerobic.csv"
+#     # # data_path = "data/L1IO-L2IO-L3O All Rands SMU UA159 Processed-Aerobic.csv"
 #     splits = [0.01, 0.05, 0.1, 0.25, 0.50]
 #     n_bags = 10
 #     n_boost = 0

@@ -27,7 +27,7 @@ sample_test_train <- function(test=0.0, train=0.0, n=NULL, X=NULL) {
 
 ```{r}
 
-raw <- readr::read_csv("L1IO-L2IO-L3O All Rands SMU UA159 Processed-Aerobic.csv")
+raw <- readr::read_csv("data/L1IO-L2IO-L3O All Rands SMU UA159 Processed-Aerobic.csv")
 
 Xall <- as.matrix(raw[ ,1:20])
 yall <- raw$growth
@@ -45,7 +45,7 @@ yt <- yall[spl$test]
 
 ```{r}
 
-raw <- readr::read_csv("L1IO-L2IO-L3O All Rands SMU UA159 Processed-Aerobic.csv")
+raw <- readr::read_csv("data/L1IO-L2IO-L3O All Rands SMU UA159 Processed-Aerobic.csv")
 
 Xall <- as.matrix(raw[ ,1:20])
 yall <- raw$growth

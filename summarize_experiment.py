@@ -41,7 +41,7 @@ def plot_model_performance(experiment_folder):
 
     round_names = sorted(list(models_in_rounds.keys()), key=lambda x: (len(x), x))
     # print(training_data_in_rounds.values())
-    # data_path = "L1IO-L2IO-L3O All Rands SMU UA159 Processed-Aerobic.csv"
+    # data_path = "data/L1IO-L2IO-L3O All Rands SMU UA159 Processed-Aerobic.csv"
     # data_path = "data/SGO_data/SGO CH1 Processed-Aerobic.csv"
 
     # data = pd.read_csv(data_path, index_col=None)
