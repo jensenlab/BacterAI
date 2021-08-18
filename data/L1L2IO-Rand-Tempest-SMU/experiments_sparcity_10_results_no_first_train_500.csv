@@ -1,0 +1,6 @@
+,type,train_percentage,0
+0,train_accuracy,0.8,0.9586693644523621
+0,test_accuracy,0.8,0.9556451439857483
+0,runtime,0.8,14.95
+0,k_sparcity,0.8,0.3621575342465753
+0,b_sparcity,0.8,0.22448979591836735

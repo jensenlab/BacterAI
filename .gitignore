@@ -11,7 +11,6 @@ Bag\ v\ Boost\ figs\ and\ data/
 bag_models/
 bag_tests/
 boost_tests/
-data/
 __pycache__/
 plots/
 img/
@@ -22,5 +21,4 @@ gurobi.log
 .vscode/
 *.out
 Pipfile.lock
-plots/
 COBRANet/models
