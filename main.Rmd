@@ -77,6 +77,6 @@ order_plot <- function(ytrue, ypred) {
   points(1:length(ytrue), ytrue[so], col="blue", cex=cex)
 }
 
-yp <- laGP::predGPsep(gpi, Xt)
+yp <- laGP::predGPsep(gpi, Xt, lite=TRUE)
 order_plot(yt, yp$mean)
 ```
