@@ -14,7 +14,7 @@ tqdm = "*"
 sklearn = "*"
 scipy = "*"
 mongoengine = "*"
-deepphenotyping = {editable = true,path = "./../DeepPhenotyping/module/deepphenotyping"}
+deepphenotyping = {editable = true,path = "./../../DeepPhenotyping/module/deepphenotyping"}
 tensorflow = "*"
 tensorboard-plugin-profile = "*"
 termcolor = "*"
