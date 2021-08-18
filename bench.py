@@ -13,7 +13,7 @@ from yaspin import yaspin
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 import agent
 import dnf
-import neural_pretrain as neural
+import neural
 import utils
 
 # Spinner text style
