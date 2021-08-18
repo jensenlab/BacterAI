@@ -9,5 +9,5 @@ gurobi.log
 *.out
 Pipfile.lock
 SPSAvFDSA_expt/
-*.png
+plots/
 COBRANet/models
