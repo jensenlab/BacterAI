@@ -4,7 +4,7 @@ import csv
 from enum import Enum
 import json
 import math
-import multiprocessing as mp
+
 import os
 import pickle
 import time
@@ -15,6 +15,9 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import train_test_split
+
+# import torch.multiprocessing as mp
+# import torch
 from tqdm import tqdm
 
 from global_vars import *
@@ -82,16 +85,16 @@ class SimDirection(Enum):
         return 0
 
 
-def get_data(path, train_size=0.1, test_size=0.1):
-    data = pd.read_csv(path, index_col=None)
-    if "environment" in data.columns:
-        data = data.drop(columns="environment")
+# def get_data(path, train_size=0.1, test_size=0.1):
+#     data = pd.read_csv(path, index_col=None)
+#     if "environment" in data.columns:
+#         data = data.drop(columns="environment")
 
-    X, y = data[data.columns[:-1]].to_numpy(), data["growth"].to_numpy()
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, train_size=train_size, test_size=test_size, random_state=1
-    )
-    return X_train, X_test, y_train, y_test
+#     X, y = data[data.columns[:-1]].to_numpy(), data["growth"].to_numpy()
+#     X_train, X_test, y_train, y_test = train_test_split(
+#         X, y, train_size=train_size, test_size=test_size, random_state=1
+#     )
+#     return X_train, X_test, y_train, y_test
 
 
 # @decoratortimer(2)
@@ -193,6 +196,7 @@ def perform_simulations(
     threshold,
     sim_type,
     sim_direction,
+    new_round_n,
     unique=False,
     batch_set=None,
     timeout=None,
@@ -221,6 +225,8 @@ def perform_simulations(
         The type of simulations to run.
     sim_direction : SimDirection
         The directions in which the simulations run.
+    new_round_n : int
+        The number of the new round.
     unique : bool, optional
         Take only unique states for the batch, by default False
     batch_set : set(tuple), optional
@@ -446,6 +452,8 @@ def perform_simulations(
         batch["frontier_type"] = batch_frontier_types
         batch["growth_pred"] = terminating_growths
         batch["var"] = terminating_variances
+        batch["is_redo"] = False
+        batch["round"] = new_round_n
     else:
         batch = pd.DataFrame()
 
@@ -463,16 +471,14 @@ def export_to_dp_batch(parent_path, batch, date, nickname=None):
 
     batch = batch.rename(columns={a: b for a, b in zip(range(20), AA_NAMES_TEMPEST)})
     batch = batch.sort_values(by=["growth_pred", "var"], ascending=[False, True])
-    batch.to_csv(os.path.join(parent_path, f"batch_gpr_meta_{date}.csv"), index=None)
+    batch.to_csv(os.path.join(parent_path, f"batch_meta_{date}.csv"), index=None)
 
     # DeepPhenotyping compatible list
     batch = batch.drop(columns=batch.columns[20:])
     # batch = batch.sort_values(by=AA_NAMES_TEMPEST, ascending=False)
     nickname = f"_{nickname}" if nickname != None else ""
 
-    with open(
-        os.path.join(parent_path, f"batch_gpr_dp{nickname}_{date}.csv"), "w"
-    ) as f:
+    with open(os.path.join(parent_path, f"batch_dp{nickname}_{date}.csv"), "w") as f:
         writer = csv.writer(f, delimiter=",")
         for row_idx, row_data in batch.iterrows():
             row_data = row_data[row_data == 0]
@@ -483,6 +489,7 @@ def export_to_dp_batch(parent_path, batch, date, nickname=None):
 def make_batch(
     model,
     media,
+    new_round_n,
     batch_size,
     sim_types,
     rollout_trajectories,
@@ -509,6 +516,7 @@ def make_batch(
             threshold,
             sim_type,
             direction,
+            new_round_n,
             unique=unique,
             timeout=timeout,
             batch_set=batch_set,
@@ -549,8 +557,8 @@ def make_batch(
 #         )
 #     )
 #     test_data.columns = list(range(20)) + ["y_true", "y_pred", "y_pred_var"]
-#     train_data.to_csv(f"gpr_train_pred_{date}.csv", index=None)
-#     test_data.to_csv(f"gpr_test_pred_{date}.csv", index=None)
+#     train_data.to_csv(f"train_pred_{date}.csv", index=None)
+#     test_data.to_csv(f"test_pred_{date}.csv", index=None)
 
 #     fig, axs = plt.subplots(
 #         nrows=2, ncols=1, sharex=False, sharey=False, figsize=(6, 10)
@@ -567,7 +575,7 @@ def make_batch(
 #     axs[0].set_xlabel("True")
 #     axs[0].set_ylabel("Prediction")
 
-#     train_mse = mean_squared_error(y_train_pred, y_train)
+#     train_mse = mean_squared_error(y_train_pred, y_train)s
 #     sort_order = np.argsort(y_train)
 #     print("Train data MSE:", train_mse)
 #     print(y_train_pred.shape)
@@ -579,26 +587,38 @@ def make_batch(
 #     axs[1].set_ylabel("Prediction")
 
 #     plt.tight_layout()
-#     plt.savefig(f"result_gpr.png")
+#     plt.savefig(f"result_figs.png")
 
 
-def process_results(prev_folder, new_folder, threshold, n_redos=0, plot_only=False):
+def process_results(
+    folder,
+    prev_folder,
+    new_folder,
+    new_round_n,
+    threshold,
+    redo_prev_round=False,
+    plot_only=False,
+):
     """Process the results of the previous round, generate plots, and
     return batch information to be used when generating the new round's
     batch.
 
     Parameters
     ----------
+    folder : str
+        The folder path of the current round.
     prev_folder : str
         The folder path of the previous round.
     new_folder : str
         The folder path of the new round.
+    new_round_n : int
+        The number of the new round.
     threshold : float
         The grow/no grow threshold used to determine when to terminate
         a rollout simulation.
-    n_redos : int, optional
-        The number of experiments from the previous batch to rescreen,
-        by default 0
+    redo_prev_round : bool, optional
+        Run the previous round's batch again,
+        by default False
     plot_only : bool, optional
         Only save plot, don't save/export any other files.
 
@@ -610,21 +630,21 @@ def process_results(prev_folder, new_folder, threshold, n_redos=0, plot_only=Fal
         experiments to redo.
     """
 
-    prev_folder_contents = os.listdir(prev_folder)
-    new_folder_contents = os.listdir(prev_folder)
+    folder_contents = os.listdir(folder)
+    new_folder_contents = os.listdir(folder)
 
     mapped_path = None
     batch_path = None
     dataset_path = None
-    for i in prev_folder_contents:
+    for i in folder_contents:
         if "mapped_data" in i:
-            mapped_path = os.path.join(prev_folder, i)
-        elif "batch_gpr_meta" in i and "results" not in i:
-            batch_path = os.path.join(prev_folder, i)
-        elif "gpr_train_pred" in i:
-            dataset_path = os.path.join(prev_folder, i)
+            mapped_path = os.path.join(folder, i)
+        elif "batch_meta" in i and "results" not in i:
+            batch_path = os.path.join(folder, i)
+        elif "train_pred" in i:
+            dataset_path = os.path.join(folder, i)
 
-    new_dataset_path = os.path.join(new_folder, "gpr_train_pred.csv")
+    new_dataset_path = os.path.join(new_folder, "train_pred.csv")
 
     # Merge results (mapped data) with predictions (batch data)
     data, plate_controls, plate_blanks = utils.process_mapped_data(mapped_path)
@@ -632,6 +652,17 @@ def process_results(prev_folder, new_folder, threshold, n_redos=0, plot_only=Fal
     results = pd.merge(
         batch_df, data, how="left", left_on=AA_SHORT, right_on=AA_SHORT, sort=True
     )
+
+    if "is_redo" in results.columns:
+        redo_results = results[results["is_redo"] == True]
+        results = results[results["is_redo"] != True]
+
+        if prev_folder != None:
+            prev_result_path = os.path.join(prev_folder, "results_all.csv")
+            prev_results = utils.normalize_ingredient_names(
+                pd.read_csv(prev_result_path, index_col=None)
+            )
+            plot_redos(folder, prev_results, redo_results, threshold)
 
     # results.to_csv("results.csv")
     results.iloc[:, :20] = results.iloc[:, :20].astype(int)
@@ -641,10 +672,10 @@ def process_results(prev_folder, new_folder, threshold, n_redos=0, plot_only=Fal
         results["frontier_type"] = "FRONTIER"
         print("Added 'frontier_type' column")
     if not plot_only:
-        results.to_csv(os.path.join(prev_folder, "results_all.csv"), index=None)
+        results.to_csv(os.path.join(folder, "results_all.csv"), index=None)
 
     # Generate results figure
-    plot_results(prev_folder, results, threshold)
+    plot_results(folder, results, threshold)
     if plot_only:
         quit()
 
@@ -664,6 +695,7 @@ def process_results(prev_folder, new_folder, threshold, n_redos=0, plot_only=Fal
         dataset = utils.normalize_ingredient_names(
             pd.read_csv(dataset_path, index_col=None)
         )
+
         data_batch = results.loc[:, cols]
         data_batch.iloc[:, :20] = data_batch.iloc[:, :20].astype(int)
         dataset.columns = data_batch.columns = cols_new
@@ -687,19 +719,25 @@ def process_results(prev_folder, new_folder, threshold, n_redos=0, plot_only=Fal
         "delta_od",
         "depth",
     ]
-    redo_experiments = results_bad.drop(columns=remove_cols)
-    if n_redos > 0:
-        redos_chosen = results_grow_only.iloc[:n_redos, :].drop(columns=remove_cols)
-        redo_experiments = pd.concat(
-            (redo_experiments, redos_chosen), ignore_index=True
-        )
-    redo_experiments["type"] = "REDO"
-    redo_experiments.columns = list(range(20)) + list(redo_experiments.columns[20:])
+
+    if redo_prev_round:
+        redo_experiments = batch_df[batch_df["is_redo"] == False]
+        print(len(redo_experiments))
+        redo_experiments["is_redo"] = True
+        redo_experiments["round"] = new_round_n - 1
+        redo_experiments.columns = list(range(20)) + list(redo_experiments.columns[20:])
+
+    # redo_experiments = results_bad.drop(columns=remove_cols)
+    # if n_redos > 0:
+    #     redos_chosen = results_grow_only.iloc[:n_redos, :].drop(columns=remove_cols)
+    #     redo_experiments = pd.concat(
+    #         (redo_experiments, redos_chosen), ignore_index=True
+    #     )
+    # redo_experiments["REDO"] = True
+    # redo_experiments.columns = list(range(20)) + list(redo_experiments.columns[20:])
 
     # Save and output successful results
-    results_grow_only.to_csv(
-        os.path.join(prev_folder, "results_grow_only.csv"), index=False
-    )
+    results_grow_only.to_csv(os.path.join(folder, "results_grow_only.csv"), index=False)
 
     top_10 = results_grow_only.iloc[:10, :]
     print("Media Results (Top 10):")
@@ -716,7 +754,39 @@ def process_results(prev_folder, new_folder, threshold, n_redos=0, plot_only=Fal
     return X_train, y_train, used_experiments, redo_experiments
 
 
-def plot_results(prev_folder, results, threshold):
+def plot_redos(folder, prev_results, redo_results, threshold):
+    merged_results = pd.merge(
+        prev_results,
+        redo_results,
+        how="left",
+        left_on=AA_SHORT,
+        right_on=AA_SHORT,
+        sort=True,
+        suffixes=["_prev", "_redo"],
+    )
+
+    fitness_prev = merged_results["fitness_prev"].to_numpy()
+    fitness_redo = merged_results["fitness_redo"].to_numpy()
+
+    order = np.argsort(fitness_prev)
+    fig = plt.figure()
+    x = np.arange(len(order))
+    plt.plot(
+        x, fitness_prev[order], "-", c="black", markersize=2, label="Previous Round"
+    )
+    plt.plot(x, fitness_redo[order], ".", c="limegreen", markersize=2, label="Rescreen")
+
+    plt.xlabel("Assay N")
+    plt.ylabel("Fitness")
+    plt.title("Rescreen Fitness Comparison")
+    plt.suptitle(f"Experiment: {folder}")
+
+    plt.tight_layout()
+    save_path = os.path.join(folder, "redo_compare_order_plot.png")
+    plt.savefig(save_path, dpi=300)
+
+
+def plot_results(folder, results, threshold):
     results = results.sort_values(by="growth_pred").reset_index(drop=True)
     fig, axs = plt.subplots(
         nrows=2,
@@ -797,9 +867,9 @@ def plot_results(prev_folder, results, threshold):
         axs[row_idx, 1].set_xticklabels(np.arange(0, 21))
         axs[row_idx, 1].legend(legend_labels)
 
-    plt.suptitle(f"Experiment: {prev_folder}")
+    plt.suptitle(f"Experiment: {folder}")
     plt.tight_layout()
-    plt.savefig(os.path.join(prev_folder, "results_graphic.png"), dpi=400)
+    plt.savefig(os.path.join(folder, "results_graphic.png"), dpi=400)
 
 
 def main(args):
@@ -819,51 +889,73 @@ def main(args):
     SIMULATION_TYPE = [SimType(x) for x in config["simulation_types"]]
     BEYOND_FRONTIER = config["beyond_frontier"]
     USE_UNIQUE = config["use_unique"]
-    N_REDOS = int(BATCH_SIZE * 0.10)
+    # N_REDOS = int(BATCH_SIZE * 0.10)
 
     date = datetime.datetime.now().isoformat().replace(":", ".")
-    prev_round_folder = os.path.join(EXPT_FOLDER, f"Round{NEW_ROUND_N-1}")
+    prev_round_folder = (
+        os.path.join(EXPT_FOLDER, f"Round{NEW_ROUND_N-2}") if NEW_ROUND_N > 2 else None
+    )
+    current_round_folder = os.path.join(EXPT_FOLDER, f"Round{NEW_ROUND_N-1}")
     new_round_folder = os.path.join(EXPT_FOLDER, f"Round{NEW_ROUND_N}")
     if not os.path.exists(new_round_folder):
         os.makedirs(new_round_folder)
     if NEW_ROUND_N > 1:
         X_train, y_train, used_experiments, redo_experiments = process_results(
-            prev_round_folder, new_round_folder, GROW_THRESHOLD, N_REDOS, args.plot_only
+            current_round_folder,
+            prev_round_folder,
+            new_round_folder,
+            NEW_ROUND_N,
+            GROW_THRESHOLD,
+            redo_prev_round=True,
+            plot_only=args.plot_only,
         )
-        BATCH_SIZE -= N_REDOS
-
     else:
         # data = pd.read_csv(
         #     "experiments/04-30-21/up/Round1/random_train_kickstart.csv", index_col=None
         # )
         # X_train, y_train = data.iloc[:, :20].to_numpy(), data.iloc[:, -1].to_numpy()
-        if MODEL_TYPE == ModelType.NEURAL_NET:
-            n_examples = BATCH_SIZE
-        else:
-            n_examples = 1000
+        # if MODEL_TYPE == ModelType.NEURAL_NET:
+        #     n_examples = BATCH_SIZE
+        # else:
+        #     n_examples = 1000
+        n_examples = 1000
+
         X_train = np.random.rand(n_examples, 20)
         X_train[X_train >= 0.5] = 1
         X_train[X_train < 0.5] = 0
-        y_train = np.random.rand(n_examples, 1)
+        y_train = np.random.rand(n_examples, 1).flatten()
+
+        index_choices = set(range(len(y_train)))
+        y_train_zeros = np.random.choice(
+            list(index_choices), size=int(n_examples * 0.25), replace=False
+        )
+        y_train[y_train_zeros] = 0
+
+        index_choices -= set(y_train_zeros)
+        y_train_ones = np.random.choice(
+            list(index_choices), size=int(n_examples * 0.25), replace=False
+        )
+        y_train[y_train_ones] = 1
+
+        SIMULATION_TYPE = [SimType.RANDOM]
         # y_train[y_train >= 0.5] = 1
         # y_train[y_train < 0.5] = 0
 
-        print("First Round, making random training set:")
-        print(X_train)
-        print(y_train)
-        data = np.hstack((X_train, y_train))
-        data = pd.DataFrame(data, columns=list(range(20)) + ["y_true"])
-        data.to_csv(
-            os.path.join(new_round_folder, "random_train_kickstart.csv"), index=False
-        )
+        # print("First Round, making random training set:")
+        # print(X_train)
+        # print(y_train)
+        # data = np.hstack((X_train, y_train))
+        # data = pd.DataFrame(data, columns=list(range(20)) + ["y_true"])
+        # data.to_csv(
+        #     os.path.join(new_round_folder, "random_train_kickstart.csv"), index=False
+        # )
         used_experiments = None
         redo_experiments = None
-
-        if MODEL_TYPE == ModelType.NEURAL_NET:
-            data = data.rename(columns={"y_true": "growth_pred"})
-            data["var"] = 0
-            export_to_dp_batch(new_round_folder, data, date, NICKNAME)
-            return
+        # if MODEL_TYPE == ModelType.NEURAL_NET:
+        #     data = data.rename(columns={"y_true": "growth_pred"})
+        #     data["var"] = 0
+        #     export_to_dp_batch(new_round_folder, data, date, NICKNAME)
+        #     return
 
     if MODEL_TYPE == ModelType.GPR:
         model = GPRModel()
@@ -899,6 +991,7 @@ def main(args):
     batch, batch_used = make_batch(
         model,
         starting_media,
+        new_round_n=NEW_ROUND_N,
         batch_size=batch_size,
         sim_types=SIMULATION_TYPE,
         rollout_trajectories=N_ROLLOUTS,
@@ -915,9 +1008,10 @@ def main(args):
     if DIRECTION == SimDirection.BOTH:
         direction = SimDirection.UP
         starting_media = np.zeros(20)
-        batch2, batch_used = make_batch(
+        batch2, _ = make_batch(
             model,
             starting_media,
+            new_round_n=NEW_ROUND_N,
             batch_size=batch_size,
             sim_types=SIMULATION_TYPE,
             rollout_trajectories=N_ROLLOUTS,
