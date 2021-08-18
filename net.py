@@ -15,6 +15,9 @@ import optuna
 from xgboost import XGBRegressor
 from sklearn.linear_model import LinearRegression
 
+# DEVICE = "cpu"
+DEVICE = "cuda"
+
 
 class DatasetAminoAcids(Dataset):
     def __init__(self, X, y=None, mode="train"):
@@ -95,7 +98,7 @@ class NeuralNetwork(nn.Module):
         return pred
 
     def evaluate(self, x):
-        x = torch.from_numpy(np.array(x)).float().to("cuda")
+        x = torch.from_numpy(np.array(x)).float().to(DEVICE)
         y = self.forward(x).to("cpu").detach().numpy().flatten()
         return y
 
@@ -136,8 +139,8 @@ def train(
         )
         for i, (train_data, test_data) in enumerate(zip(train_loader, test_loader)):
             # Train
-            train_inputs = train_data[0].to("cuda")
-            train_labels = train_data[1].to("cuda").unsqueeze(1)
+            train_inputs = train_data[0].to(DEVICE)
+            train_labels = train_data[1].to(DEVICE).unsqueeze(1)
 
             # zero the parameter gradients
             model.optimizer.zero_grad()
@@ -169,8 +172,8 @@ def train(
 
             # Train
             if compute_test_stats:
-                test_inputs = test_data[0].to("cuda")
-                test_labels = test_data[1].to("cuda").unsqueeze(1)
+                test_inputs = test_data[0].to(DEVICE)
+                test_labels = test_data[1].to(DEVICE).unsqueeze(1)
 
                 test_outputs = model.forward(test_inputs)
                 test_loss = model.criterion(test_outputs, test_labels).item()
@@ -268,8 +271,8 @@ def optuna_objective(trial):
     )
 
     # Generate the model.
-    # model = define_model(trial).to("cuda")
-    model = NeuralNetwork().to("cuda")
+    # model = define_model(trial).to(DEVICE)
+    model = NeuralNetwork().to(DEVICE)
 
     # Generate the optimizers.
     optimizer_name = trial.suggest_categorical("optimizer", ["Adam", "RMSprop"])
@@ -319,7 +322,7 @@ def define_model(trial):
     layers.append(nn.Linear(in_features, 1))
     layers.append(nn.Sigmoid())
 
-    model = NeuralNetwork().to("cuda")
+    model = NeuralNetwork().to(DEVICE)
     model.linear_relu_stack = nn.Sequential(*layers)
 
     return model
@@ -392,7 +395,7 @@ def train_bagged(
         y_train_true_bag = y_train_true[train_indexes]
         dataset_bag = DatasetAminoAcids(X_train_bag, y_train_true_bag)
 
-        model = NeuralNetwork(lr=lr).to("cuda")
+        model = NeuralNetwork(lr=lr).to(DEVICE)
 
         # Training Model
         for epoch in range(1, epochs + 1):  # loop over the dataset multiple times
@@ -403,8 +406,8 @@ def train_bagged(
                 DataLoader(dataset=dataset_bag, batch_size=batch_size, shuffle=True)
             ):
                 # Train
-                train_inputs = batch_data[0].to("cuda")
-                train_labels = batch_data[1].to("cuda").unsqueeze(1)
+                train_inputs = batch_data[0].to(DEVICE)
+                train_labels = batch_data[1].to(DEVICE).unsqueeze(1)
 
                 # zero the parameter gradients
                 model.optimizer.zero_grad()
@@ -442,7 +445,7 @@ def eval_bagged(X, models):
     # model_names = [f for f in os.listdir(model_path_folder) if "bag_model" in f]
     preds = np.zeros((len(X), len(models)))
     for i, model in enumerate(models):
-        # model = torch.load(os.path.join(model_path_folder, name)).to("cuda")
+        # model = torch.load(os.path.join(model_path_folder, name)).to(DEVICE)
         y_pred = model.evaluate(X)
         preds[:, i] = y_pred
 
@@ -517,7 +520,7 @@ if __name__ == "__main__":
     #         test_preds_boosted = []
     #         train_preds_boosted = []
 
-    #         model = NeuralNetwork(lr=LR).to("cuda")
+    #         model = NeuralNetwork(lr=LR).to(DEVICE)
     #         train(
     #             model, data_train, data_test, EPOCHS, BATCH_SIZE, LR, print_status=False
     #         )
@@ -609,7 +612,7 @@ if __name__ == "__main__":
     #     #         else:
     #     #             data_train_bag = data_train
 
-    #     #         model = NeuralNetwork(lr=LR).to("cuda")
+    #     #         model = NeuralNetwork(lr=LR).to(DEVICE)
     #     #         train(
     #     #             model,
     #     #             data_train_bag,
@@ -758,7 +761,7 @@ if __name__ == "__main__":
 #                 y_train_true = train_set.loc[:, "y_true"].to_numpy()
 
 #             data_train = DatasetAminoAcids(X_train, y_train_true)
-#             model = NeuralNetwork(lr=LR).to("cuda")
+#             model = NeuralNetwork(lr=LR).to(DEVICE)
 #             train(
 #                 model,
 #                 data_train,
