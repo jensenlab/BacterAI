@@ -7,6 +7,7 @@ import numpy as np
 import rpy2.robjects as robjects
 import rpy2.robjects.numpy2ri as rpyn
 from rpy2.robjects.packages import STAP
+import torch
 
 from global_vars import *
 import net
@@ -86,6 +87,18 @@ class NeuralNetModel(Model):
         self.models = []
         self.is_trained = False
         super().__init__(self, ModelType.NEURAL_NET)
+
+    @classmethod
+    def load_trained_models(cls, models_path):
+        obj = cls(models_path)
+
+        for filename in os.listdir(models_path):
+            if "bag_model" in filename:
+                model = torch.load(os.path.join(models_path, filename))
+                obj.models.append(model)
+
+        obj.is_trained = True
+        return obj
 
     def check_path(self):
         if not os.path.exists(self.models_path):
