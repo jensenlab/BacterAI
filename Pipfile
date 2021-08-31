@@ -8,6 +8,8 @@ verify_ssl = true
 [packages]
 geneticalgorithm = "*"
 sympy = "*"
+seaborn = "*"
+pandas = "*"
 
 [requires]
 python_version = "3.8"

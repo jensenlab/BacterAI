@@ -3,7 +3,7 @@
 .RData
 .Ruserdata
 .Rproj
-GPRegGrowth/
+BacterAI
 R-*
 rpy2*
 experiments/
@@ -29,3 +29,4 @@ Pipfile.lock
 SPSAvFDSA_expt/
 plots/
 COBRANet/models
+Pipfile.lock
