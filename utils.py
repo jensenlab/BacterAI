@@ -6,6 +6,10 @@ import pandas as pd
 from global_vars import *
 
 
+def seed_numpy_state(seed):
+    return np.random.RandomState(np.random.MT19937(np.random.SeedSequence(seed)))
+
+
 def process_mapped_data(path):
     """Processes DeepPhenotyping data. It normalizes the
     change in OD (delta OD) to their plate controls' mean delta OD.
