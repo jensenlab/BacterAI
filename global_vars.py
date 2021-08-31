@@ -1,3 +1,11 @@
+COLORS = {
+    "ROLLOUT": "violet",
+    "ROLLOUT_PROB": "violet",
+    "RANDOM": "dodgerblue",
+    "GREEDY": "orangered",
+    "REDO": "limegreen",
+}
+
 AA_NAMES_TEMPEST = [
     "dl_alanine_75x",
     "l_arginine_75x",
