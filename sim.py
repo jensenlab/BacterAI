@@ -95,13 +95,20 @@ def rollout_trajectory(model, states, n_trajectories, threshold, sim_direction):
     """
     trajectory_states = np.repeat(states, n_trajectories, axis=0)
     rewards = {i: [] for i in range(len(states))}
+
+    # State boundaries keeps track of the start and end row indexes for each state in the 
+    # trajectory_states 2D-array 
     states_boundaries = np.arange(0, n_trajectories * len(states) + 1, n_trajectories)
 
     reward_idx = 0
     step = 0
     # Random walk to remove 'n_trajectories' ingredients
     while trajectory_states.size > 0:
+        # Choices are the remaining actions available (depends on simulation direction)
         choices = np.argwhere(trajectory_states == sim_direction.target_value())
+        
+        # If no more items can be removed from any trajectory state, calculate
+        # the remaining rewards and end.
         if choices.size == 0:
             for k, v in rewards.items():
                 remaining = n_trajectories - len(v)
@@ -109,6 +116,8 @@ def rollout_trajectory(model, states, n_trajectories, threshold, sim_direction):
                     rewards[k] = v + [step] * remaining
             break
 
+        # boundaries separates the returned np.argwhere indexes of the available choices
+        # to indexes that we can use for choices 
         boundaries = np.r_[
             0,
             np.flatnonzero(choices[1:, 0] > choices[:-1, 0]) + 1,
@@ -117,14 +126,18 @@ def rollout_trajectory(model, states, n_trajectories, threshold, sim_direction):
 
         for i in range(boundaries.shape[0] - 1):
             row = choices[boundaries[i], 0]
-            idxes = choices[boundaries[i] : boundaries[i + 1], 1]
-            np.random.shuffle(idxes)
-            chosen_action = idxes[0]
-            trajectory_states[row, chosen_action] = sim_direction.action_value()
+            idxes = choices[boundaries[i] : boundaries[i + 1], 1] # obtain the available choices 
+            np.random.shuffle(idxes) # randomize 
+            chosen_action = idxes[0] # pick random action
+            trajectory_states[row, chosen_action] = sim_direction.action_value() # take action
 
+        # Obtain predicted fitnesses for action taken for each tracjectory
         results, _ = model.evaluate(trajectory_states)
+
+        # Obtain results below threshold
         no_grows = np.argwhere(results < threshold)[:, 0]
 
+        # Add reward for finished trajectories to the proper state
         new_state_boundaries = states_boundaries.copy()
         for result_idx in no_grows:
             for i in range(len(states_boundaries) - 1):
@@ -134,8 +147,9 @@ def rollout_trajectory(model, states, n_trajectories, threshold, sim_direction):
                     rewards[i].append(step)
                     new_state_boundaries[i + 1 :] -= 1
                     break
-
         states_boundaries = new_state_boundaries
+
+        # Remove finished trajectories
         trajectory_states = np.delete(trajectory_states, no_grows, axis=0)
         step += 1
 

@@ -18,6 +18,8 @@ os.environ["MKL_DEBUG_CPU_TYPE"] = "5"  # Use IntelMKL - does this work?
 
 
 def export_to_dp_batch(parent_path, batch, date, nickname=None):
+    """ Export the BacterAI batch to a Deep Phenotyping-compatible file. """
+
     if len(batch) == 0:
         print("Empty Batch: No files generated.")
         return
@@ -53,6 +55,8 @@ def make_batch(
     used_experiments=None,
     redo_experiments=None,
 ):
+    """ Make a new BacterAI batch; the main function that calls the simulation loops. """
+
     n_types = len(sim_types)
     n_exps = batch_size // n_types
     batch_set = used_experiments
@@ -124,6 +128,7 @@ def process_results(
     folder_contents = os.listdir(folder)
     new_folder_contents = os.listdir(folder)
 
+    # Get paths for the necessary files in the current folder (new round # - 1)
     mapped_path = None
     batch_path = None
     dataset_path = None
@@ -144,6 +149,7 @@ def process_results(
         batch_df, data, how="left", left_on=AA_SHORT, right_on=AA_SHORT, sort=True
     )
 
+    # Plot the rescreen experiments if available
     if "is_redo" in results.columns:
         redo_results = results[results["is_redo"] == True]
         results = results[results["is_redo"] != True]
@@ -155,7 +161,7 @@ def process_results(
             )
             plot_redos(folder, prev_results, redo_results)
 
-    # results.to_csv("results.csv")
+    # Process results
     results.iloc[:, :20] = results.iloc[:, :20].astype(int)
     results["depth"] = 20 - results.iloc[:, :20].sum(axis=1)
     results = results.sort_values(["depth", "fitness"], ascending=False)
@@ -165,7 +171,7 @@ def process_results(
     if not plot_only:
         results.to_csv(os.path.join(folder, "results_all.csv"), index=None)
 
-    # Generate results figure
+    # Generate results figure for current round
     plot_results(folder, results, threshold)
     if plot_only:
         quit()
@@ -211,6 +217,7 @@ def process_results(
         "depth",
     ]
 
+    # Obtain the experiments from the current round to rescreen in the new round
     if redo_prev_round:
         redo_experiments = batch_df[batch_df["type"] != "REDO"]
         if "is_redo" in redo_experiments.columns:
@@ -224,6 +231,7 @@ def process_results(
     # Save and output successful results
     results_grow_only.to_csv(os.path.join(folder, "results_grow_only.csv"), index=False)
 
+    # Print some metrics/results
     top_10 = results_grow_only.iloc[:10, :]
     print("Media Results (Top 10):")
     for idx, (_, row) in enumerate(top_10.iterrows()):
@@ -240,6 +248,7 @@ def process_results(
 
 
 def main(args):
+    # Process command line args and load the specified configuration file
     NEW_ROUND_N = args.round
 
     with open(args.path) as f:
@@ -256,7 +265,6 @@ def main(args):
     SIMULATION_TYPE = [SimType(x) for x in config["simulation_types"]]
     BEYOND_FRONTIER = config["beyond_frontier"]
     USE_UNIQUE = config["use_unique"]
-    # N_REDOS = int(BATCH_SIZE * 0.10)
 
     date = datetime.datetime.now().isoformat().replace(":", ".")
     prev_round_folder = (
@@ -267,6 +275,7 @@ def main(args):
     if not os.path.exists(new_round_folder):
         os.makedirs(new_round_folder)
     if NEW_ROUND_N > 1:
+        # Continue the experiment (for all rounds except the first)
         X_train, y_train, used_experiments, redo_experiments = process_results(
             current_round_folder,
             prev_round_folder,
@@ -277,27 +286,26 @@ def main(args):
             plot_only=args.plot_only,
         )
     else:
-        # data = pd.read_csv(
-        #     "experiments/04-30-21/up/Round1/random_train_kickstart.csv", index_col=None
-        # )
-        # X_train, y_train = data.iloc[:, :20].to_numpy(), data.iloc[:, -1].to_numpy()
-        # if MODEL_TYPE == ModelType.NEURAL_NET:
-        #     n_examples = BATCH_SIZE
-        # else:
-        #     n_examples = 1000
-        n_examples = 1000
+        # Cold start the AI (only for the first round!):
+        #   1) Use random data to train the model.
+        #   2) Compute a new batch using the RANDOM policy
+        #   3) The random data doesn't get used for training in future rounds
 
+        # Create 1000 (arbitrary) binary AA inputs and assign random fitness [0, 1]
+        n_examples = 1000
         X_train = np.random.rand(n_examples, 20)
         X_train[X_train >= 0.5] = 1
         X_train[X_train < 0.5] = 0
         y_train = np.random.rand(n_examples, 1).flatten()
 
+        # Force at least 25% of the fitnesses to 0
         index_choices = set(range(len(y_train)))
         y_train_zeros = np.random.choice(
             list(index_choices), size=int(n_examples * 0.25), replace=False
         )
         y_train[y_train_zeros] = 0
 
+        # Force at least 25% of the fitnesses to 1 (does not overwrite the zeroed out ones)
         index_choices -= set(y_train_zeros)
         y_train_ones = np.random.choice(
             list(index_choices), size=int(n_examples * 0.25), replace=False
@@ -313,6 +321,7 @@ def main(args):
         used_experiments = None
         redo_experiments = None
 
+    # Train the models on the data from all previous rounds (excluding Round 1)
     if MODEL_TYPE == ModelType.GPR:
         model = GPRModel()
         model.train(X_train, y_train)
@@ -344,6 +353,7 @@ def main(args):
         direction = SimDirection.DOWN
         batch_size = BATCH_SIZE // 2
 
+    # Create the batches
     batch, batch_used = make_batch(
         model,
         starting_media,
@@ -360,7 +370,7 @@ def main(args):
         redo_experiments=redo_experiments,
     )
 
-    #################### UP DIRECTION ####################
+    ###### UP DIRECTION (used only when direction is BOTH) #####
     if DIRECTION == SimDirection.BOTH:
         direction = SimDirection.UP
         starting_media = np.zeros(20)
@@ -379,13 +389,14 @@ def main(args):
             used_experiments=batch_used,
         )
         batch = pd.concat((batch, batch2), ignore_index=True)
-    #######################################################
+    #############################################################
 
     model.close()
     export_to_dp_batch(new_round_folder, batch, date, NICKNAME)
 
 
 if __name__ == "__main__":
+    # Read in command arguments
     parser = argparse.ArgumentParser(description="BacterAI Experiment Generator")
 
     parser.add_argument(
