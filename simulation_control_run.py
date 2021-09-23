@@ -3,6 +3,7 @@ import datetime
 import json
 import os
 
+from matplotlib.lines import Line2D
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -22,6 +23,17 @@ def chunks(a, n):
 
     for i in range(0, len(a), n):
         yield a[i : i + n]
+
+
+def _get_acc(a, b, threshold):
+    a = a.copy()
+    b = b.copy()
+    a[a >= threshold] = 1
+    a[a < threshold] = 0
+    b[b >= threshold] = 1
+    b[b < threshold] = 0
+    acc = (a == b).sum() / a.shape[0]
+    return acc
 
 
 def load_data_and_batch(filepath, batch_size, max_batches=8, exclude_LOs=False):
@@ -50,6 +62,7 @@ def load_data_and_batch(filepath, batch_size, max_batches=8, exclude_LOs=False):
     if len(indexes) % batch_size != 0:
         batch_indexes = batch_indexes[:-1]
 
+    max_batches += 1  # to account for round 1 training set, we'll use first batch
     batch_indexes = batch_indexes[:max_batches]
     batches = [data.loc[idx, :] for idx in batch_indexes]
     return batches
@@ -91,8 +104,7 @@ def train_on_batches(batches, bag_quantity, folder):
         model.train(
             X_train,
             y_train,
-            n_bags=20,
-            # n_bags=5,
+            n_bags=bag_quantity,
             bag_proportion=1.0,
             epochs=50,
             batch_size=360,
@@ -121,26 +133,28 @@ def get_test_train_data(experiment_path, batches):
     n_rounds = len(batches)
 
     test_results = []
-    for i in range(n_rounds - 1):
-        next_batch = batches[i + 1]
-        X_test = next_batch.iloc[:, :20].to_numpy()
-        y_true = next_batch["growth"].to_numpy()
-        preds = trained_models[i].evaluate(X_test)[0]
+    for i in range(1, n_rounds):
+        batch = batches[i]
+        X_test = batch.iloc[:, :20].to_numpy()
+        y_true = batch["growth"].to_numpy()
+
+        # use prev round's trained model to pred this batch
+        preds = trained_models[i - 1].evaluate(X_test)[0]
         test_results.append((y_true, preds))
-    test_results.append(())
 
     train_results = []
-    for i in range(n_rounds):
+    for i in range(1, n_rounds):
         X_train = np.vstack([b.iloc[:, :20].to_numpy() for b in batches[: i + 1]])
-        y_train = np.hstack([b["growth"].to_numpy() for b in batches[: i + 1]])
+        y_true = np.hstack([b["growth"].to_numpy() for b in batches[: i + 1]])
+
+        # get batch data on current round and all prev rounds as train data
         preds = trained_models[i].evaluate(X_train)[0]
-        train_results.append((y_train, preds))
+        train_results.append((y_true, preds))
 
-    results = list(zip(test_results, train_results))
-    return results
+    return test_results, train_results
 
 
-def test_train_plot(results):
+def test_train_plot(results, name=None):
     fig, axs = plt.subplots(
         nrows=2, ncols=len(results), sharex=False, sharey="row", figsize=(30, 6)
     )
@@ -180,7 +194,10 @@ def test_train_plot(results):
         axs[1, i].set_title(f"Round {i+1} NNs, Train\nMSE:{mse:.3f}")
 
     fig.tight_layout()
-    fig.savefig("summarize_nn_performance_simulation.png", dpi=400)
+    if name is not None:
+        fig.savefig(f"summarize_nn_performance_simulation_{name}.png", dpi=400)
+    else:
+        fig.savefig("summarize_nn_performance_simulation.png", dpi=400)
 
 
 def fitness_order_plot(batch_1, batch_2):
@@ -241,6 +258,196 @@ def fitness_order_plot(batch_1, batch_2):
     fig.savefig("summarize_simulation_fitness_order_plot_combined_line.png", dpi=400)
 
 
+def plot_summary_with_replicates(n_replicates):
+    real_data = load_experiment_batch_data("experiments/05-31-2021_7")
+    # real_data = load_experiment_batch_data("experiments/07-26-2021_10")[:8]
+
+    all_test_accs = []
+    all_test_mses = []
+    all_train_accs = []
+    all_train_mses = []
+    for r in range(n_replicates):
+        test_data = pd.read_csv(
+            f"simulation_nn_test_replicate_{r}_SMU.csv", index_col=None
+        )
+        train_data = pd.read_csv(
+            f"simulation_nn_train_replicate_{r}_SMU.csv", index_col=None
+        )
+
+        test_accs = []
+        test_mses = []
+        train_accs = []
+        train_mses = []
+        for i in range(test_data.shape[1] // 2):
+            true = test_data.loc[:, f"test_true_R{i+1}"].to_numpy()
+            pred = test_data.loc[:, f"test_pred_R{i+1}"].to_numpy()
+            true = true[~np.isnan(true)]
+            pred = pred[~np.isnan(pred)]
+
+            acc = _get_acc(true, pred, 0.25)
+            mse = mean_squared_error(true, pred)
+            test_accs.append(acc)
+            test_mses.append(mse)
+
+            true = train_data.loc[:, f"train_true_R{i+1}"].to_numpy()
+            pred = train_data.loc[:, f"train_pred_R{i+1}"].to_numpy()
+            true = true[~np.isnan(true)]
+            pred = pred[~np.isnan(pred)]
+
+            acc = _get_acc(true, pred, 0.25)
+            mse = mean_squared_error(true, pred)
+            train_accs.append(acc)
+            train_mses.append(mse)
+
+        all_test_accs.append(test_accs)
+        all_test_mses.append(test_mses)
+        all_train_accs.append(train_accs)
+        all_train_mses.append(train_mses)
+
+    all_test_accs = np.array(all_test_accs)
+    all_test_mses = np.array(all_test_mses)
+    all_train_accs = np.array(all_train_accs)
+    all_train_mses = np.array(all_train_mses)
+
+    test_acc_error = np.std(all_test_accs, axis=0, ddof=1)
+    test_mse_error = np.std(all_test_mses, axis=0, ddof=1)
+    train_acc_error = np.std(all_train_accs, axis=0, ddof=1)
+    train_mse_error = np.std(all_train_mses, axis=0, ddof=1)
+
+    test_acc_mean = np.mean(all_test_accs, axis=0)
+    test_mse_mean = np.mean(all_test_mses, axis=0)
+    train_acc_mean = np.mean(all_train_accs, axis=0)
+    train_mse_mean = np.mean(all_train_mses, axis=0)
+
+    real_accs = []
+    real_mses = []
+    for df in real_data:
+        true = df["fitness"].to_numpy()
+        pred = df["growth_pred"].to_numpy()
+        true = true[~np.isnan(true)]
+        pred = pred[~np.isnan(pred)]
+
+        acc = _get_acc(true, pred, 0.25)
+        mse = mean_squared_error(true, pred)
+        real_accs.append(acc)
+        real_mses.append(mse)
+
+    x = np.arange(len(test_acc_error)) + 1
+
+    fig, axs = plt.subplots(
+        nrows=1, ncols=2, sharex=False, sharey=False, figsize=(6, 3)
+    )
+
+    axs[0].errorbar(x, test_acc_mean, yerr=test_acc_error, color="r", label="NN test")
+    axs[0].errorbar(
+        x, train_acc_mean, yerr=train_acc_error, color="b", label="NN train"
+    )
+    axs[0].plot(x, real_accs, "k.-", label="experiment")
+    # axs[0].legend()
+    axs[0].set_ylabel("Accuracy")
+    axs[0].set_xlabel("Round")
+    axs[0].set_xticks(x)
+    axs[0].set_xticklabels(x)
+
+    axs[1].errorbar(x, test_mse_mean, yerr=test_mse_error, color="r", label="NN test")
+    axs[1].errorbar(
+        x, train_mse_mean, yerr=train_mse_error, color="b", label="NN train"
+    )
+    axs[1].plot(x, real_mses, "k.-", label="experiment")
+    axs[1].set_ylabel("MSE")
+    axs[1].set_xlabel("Round")
+    axs[1].set_xticks(x)
+    axs[1].set_xticklabels(x)
+
+    legend_elements = [
+        Line2D([0], [0], markersize=0, linewidth=3, color="red", label="NN test"),
+        Line2D([0], [0], markersize=0, linewidth=3, color="blue", label="NN train"),
+        Line2D(
+            [0],
+            [0],
+            marker=".",
+            markersize=5,
+            linewidth=0,
+            color="k",
+            label="Experiment",
+        ),
+    ]
+    axs[0].legend(
+        handles=legend_elements,
+        loc="upper center",
+        bbox_to_anchor=(1.1, -0.25),
+        ncol=3,
+    )
+    plt.subplots_adjust(
+        left=0.1, right=0.98, top=0.9, bottom=0.3, wspace=0.35, hspace=0.1
+    )
+
+    # fig.tight_layout()
+    fig.savefig("simulation_control_summary.png", dpi=400)
+
+
+def main_with_replicates(args):
+    with open(args.path) as f:
+        config = json.load(f)
+
+    EXPT_FOLDER = config["experiment_path"]
+    DATA_PATH = config["data_path"]
+    BATCH_SIZE = config["batch_size"]
+    N_BAGS = config["n_bags"]
+
+    n_replicates = 6
+
+    for replicate_n in range(n_replicates):
+        folder = os.path.join(EXPT_FOLDER, f"replicate_{replicate_n}")
+        if not os.path.exists(folder):
+            os.makedirs(folder)
+
+        all_test_data = []
+        all_train_data = []
+
+        NP_RAND_STATE = utils.seed_numpy_state(replicate_n)
+        batches = load_data_and_batch(
+            DATA_PATH, BATCH_SIZE, max_batches=8, exclude_LOs=True
+        )
+        trained_models = train_on_batches(batches, N_BAGS, folder)
+        test_results, train_results = get_test_train_data(folder, batches)
+
+        for y_true_test, preds_test in test_results:
+            print(y_true_test.shape, preds_test.shape)
+            all_test_data += [y_true_test.tolist(), preds_test.tolist()]
+
+        for y_true_train, preds_train in train_results:
+            all_train_data += [y_true_train.tolist(), preds_train.tolist()]
+
+        column_names = []
+        for i in range(len(all_test_data) // 2):
+            column_names += [f"test_true_R{i+1}", f"test_pred_R{i+1}"]
+
+        test_df = pd.DataFrame(
+            all_test_data,
+        )
+        test_df = test_df.transpose()
+        test_df.columns = column_names
+
+        test_df.to_csv(
+            f"simulation_nn_test_replicate_{replicate_n}_SMU.csv", index=False
+        )
+
+        column_names = []
+        for i in range(len(all_train_data) // 2):
+            column_names += [f"train_true_R{i+1}", f"train_pred_R{i+1}"]
+        train_df = pd.DataFrame(
+            all_train_data,
+        )
+        train_df = train_df.transpose()
+        train_df.columns = column_names
+        train_df.to_csv(
+            f"simulation_nn_train_replicate_{replicate_n}_SMU.csv", index=False
+        )
+
+    plot_summary_with_replicates(n_replicates)
+
+
 def main(args):
     with open(args.path) as f:
         config = json.load(f)
@@ -252,7 +459,8 @@ def main(args):
 
     batches = load_data_and_batch(DATA_PATH, BATCH_SIZE, exclude_LOs=True)
     # trained_models = train_on_batches(batches, N_BAGS, EXPT_FOLDER)
-    results = get_test_train_data(EXPT_FOLDER, batches)
+    test_results, train_results = get_test_train_data(EXPT_FOLDER, batches)
+    results = list(zip(test_results, train_results))
     # test_train_plot(results)
 
     batch_fitnesses_1 = [d["growth"].to_numpy().flatten() for d in batches]
@@ -262,11 +470,12 @@ def main(args):
     batch_fitnesses_2 = [
         d["fitness"].to_numpy().flatten() for d in results[: len(batch_fitnesses_1)]
     ]
+
     fitness_order_plot(batch_1=batch_fitnesses_1, batch_2=batch_fitnesses_2)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="BacterAI Experiment Generator")
+    parser = argparse.ArgumentParser(description="BacterAI Control Simulation")
 
     parser.add_argument(
         "path",
@@ -276,4 +485,5 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    main(args)
+    # main(args)
+    main_with_replicates(args)
