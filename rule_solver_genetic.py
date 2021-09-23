@@ -111,7 +111,7 @@ class GeneticSolver:
         seen_group = set()
         for i in range(0, self.n_groups * 4, 4):
             unique = np.unique(rule[i : i + 4])
-            key = tuple(unique)
+            key = tuple(sorted(unique.tolist()))
             if not key in seen_group:
                 seen_group.add(key)
                 clean[i : i + len(unique)] = unique
@@ -216,17 +216,23 @@ class GeneticSolver:
         return selections
 
     def _build_summary_output(self, rule):
-        _, metrics = self.fitness_score(rule, include_metrics=True)
+        score, metrics = self.fitness_score(rule, include_metrics=True)
         rule_split = self.split_rule(rule)
 
-        individual_scores = []
-        diff_rule = np.zeros(len(rule))
+        add_rule = np.zeros(len(rule))
+
+        add_scores = []
+        remove_scores = []
         for idx, group in enumerate(rule_split):
 
-            diff_rule[len(group) * idx : len(group) * (idx + 1)] = group
-            score, _ = self.fitness_score(diff_rule, include_metrics=True)
-            current_sum = sum(individual_scores)
-            individual_scores.append(score - current_sum)
+            add_rule[0 : len(group)] = group
+            add_score = self.fitness_score(add_rule)
+            add_scores.append(add_score)
+
+            remove_rule = np.copy(rule)
+            remove_rule[len(group) * idx : len(group) * (idx + 1)] = 0
+            remove_score = self.fitness_score(remove_rule)
+            remove_scores.append(remove_score)
 
         rule_split = [
             sorted([AA_SHORT[i - 1] for i in y if i != 0]) for y in rule_split
@@ -241,13 +247,18 @@ class GeneticSolver:
             f"Final TNR: {metrics['TNR']*100:.2f}%\n",
             f"Best Rule: {rule.tolist()}:\n",
         ]
-        for group, score_diff in zip(rule_split, individual_scores):
-            output.append(f"\t({' or '.join(group)}) {score_diff*100:+.2f}%\n")
+        for group, add_score, remove_score in zip(
+            rule_split, add_scores, remove_scores
+        ):
+            output.append(
+                f"\t({' or '.join(group)}) - Added: {add_score*100:+.2f}%, Removed: {(remove_score-score)*100:+.2f}%\n"
+            )
 
         return output
 
-    def summarize_score(self, rule):
-        output = self._build_summary_output(rule)
+    def summarize_score(self, rule, clean_only=True):
+        if not clean_only:
+            output = self._build_summary_output(rule)
         cleaned_rule = self.final_rule_clean(rule)
         clean_output = self._build_summary_output(cleaned_rule)
 
@@ -257,7 +268,8 @@ class GeneticSolver:
             os.makedirs(self.output_folder)
 
         with open(output_file, "a") as f:
-            f.writelines(output)
+            if not clean_only:
+                f.writelines(output)
             f.writelines(clean_output)
 
     def solve(
@@ -392,11 +404,11 @@ def solve(round_data, run_name, output_folder, threshold=0.25):
 
     choices = np.arange(21)
     pop_size = 1000
-    n_groups = 4
+    n_groups = 7
     solver = GeneticSolver(
         run_name, output_folder, n_groups, choices, pop_size, round_data.to_numpy()
     )
-    rule = solver.solve(elite_p=0.25, mutation_mu=5, max_generations=150)
+    rule = solver.solve(elite_p=0.25, mutation_mu=5, max_generations=3000)
 
     # rule = np.array([0, 6, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
     # plot_hit_miss_rates(solver, round_data, rule)
@@ -542,14 +554,14 @@ if __name__ == "__main__":
     # experiment_folder = "experiments/05-31-2021_7/"
     # experiment_folder = "experiments/05-31-2021_8/"
     # experiment_folder = "experiments/05-31-2021_9/"
-    experiment_folder = "experiments/07-26-2021_11"
+    experiment_folder = "experiments/07-26-2021_10"
 
-    for i in range(1, 13):
-        print()
-        print(i, "-----------------------------")
-        main(experiment_folder, i)
+    # for i in range(1, 13):
+    #     print()
+    #     print(i, "-----------------------------")
+    #     main(experiment_folder, i)
 
-    # main(experiment_folder, 6)
+    main(experiment_folder, 13)
     # main(experiment_folder, 7)
 
     # main2()
