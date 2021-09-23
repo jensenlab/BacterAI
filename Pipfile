@@ -10,6 +10,9 @@ geneticalgorithm = "*"
 sympy = "*"
 seaborn = "*"
 pandas = "*"
+cobra = "*"
+termcolor = "*"
+tqdm = "*"
 
 [requires]
 python_version = "3.8"
