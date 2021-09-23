@@ -67,24 +67,31 @@ def rule_to_dnf(rule):
 def make_ingredient_combos(rule, parent_path="", use_tempest=True):
     rule = np.array(rule)
     rule = np.vstack(np.array_split(rule.astype(int), len(rule) // 4))
+    print(rule)
 
     ingredients = set(np.unique(rule)) - set([0])
 
     all_combos = []
     for i in range(1, len(ingredients) + 1):
-        c = itertools.combinations(ingredients, i)
+        print(i)
+        c = list(itertools.combinations(ingredients, i))
+
         all_combos += list(c)
+        for x in c:
+            print(x)
 
     ingredient_names = AA_NAMES_TEMPEST if use_tempest else AA_NAMES_2
     ingredients = {i + 1: n for i, n in enumerate(ingredient_names)}
     ingredient_names = set(ingredient_names)
 
     date = datetime.datetime.now().isoformat().replace(":", ".")
+
+
     file_path = os.path.join(parent_path, f"rule_verification_dp_{date}.csv")
     with open(file_path, "w") as f:
         writer = csv.writer(f, delimiter=",")
         for combo in all_combos:
-            leave_ins = [tempest_ingredients[x] for x in combo]
+            leave_ins = [ingredients[x] for x in combo]
             leave_outs = sorted(ingredient_names - set(leave_ins))
             writer.writerow(leave_outs)
 
@@ -117,9 +124,12 @@ if __name__ == "__main__":
     # (leu or val)
     # (ile or leu)
     # (gln or glu)
-    rule = [0, 11, 20, 0, 0, 10, 11, 0, 0, 6, 7, 0, 0, 0, 0, 0]
-    
-    make_ingredient_combos(rule)
+    # rule = [0, 11, 20, 0, 0, 10, 11, 0, 0, 6, 7, 0, 0, 0, 0, 0]
+
+    # Expt 10R14
+    rule = [0, 19, 0, 0, 0, 14, 0, 0, 0, 16, 0, 0, 0, 11, 0, 0, 0, 2, 0, 0, 0, 5, 20, 0, 0, 6, 7, 0]
+    path = "experiments/07-26-2021_10/rule_results"
+    make_ingredient_combos(rule, path)
     # mapped_data_path = "experiments/05-31-2021_7/Round7/BacterAI SMU UA159 (7R7) a919 mapped_data.csv"
     # find_violations(rule, mapped_data_path)
 
