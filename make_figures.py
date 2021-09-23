@@ -693,7 +693,18 @@ def plot_frontier_jitter(experiment_folder):
 
 
 def plot_model_performance(experiment_folder):
+    def _get_acc(a, b):
+        a = a.copy()
+        b = b.copy()
+        a[a >= threshold] = 1
+        a[a < threshold] = 0
+        b[b >= threshold] = 1
+        b[b < threshold] = 0
 
+        acc = (a == b).sum() / a.shape[0]
+        return acc
+
+    threshold = 0.25
     models_in_rounds = {}
     training_data_in_rounds = {}
     testing_data_in_rounds = {}
@@ -708,11 +719,19 @@ def plot_model_performance(experiment_folder):
                 models.append(model)
                 # print(path)
             if "train_pred" in name:
+                # This round's train_pred.csv has the data from all previous_rounds
+                # and is used to train this round's models, therefore, we have to
+                # assign the training data to our prev round for these plots
+
+                # Training set is current set and all prev rounds
+                # Test set is the #N-1's model's batch preds
+
                 round_name = root.split("/")[-1]
+                round_n = int(round_name.split("Round")[-1])
                 results = pd.read_csv(path, index_col=None)
                 if "is_redo" in results.columns:
                     results = results[~results["is_redo"]]
-                training_data_in_rounds[round_name] = results
+                training_data_in_rounds[f"Round{round_n-1}"] = results
 
             if "results_all" in name:
                 round_name = root.split("/")[-1]
@@ -742,6 +761,9 @@ def plot_model_performance(experiment_folder):
             x_axis_points = np.arange(len(test_data))
             # print(data)
             mse = mean_squared_error(test_data["fitness"], test_data["growth_pred"])
+
+            acc = _get_acc(data_1, data_2)
+
             order = np.argsort(data_1)
             axs[0, i].plot(
                 x_axis_points,
@@ -752,7 +774,7 @@ def plot_model_performance(experiment_folder):
             )
             axs[0, i].plot(x_axis_points, data_1[order], "-")
             axs[0, i].set_xlabel("Experiment")
-            axs[0, i].set_title(f"{name} NNs, Test\nMSE:{mse:.3f}")
+            axs[0, i].set_title(f"{name} NNs, Test\nMSE:{mse:.3f}\nAcc:{acc:.3f}")
 
         data = training_data_in_rounds.get(name, None)
         if data is not None:
@@ -765,11 +787,12 @@ def plot_model_performance(experiment_folder):
             x_axis_points = np.arange(len(data))
 
             mse = mean_squared_error(data["y_true"], preds)
+            acc = _get_acc(data_1, data_2)
             order = np.argsort(data_1)
             axs[1, i].plot(x_axis_points, data_2[order], ".", alpha=0.20, markersize=1)
             axs[1, i].plot(x_axis_points, data_1[order], "-")
             axs[1, i].set_xlabel("Experiment")
-            axs[1, i].set_title(f"{name} NNs, Train\nMSE:{mse:.3f}")
+            axs[1, i].set_title(f"{name} NNs, Train\nMSE:{mse:.3f}\nAcc:{acc:.3f}")
 
     fig.tight_layout()
     fig.savefig("summarize_nn_performance.png", dpi=400)
@@ -824,12 +847,6 @@ def main(folder):
     round_data = []
     for i, f in enumerate(folders):
         round_data = pd.read_csv(f, index_col=None)
-        # round_data.append(df)
-        # type_counts = dict(collections.Counter(df["type"].values.tolist()))
-        # print(type_counts)
-
-        # round_data = pd.concat(round_data, ignore_index=True)
-        # round_data = pd.concat(round_data, ignore_index=True)
         round_data = round_data.drop(
             columns=[
                 "var",
@@ -851,15 +868,9 @@ def main(folder):
         threshold = 0.25
         for group_type, df in round_data_grouped:
             results = count(df, threshold)
-
-            # print(depth_counts)
             grows = df[df["fitness"] >= threshold]
             grows = grows.sort_values(by=["depth", "fitness"], ascending=[False, False])
 
-            # grows.to_csv(
-            #     os.path.join(round_output, f"{group_type}_grows.csv"),
-            #     index=False,
-            # )
             results.to_csv(
                 os.path.join(round_output, f"summarize_{group_type}_results.csv")
             )
@@ -869,7 +880,6 @@ def main(folder):
 
 
 def combined_round_data(experiment_folder):
-
     paths = []
     for root, dirs, files in os.walk(experiment_folder):
         models = []
@@ -916,10 +926,10 @@ if __name__ == "__main__":
     # folder = "experiments/07-26-2021_10"
     # folder = "experiments/07-26-2021_11"
 
-    # plot_model_performance(folder)
+    plot_model_performance(folder)
     # plot_ridgeline_policy_summary(folder)
     # plot_ridgeline_frontier_summary(folder)
     # plot_frontier_summary_alt(folder)
-    plot_frontier_jitter(folder)
+    # plot_frontier_jitter(folder)
 
     # collect_data("data/SGO_data")
