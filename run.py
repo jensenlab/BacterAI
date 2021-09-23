@@ -126,7 +126,6 @@ def process_results(
     """
 
     folder_contents = os.listdir(folder)
-    new_folder_contents = os.listdir(folder)
 
     # Get paths for the necessary files in the current folder (new round # - 1)
     mapped_path = None
