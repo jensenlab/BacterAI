@@ -5,6 +5,8 @@ from math import comb
 import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 from matplotlib.lines import Line2D
+from matplotlib.ticker import StrMethodFormatter
+
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -27,381 +29,13 @@ COLORS = {
 }
 
 
-def ridgeline_hist_ax(ax, data, overlap=0, fill=True, labels=None, n_points=150):
-    """
-    Creates a standard ridgeline plot.
+plt.rcParams['font.family'] = 'sans-serif'
+plt.rcParams['font.sans-serif'] = 'Arial'
+plt.rcParams['svg.fonttype'] = 'none'
 
-    data, list of lists.
-    overlap, overlap between distributions. 1 max overlap, 0 no overlap.
-    fill, matplotlib color to fill the distributions.
-    n_points, number of points to evaluate each distribution function.
-    labels, values to place on the y axis to describe the distributions.
-    """
-    if overlap > 1 or overlap < 0:
-        raise ValueError("overlap must be in [0 1]")
-    xx = np.linspace(0, 20, n_points)
-    curves = []
-    ys = []
-    for i, (data_g, data_ng) in enumerate(data):
-        y = 250 * i * (1.0 - overlap)
-        ys.append(y)
-
-        bottom = []
-        for n in range(20):
-            if n in data_g.tolist():
-                bottom.append((data_g == n).sum() + y)
-            else:
-                bottom.append(y)
-        ax.hist(
-            data_g,
-            bins=20,
-            range=(0, 20),
-            zorder=len(data) - i + 1,
-            color="limegreen",
-            # edgecolor="black",
-            # linewidth=1.2,
-            # alpha=0.50,
-            bottom=y,
-            histtype="stepfilled",
-        )
-        ax.hist(
-            data_ng,
-            bins=20,
-            range=(0, 20),
-            zorder=len(data) - i + 1,
-            color="orange",
-            # edgecolor="black",
-            # linewidth=1.2,
-            # alpha=0.50,
-            bottom=bottom,
-            histtype="stepfilled",
-        )
-
-        # ax.hist(
-        #     d,
-        #     bins=20,
-        #     range=(0, 20),
-        #     zorder=len(data) - i + 1,
-        #     facecolor="None",
-        #     edgecolor="black",
-        #     linewidth=1.2,
-        #     bottom=y,
-        #     histtype="stepfilled",
-        # )
-    if labels:
-        ax.set_yticks(ys)
-        ax.set_yticklabels(labels)
-
-
-def ridgeline_ax(ax, data, overlap=0, fill=True, labels=None, n_points=150):
-    """
-    Creates a standard ridgeline plot.
-
-    data, list of lists.
-    overlap, overlap between distributions. 1 max overlap, 0 no overlap.
-    fill, matplotlib color to fill the distributions.
-    n_points, number of points to evaluate each distribution function.
-    labels, values to place on the y axis to describe the distributions.
-    """
-    if overlap > 1 or overlap < 0:
-        raise ValueError("overlap must be in [0 1]")
-    xx = np.linspace(0, 20, n_points)
-    curves = []
-    ys = []
-    for i, d in enumerate(data):
-        alpha = 0.80
-        if len(d) <= 1:
-            d = [0, 20]
-            alpha = 0
-        pdf = gaussian_kde(d)
-        y = i * (1.0 - overlap)
-        ys.append(y)
-        curve = pdf(xx)
-        if fill:
-            ax.fill_between(
-                xx,
-                np.ones(n_points) * y,
-                curve + y,
-                zorder=len(data) - i + 1,
-                color=fill,
-                alpha=alpha,
-            )
-        if alpha != 0:
-            ax.plot(xx, curve + y, c="k", zorder=len(data) - i + 1)
-    if labels:
-        ax.set_yticks(ys)
-        ax.set_yticklabels(labels)
-
-
-def ridgeline(data, overlap=0, fill=True, labels=None, n_points=150):
-    """
-    Creates a standard ridgeline plot.
-
-    data, list of lists.
-    overlap, overlap between distributions. 1 max overlap, 0 no overlap.
-    fill, matplotlib color to fill the distributions.
-    n_points, number of points to evaluate each distribution function.
-    labels, values to place on the y axis to describe the distributions.
-    """
-    if overlap > 1 or overlap < 0:
-        raise ValueError("overlap must be in [0 1]")
-    xx = np.linspace(0, 20, n_points)
-
-    color_add = np.linspace(0, 0.5, len(data))
-    curves = []
-    ys = []
-
-    is_blue = False
-    if "dodgerblue" in fill:
-        is_blue = True
-
-    for i, d in enumerate(data):
-
-        if len(d) == 0:
-            continue
-        pdf = gaussian_kde(d)
-        y = i * (1.0 - overlap)
-        ys.append(y)
-        curve = pdf(xx)
-
-        if fill:
-            if is_blue:
-                fill = [
-                    min(0.118 + color_add[i], 1),
-                    min(0.565 + color_add[i], 1),
-                    min(1 + color_add[i], 1),
-                    1,
-                ]
-            else:
-                fill = [
-                    min(0.933 + color_add[i], 1),
-                    min(0.51 + color_add[i], 1),
-                    min(0.933 + color_add[i], 1),
-                    1,
-                ]
-
-            plt.fill_between(
-                xx,
-                np.ones(n_points) * y,
-                curve + y,
-                zorder=len(data) - i + 1,
-                color=fill,
-                alpha=0.90,
-            )
-        plt.plot(xx, curve + y, color="k", linewidth=1, zorder=len(data) - i + 1)
-    if labels:
-        plt.yticks(ys, labels)
-
-
-def ridgeline_hist(data, overlap=0, fill="black", labels=None, n_points=150):
-    """
-    Creates a standard ridgeline plot.
-
-    data, list of lists.
-    overlap, overlap between distributions. 1 max overlap, 0 no overlap.
-    fill, matplotlib color to fill the distributions.
-    n_points, number of points to evaluate each distribution function.
-    labels, values to place on the y axis to describe the distributions.
-    """
-    if overlap > 1 or overlap < 0:
-        raise ValueError("overlap must be in [0 1]")
-    for i, d in enumerate(data):
-        y = 250 * i * (1.0 - overlap)
-        plt.hist(
-            d,
-            bins=20,
-            range=(0, 20),
-            zorder=len(data) - i + 1,
-            color=fill,
-            edgecolor="black",
-            linewidth=1.2,
-            # alpha=0.50,
-            bottom=y,
-            histtype="stepfilled",
-        )
-        # plt.plot(xx, curve + y, c="k", zorder=len(data) - i + 1)
-    # if labels:
-    #     plt.yticks(ys, labels)
-
-
-def plot_ridgeline_policy_summary(experiment_folder):
-    paths = []
-    for root, dirs, files in os.walk(experiment_folder):
-        models = []
-        for name in files:
-            path = os.path.join(root, name)
-            if "bad_runs" in path:
-                continue
-            if "results_all" in name:
-                paths.append(path)
-    all_results = []
-    for path in sorted(paths, key=lambda x: (len(x), x), reverse=True):
-        print(path)
-        results = utils.normalize_ingredient_names(pd.read_csv(path, index_col=None))
-        results = results.sort_values(by="growth_pred").reset_index(drop=True)
-        if "is_redo" in results.columns:
-            results = results[~results["is_redo"]]
-        all_results.append(results)
-
-    ridgeline_data = {"ROLLOUT_PROB": [], "RANDOM": []}
-    for ridge_idx, results in enumerate(all_results):
-        results = results.reset_index(drop=True)
-        count = []
-        if "ROLLOUT_PROB" in results["type"].to_list():
-            r = results[results["type"] == "ROLLOUT_PROB"]
-            count = r["depth"].to_numpy()
-        ridgeline_data["ROLLOUT_PROB"].append(count)
-
-        count = []
-        if "RANDOM" in results["type"].to_list():
-            r = results[results["type"] == "RANDOM"]
-            count = r["depth"].to_numpy()
-        ridgeline_data["RANDOM"].append(count)
-
-    labels = reversed([f"Round {r}" for r in range(1, len(all_results) + 1)])
-
-    for group_type in ["RANDOM", "ROLLOUT_PROB"]:
-        # ridgeline_hist(group_counts, overlap=0.80, fill=COLORS[group_type])
-        group_counts = ridgeline_data[group_type]
-        print(group_type)
-        if group_type != "RANDOM":
-            labels = None
-        ridgeline(group_counts, overlap=0.85, fill=COLORS[group_type], labels=labels)
-
-    plt.title("S. mutans Removed Dist")
-    # plt.title("S. gordonii Removed Dist")
-    plt.gca().spines["left"].set_visible(False)
-    plt.gca().spines["right"].set_visible(False)
-    plt.gca().spines["top"].set_visible(False)
-    plt.tick_params(axis="y", which="both", length=0)
-    plt.xticks(range(0, 21))
-
-    legend_elements = [
-        Patch(
-            facecolor=COLORS["RANDOM"],
-            edgecolor="k",
-            label="Random Policy",
-            alpha=0.80,
-        ),
-        Patch(
-            facecolor=COLORS["ROLLOUT"],
-            edgecolor="k",
-            label="Rollout Policy",
-            alpha=0.80,
-        ),
-    ]
-
-    # Put a legend below current axis
-    plt.legend(
-        handles=legend_elements,
-        loc="upper center",
-        bbox_to_anchor=(0.5, -0.12),
-        ncol=5,
-    )
-    plt.xlabel("Number of AAs Removed")
-    # plt.legend(handles=legend_elements)
-
-    # plt.savefig(f"summarize_ridgeline_hist.png", dpi=400)
-    plt.tight_layout()
-    plt.subplots_adjust(bottom=0.20)
-    # plt.savefig(f"summarize_ridgeline_SGO.png", dpi=400)
-    plt.savefig(f"summarize_ridgeline_SMU.png", dpi=400)
-
-
-def plot_ridgeline_frontier_summary(experiment_folder):
-    threshold = 0.25
-    paths = []
-    for root, dirs, files in os.walk(experiment_folder):
-        models = []
-        for name in files:
-            path = os.path.join(root, name)
-            if "bad_runs" in path:
-                continue
-            if "results_all" in name:
-                paths.append(path)
-    all_results_frontier = []
-    all_results_beyond = []
-    for path in sorted(paths, key=lambda x: (len(x), x), reverse=True):
-        print(path)
-        results = utils.normalize_ingredient_names(pd.read_csv(path, index_col=None))
-        results = results.sort_values(by="growth_pred").reset_index(drop=True)
-        if "is_redo" in results.columns:
-            results = results[~results["is_redo"]]
-        all_results_frontier.append(results[results["frontier_type"] == "FRONTIER"])
-        all_results_beyond.append(results[results["frontier_type"] == "BEYOND"])
-
-    fig, axs = plt.subplots(
-        nrows=1,
-        ncols=2,
-        sharex=False,
-        sharey=False,
-        figsize=(12, 8),
-    )
-    titles = ["Frontier", "Beyond"]
-    for col_idx, all_results in enumerate([all_results_frontier, all_results_beyond]):
-        print(f"{col_idx=}")
-        ridgeline_data = {"GROW": [], "NOGROW": []}
-        data = []
-        for ridge_idx, results in enumerate(all_results):
-            results = results.reset_index(drop=True)
-            grows = results[results["fitness"] >= threshold]["depth"].to_numpy()
-            no_grows = results[results["fitness"] < threshold]["depth"].to_numpy()
-            ridgeline_data["GROW"].append(grows)
-            ridgeline_data["NOGROW"].append(no_grows)
-            data.append((grows, no_grows))
-        labels = reversed([f"Round {r}" for r in range(1, len(all_results) + 1)])
-        # for group_type in ["GROW", "NOGROW"]:
-        #     group_counts = ridgeline_data[group_type]
-        #     if group_type != "GROW":
-        #         labels = None
-        #     ridgeline_hist_ax(
-        #         axs[col_idx],
-        #         group_counts,
-        #         overlap=0.80,
-        #         fill=COLORS[group_type],
-        #         labels=labels,
-        #     )
-
-        ridgeline_hist_ax(
-            axs[col_idx],
-            data,
-            overlap=0.70,
-            # fill=COLORS[group_type],
-            labels=labels,
-        )
-
-        # ridgeline_ax(
-        #     axs[col_idx],
-        #     group_counts,
-        #     overlap=0.80,
-        #     fill=COLORS[group_type],
-        #     labels=labels,
-        # )
-        axs[col_idx].set_title(titles[col_idx])
-        axs[col_idx].set_xticks(range(0, 21))
-
-    legend_elements = [
-        Patch(facecolor="limegreen", edgecolor="k", label="Grow", alpha=1),
-        Patch(facecolor="orange", edgecolor="k", label="No grow", alpha=1),
-    ]
-
-    for ax in axs:
-        ax.tick_params(axis="y", which="both", length=0)
-        ax.spines["left"].set_visible(False)
-        ax.spines["right"].set_visible(False)
-        ax.spines["top"].set_visible(False)
-        ax.legend(handles=legend_elements)
-
-    plt.suptitle("S. mutans Frontier Dist")
-    # plt.suptitle("S. gordonii Frontier Dist")
-
-    # plt.savefig(f"summarize_ridgeline_fontier_hist_SGO.png", dpi=400)
-    plt.savefig(f"summarize_ridgeline_fontier_hist_SMU.png", dpi=400)
-
-
-def plot_frontier_summary_alt(experiment_folder):
-    GROUP_WIDTH = 6
-    SPACER_WIDTH = 2
+def plot_main_fig(experiment_folder, all_test_data, all_train_data, fig_name, skip=1, show_train=True, max_n=None):
+    GROUP_WIDTH = 4
+    SPACER_WIDTH = 1.5
     N_GROUPS = 21
 
     def _idx_to_pos(idx):
@@ -419,290 +53,276 @@ def plot_frontier_summary_alt(experiment_folder):
                 continue
             if "results_all" in name:
                 paths.append(path)
+
+    paths = sorted(paths, key=lambda x: (len(x), x), reverse=False)
+    if max_n:
+        paths = paths[:max_n]
     all_results = []
-    for path in sorted(paths, key=lambda x: (len(x), x), reverse=False):
+
+    for round_idx in range(0, len(paths), skip):
+        path = paths[round_idx]
         print(path)
         results = utils.normalize_ingredient_names(pd.read_csv(path, index_col=None))
         results = results.sort_values(by="growth_pred").reset_index(drop=True)
         if "is_redo" in results.columns:
             results = results[~results["is_redo"]]
-        all_results.append(results)
-        # all_results_frontier.append(results[results["frontier_type"] == "FRONTIER"])
-        # all_results_beyond.append(results[results["frontier_type"] == "BEYOND"])
+        all_results.append((round_idx, results))
 
-    # all_results = [all_results[-1]]
-    # print(all_results)
-    # all_results_beyond = all_results_beyond[-1]
-    # all_results = [r for i, r in enumerate(all_results) if i % 2 != 0]
-    fig, axs = plt.subplots(
-        nrows=len(all_results),
-        ncols=1,
-        sharex=True,
-        sharey=True,
-        figsize=(8, 8),
-    )
+    height = 10 if skip == 2 else 20
+    width = 11 if show_train else 10
 
-    # xs = GROUP_WIDTH * N_GROUPS + SPACER_WIDTH * (N_GROUPS - 1)
-    types = ["FRONTIER", "BEYOND"]
+    if show_train:
+        fig, axs = plt.subplots(
+            nrows=len(all_results),
+            ncols=3,
+            sharex=False,
+            sharey=False,
+            figsize=(width, height),
+            gridspec_kw={"width_ratios": [5, 1, 1]},
+        )
+    else:
+        fig, axs = plt.subplots(
+            nrows=len(all_results),
+            ncols=2,
+            sharex=False,
+            sharey=False,
+            figsize=(width, height),
+            gridspec_kw={"width_ratios": [6, 1]},
+        )
+
     point_opts = [
-        {"markersize": 1.5, "marker": "."},
+        {"markersize": 4, "marker": "."},
         {
             "markerfacecolor": "none",
-            "markeredgewidth": 0.5,
-            "markersize": 2.5,
+            "markeredgewidth": 0.75,
+            "markersize": 4.5,
             "marker": ".",
         },
     ]
-    for graph_idx, results in enumerate(all_results):
+    max_h = 0
+    for graph_idx, (round_idx, results) in enumerate(all_results):
+        print()
+        print(f"{graph_idx=}")
         results = results.reset_index(drop=True)
         cumulative_count = {i: 0 for i in range(0, 21)}
-        print("correct")
-        for t, opts in zip(types, point_opts):
-            r = results[results["frontier_type"] == t]
+        tot = 0
+        for kind in ["CORRECT", "INCORRECT"]:
+            for t, opts in zip(["FRONTIER", "BEYOND"], point_opts):
+                print(kind, t)
+                color = "k" if kind == "CORRECT" else "r"
+                r = results[results["frontier_type"] == t]
 
-            if t == "FRONTIER":
-                correct = r[r["fitness"] >= threshold]["depth"].to_list()
-            else:
-                correct = r[r["fitness"] < threshold]["depth"].to_list()
+                if (t == "FRONTIER" and kind == "CORRECT") or (
+                    t == "BEYOND" and kind == "INCORRECT"
+                ):
+                    depths = r[r["fitness"] >= threshold]["depth"].to_list()
+                elif (t == "FRONTIER" and kind == "INCORRECT") or (
+                    t == "BEYOND" and kind == "CORRECT"
+                ):
+                    depths = r[r["fitness"] < threshold]["depth"].to_list()
 
-            correct_counts = {i: 0 for i in range(0, 21)}
-            correct_counts.update(collections.Counter(correct))
+                counts = {i: 0 for i in range(0, 21)}
+                counts.update(collections.Counter(depths))
+                print(counts)
+                tot += sum(list(counts.values()))
+                for group_n, count in counts.items():
+                    group_offset = group_n * (GROUP_WIDTH + SPACER_WIDTH)
+                    for i in range(count):
+                        x, y = _idx_to_pos(i + cumulative_count[group_n])
+                        x += group_offset
+                        axs[graph_idx, 0].plot(x, y, color=color, **opts)
+                    cumulative_count[group_n] += count
+        print(f"{tot=}")
+        max_h = max(list(cumulative_count.values()) + [max_h])
 
-            for group_n, count in correct_counts.items():
-                group_offset = (group_n + 1) * GROUP_WIDTH + SPACER_WIDTH * group_n
-                for i in range(count):
-                    x, y = _idx_to_pos(i + cumulative_count[group_n])
-                    x += group_offset
-                    axs[graph_idx].plot(
-                        x,
-                        y,
-                        color=(255 / 255, 77 / 255, 64 / 255, 1)
-                        if t == "FRONTIER"
-                        else (156 / 255, 0, 21 / 255, 1),
-                        **opts,
-                    )
-                cumulative_count[group_n] += count
-
-        print("incorrect")
-        for t, opts in zip(types, point_opts):
-            r = results[results["frontier_type"] == t]
-
-            if t == "FRONTIER":
-                incorrect = results[results["fitness"] < threshold]["depth"].to_list()
-            else:
-                incorrect = results[results["fitness"] >= threshold]["depth"].to_list()
-
-            incorrect_counts = {i: 0 for i in range(0, 21)}
-            incorrect_counts.update(collections.Counter(incorrect))
-            for group_n, count in incorrect_counts.items():
-                group_offset = (group_n + 1) * GROUP_WIDTH + SPACER_WIDTH * group_n
-                for i in range(count):
-                    x, y = _idx_to_pos(i + cumulative_count[group_n])
-                    x += group_offset
-                    axs[graph_idx].plot(
-                        x,
-                        y,
-                        color="k" if t == "FRONTIER" else (0.5, 0.5, 0.5, 1),
-                        **opts,
-                    )
-                cumulative_count[group_n] += count
         major_ticks = (
-            np.arange(0, GROUP_WIDTH * 20 + 1, GROUP_WIDTH)
-            + np.arange(21) * SPACER_WIDTH
-        ) + 0.5
+            np.arange(0, GROUP_WIDTH * 21, GROUP_WIDTH) + np.arange(21) * SPACER_WIDTH
+        ) + 1.5
 
-        axs[graph_idx].set_xticks(major_ticks)
-        axs[graph_idx].set_xticklabels(np.arange(0, 21))
-        axs[graph_idx].set_yticklabels([])
-        axs[graph_idx].set_ylabel(f"Round {graph_idx+1}")
-        axs[graph_idx].spines["left"].set_visible(False)
-        axs[graph_idx].spines["right"].set_visible(False)
-        axs[graph_idx].spines["top"].set_visible(False)
-        axs[graph_idx].tick_params(axis="y", which="both", length=0)
+        axs[graph_idx, 0].set_xticks(major_ticks)
+        axs[graph_idx, 0].set_xticklabels(np.arange(0, 21))
+        axs[graph_idx, 0].set_yticklabels([])
+        axs[graph_idx, 0].set_ylabel(f"Day {round_idx+1}", rotation=0, horizontalalignment='left')
+        axs[graph_idx, 0].yaxis.set_label_coords(0.0, 0.8)
+
+        axs[graph_idx, 0].spines["left"].set_visible(False)
+        axs[graph_idx, 0].spines["right"].set_visible(False)
+        axs[graph_idx, 0].spines["top"].set_visible(False)
+        axs[graph_idx, 0].tick_params(axis="y", which="both", length=0)
 
         if graph_idx != len(all_results) - 1:
-            axs[graph_idx].spines["bottom"].set_visible(False)
-            axs[graph_idx].tick_params(axis="x", which="both", length=0)
+            # axs[graph_idx, 0].spines["bottom"].set_visible(False)
+            axs[graph_idx, 0].tick_params(axis="x", which="both", length=0)
+            axs[graph_idx, 0].axes.get_xaxis().set_visible(False)
 
-        # axs[graph_idx].set_xticks(minor_ticks, minor=True)
-        # axs[graph_idx].set_yticks(major_ticks)
-        # axs[graph_idx].set_yticks(minor_ticks, minor=True)
-        # axs[graph_idx].set_ylim(-1, 20)
+        metric_style = dict(
+            fontsize=10,
+            verticalalignment="top",
+            # bbox=dict(facecolor="white", alpha=0.5, linewidth=0),
+        )
+        
 
-        # And a corresponding grid
-        # axs[graph_idx].grid(which="both", alpha=0.2)
-        # ridgeline_data["GROW"].append(grows)
-        # ridgeline_data["NOGROW"].append(no_grows)
-        # data.append((grows, no_grows))
-    # labels = reversed([f"Round {r}" for r in range(1, len(all_results) + 1)])
+        train_data = all_train_data.get(round_idx, None)
+        col = 1
+        if train_data is not None and show_train and graph_idx + 1 < len(all_results):
+            preds, y_true = train_data
+            x_axis_points = np.arange(len(preds))
 
-    # axs[graph_idx].set_title(titles[col_idx])
-    # axs[graph_idx].set_xticks(range(0, 21))
+            mse = mean_squared_error(y_true, preds)
+            acc = _get_acc(preds, y_true, threshold)
+            order = np.argsort(preds)
+            axs[graph_idx+1, col].plot(
+                x_axis_points, y_true[order], "k.", alpha=0.2, markersize=3, linewidth=0, markeredgewidth=0
+            )
+            axs[graph_idx+1, col].plot(
+                x_axis_points,
+                preds[order],
+                color="dodgerblue",
+            )
 
-    legend_elements = [
-        Line2D(
-            [0],
-            [0],
-            marker="o",
-            color="r",
-            label="Correct - Frontier",
-            markersize=3,
-            linewidth=0,
-        ),
-        Line2D(
-            [0],
-            [0],
-            marker="o",
-            color="r",
-            label="Correct - Beyond",
-            markersize=3,
-            linewidth=0,
+            axs[graph_idx+1, col].text(
+                0, 1.05, f"Acc: {acc*100:.1f}%", **metric_style
+            )
+        
+        if show_train:
+            col += 1
+            
+
+        test_data = all_test_data.get(round_idx, None)
+        if test_data is not None:
+            preds, y_true = test_data
+            x_axis_points = np.arange(len(preds))
+            # print(data)
+            mse = mean_squared_error(y_true, preds)
+            acc = _get_acc(preds, y_true, threshold)
+
+            order = np.argsort(preds)
+            axs[graph_idx, col].plot(
+                x_axis_points, y_true[order], "k.", alpha=1, markersize=3, linewidth=0, markeredgewidth=0
+            )
+            axs[graph_idx, col].plot(x_axis_points, preds[order], color="dodgerblue")
+            axs[graph_idx, col].text(
+                0, 1.05, f"Acc: {acc*100:.1f}%", **metric_style
+            )
+
+        if graph_idx == 0 and show_train:
+            axs[graph_idx, 1].axis("off")
+            
+        # if graph_idx == 3:
+            # axs[graph_idx, 1].set_ylabel("Fitness")
+        
+
+    for ax in axs[:, 1:].flatten():
+        # ax.set_aspect("equal")
+        # ax.axes.get_xaxis().set_visible(False)
+        ax.set_xticks([]) 
+        ax.set_xticklabels([]) 
+        ax.set_ybound(-0.15, 1.15)
+        ax.set_yticks([0, 1])
+        ax.set_yticklabels([0, 1])
+
+
+    if show_train:
+        axs[-1, 1].set_xlabel(f"Train Set")
+        axs[-1, 2].set_xlabel(f"Test Set")
+        # axs[-1, 1].axes.get_xaxis().set_visible(True)
+        # axs[-1, 2].axes.get_xaxis().set_visible(True)
+    else:
+        axs[-1, 1].set_xlabel(f"Test Set")
+        # axs[-1, 1].axes.get_xaxis().set_visible(True)
+
+    
+    if skip==2:
+        # fig.text(0.84, 0.07, "Model Performance", ha="center")
+        loc = (0.84, 0.06)
+    else:
+        # fig.text(0.84, 0.03, "Model Performance", ha="center")
+        loc = (0.84, 0.02)
+
+    fig.legend(
+        handles=[
+            Line2D(
+                [0],
+                [0],
+                label="Model prediction",
+                color="dodgerblue",
+                markersize=0,
+                linewidth=2,
+            ),
+            Line2D(
+                [0],
+                [0],
+                label="Experiment",
+                color="k",
+                marker=".",
+                markersize=3,
+                linewidth=0,
+            ),
+            
+        ],
+        loc="center",
+        frameon=False,
+        bbox_to_anchor=loc,
+        ncol=1,
+    )
+
+    h = max_h // GROUP_WIDTH
+    print(f"{max_h=}")
+    for ax in axs[:, 0]:
+        ax.set_ybound(-1, h + 1)
+
+    legend_elements_attrs = [
+        dict(color="k", label="Grow (Correct)"),
+        dict(
+            color="k",
+            label="No Grow (Correct)",
             markerfacecolor="none",
             markeredgewidth=0.5,
         ),
-        Line2D(
-            [0],
-            [0],
-            marker="o",
-            color="k",
-            label="Incorrect - Frontier",
-            markersize=3,
-            linewidth=0,
+        dict(
+            color="r",
+            label="Grow (Incorrect)",
         ),
-        Line2D(
-            [0],
-            [0],
-            marker="o",
-            color="k",
-            label="Incorrect - Beyond",
-            markersize=3,
-            linewidth=0,
+        dict(
+            color="r",
+            label="No Grow (Incorrect)",
             markerfacecolor="none",
             markeredgewidth=0.5,
         ),
     ]
-
-    # for ax in axs:
-    # ax.tick_params(axis="y", which="both", length=0)
+    legend_elements = [
+        Line2D([0], [0], marker="o", markersize=3, linewidth=0, **attrs)
+        for attrs in legend_elements_attrs
+    ]
 
     # axs[-2].legend(handles=legend_elements)
-    plt.xlabel("Number of AAs Removed")
-    plt.legend(
+    axs[-1, 0].set_xlabel("Amino Acids Removed")
+    axs[-1, 0].legend(
         handles=legend_elements,
         loc="upper center",
         bbox_to_anchor=(0.5, -0.5),
-        ncol=5,
+        frameon=False,
+        ncol=1,
     )
-    plt.subplots_adjust(bottom=0.1, hspace=0.001)
+    plt.subplots_adjust(left=0, right=1, top=1, bottom=0.1, wspace=0, hspace=0.1)
 
-    plt.suptitle("S. mutans Frontier Dist")
-    # plt.suptitle("S. gordonii Frontier Dist")
-    # plt.tight_layout()
-    # plt.savefig(f"summarize_ridgeline_fontier_alt_SGO.png", dpi=400)
-    plt.savefig(f"summarize_ridgeline_fontier_alt_SMU.png", dpi=400)
+    plt.tight_layout()
+    plt.savefig(f"{fig_name}.png", dpi=400)
+    plt.savefig(f"{fig_name}.svg", dpi=400)
 
+def _get_acc(a, b, threshold):
+    a = a.copy()
+    b = b.copy()
+    a[a >= threshold] = 1
+    a[a < threshold] = 0
+    b[b >= threshold] = 1
+    b[b < threshold] = 0
 
-def plot_frontier_jitter(experiment_folder):
-    threshold = 0.25
-    data = combined_round_data(experiment_folder)
-    data["grows"] = False
-    data.loc[
-        data["fitness"] >= threshold,
-        "grows",
-    ] = True
-
-    data["correct"] = False
-    data.loc[
-        (data["frontier_type"] == "FRONTIER") & data["grows"],
-        "correct",
-    ] = True
-    data.loc[(data["frontier_type"] == "BEYOND") & ~data["grows"], "correct"] = True
-
-    # print(data)
-    # print(data.columns)
-    sns.set_style("whitegrid")
-
-    ax = sns.violinplot(
-        x="round",
-        y="fitness",
-        hue="correct",
-        data=data,
-        inner=None,
-        linewidth=0,
-        palette=[(0, 0, 0)],
-        dodge=True,
-        cut=0
-        # split=True,
-    )
-    plt.setp(ax.collections, alpha=0.1)
-
-    # data_1 = data[data["correct"]]
-    data_1 = data[data["frontier_type"] == "FRONTIER"]
-    styles = dict(
-        dodge=True,
-        size=2,
-        jitter=0.3,
-        alpha=0.5,
-        edgecolor="none",
-    )
-    sns.stripplot(
-        x="round",
-        y="fitness",
-        hue="correct",
-        marker="o",
-        # palette=sns.color_palette("husl")[:2],
-        palette=("r", "k"),
-        data=data_1,
-        **styles,
-    )
-
-    # sns.boxplot(
-    #     x="round", y="fitness", hue="correct", data=data_1, width=0.6, palette="vlag"
-    # )
-
-    # data_2 = data[~data["correct"]]
-    data_2 = data[data["frontier_type"] == "BEYOND"]
-    sns.stripplot(
-        x="round",
-        y="fitness",
-        hue="correct",
-        marker="X",
-        palette=("r", "k"),
-        data=data_2,
-        **styles,
-    )
-    # sns.boxplot(
-    #     x="round", y="fitness", hue="correct", data=data_2, width=0.6, palette="vlag"
-    # )
-    # plt.show()
-    plt.savefig(f"summarize_ridgeline_fontier_jitter_SMU.png", dpi=400)
-
-    # plt.figure()
-    # ax = sns.violinplot(
-    #     x="round",
-    #     y="fitness",
-    #     hue="correct",
-    #     data=data,
-    #     inner="points",
-    #     # dodge=True,
-    #     # size=1,
-    #     # size="depth", sizes=(2, 5)
-    # )
-
-    # plt.savefig(f"summarize_ridgeline_fontier_violin_SMU.png", dpi=400)
+    acc = (a == b).sum() / a.shape[0]
+    return acc
 
 
-def plot_model_performance(experiment_folder):
-    def _get_acc(a, b):
-        a = a.copy()
-        b = b.copy()
-        a[a >= threshold] = 1
-        a[a < threshold] = 0
-        b[b >= threshold] = 1
-        b[b < threshold] = 0
-
-        acc = (a == b).sum() / a.shape[0]
-        return acc
+def plot_model_performance(experiment_folder, max_n=None):
 
     threshold = 0.25
     models_in_rounds = {}
@@ -746,23 +366,28 @@ def plot_model_performance(experiment_folder):
             round_name = root.split("/")[-2]
             models_in_rounds[round_name] = models
 
+    
     round_names = sorted(list(models_in_rounds.keys()), key=lambda x: (len(x), x))
-    n_rounds = len(models_in_rounds)
+    if max_n:
+        round_names = round_names[:max_n]
+
+    n_rounds = len(round_names)
     fig, axs = plt.subplots(
         nrows=2, ncols=n_rounds, sharex=False, sharey="row", figsize=(15, 6)
     )
 
+    all_test_data = {}
+    all_train_data = {}
     for i, name in enumerate(round_names):
         test_data = testing_data_in_rounds.get(name, None)
         if test_data is not None:
             data_1 = test_data["growth_pred"].to_numpy()
             data_2 = test_data["fitness"].to_numpy()
-
+            all_test_data[i] = (data_1, data_2)
             x_axis_points = np.arange(len(test_data))
             # print(data)
             mse = mean_squared_error(test_data["fitness"], test_data["growth_pred"])
-
-            acc = _get_acc(data_1, data_2)
+            acc = _get_acc(data_1, data_2, threshold)
 
             order = np.argsort(data_1)
             axs[0, i].plot(
@@ -783,11 +408,13 @@ def plot_model_performance(experiment_folder):
 
             data_1 = preds
             data_2 = data["y_true"].to_numpy()
+            all_train_data[i] = (data_1, data_2)
 
             x_axis_points = np.arange(len(data))
 
             mse = mean_squared_error(data["y_true"], preds)
-            acc = _get_acc(data_1, data_2)
+            acc = _get_acc(data_1, data_2, threshold)
+
             order = np.argsort(data_1)
             axs[1, i].plot(x_axis_points, data_2[order], ".", alpha=0.20, markersize=1)
             axs[1, i].plot(x_axis_points, data_1[order], "-")
@@ -796,6 +423,7 @@ def plot_model_performance(experiment_folder):
 
     fig.tight_layout()
     fig.savefig("summarize_nn_performance.png", dpi=400)
+    return all_test_data, all_train_data
 
 
 def count(df, threshold):
@@ -879,31 +507,6 @@ def main(folder):
         results_all.to_csv(os.path.join(round_output, f"summarize_ALL_results.csv"))
 
 
-def combined_round_data(experiment_folder):
-    paths = []
-    for root, dirs, files in os.walk(experiment_folder):
-        models = []
-        for name in files:
-            path = os.path.join(root, name)
-            if "bad_runs" in path:
-                continue
-            if "results_all" in name:
-                paths.append(path)
-
-    paths = sorted(paths, key=lambda x: (len(x), x), reverse=False)
-    all_results = []
-    for idx, path in enumerate(paths):
-        print(path)
-        results = utils.normalize_ingredient_names(pd.read_csv(path, index_col=None))
-        results = results.sort_values(by="growth_pred").reset_index(drop=True)
-        if "is_redo" in results.columns:
-            results = results[~results["is_redo"]]
-        results["round"] = idx + 1
-        all_results.append(results)
-
-    all_results = pd.concat(all_results, ignore_index=True)
-    return all_results
-
 
 # def collect_data(folder):
 #     files = [f for f in os.listdir(folder) if "mapped_data" in f]
@@ -918,18 +521,99 @@ def combined_round_data(experiment_folder):
 #     )
 #     df.to_csv(os.path.join(folder, "SGO CH1 Processed-Aerobic.csv"), index=False)
 
+def make_growth_distribution_hist(bacterai_data, random_data):
+    fig, axs = plt.subplots(
+        nrows=1,
+        ncols=1,
+        figsize=(10,6)
+    )
+
+    width = 0.5
+    n_bins = 20
+
+    bins = np.arange(0, 1.01, 1/n_bins)
+    rand, rand_bounds = np.histogram(random_data["fitness"], bins)
+    bact, bact_bounds = np.histogram(bacterai_data["fitness"], bins)
+
+    rand = rand/len(random_data)
+    bact = bact/len(bacterai_data)
+    # axs.hist(
+    #     random_data["fitness"],
+    #     bins=50,
+    #     color="r",
+    #     alpha=0.5,
+    # )
+    # axs.hist(
+    #     bacterai_data["fitness"],
+    #     bins=50,
+    #     color="k",
+    #     alpha=0.5,
+    # )
+        
+    x = np.arange(n_bins)
+    r1 = axs.bar(
+        x+width/2, 
+        rand,
+        width,
+        color="dodgerblue",
+        # alpha=0.5,
+    )
+    r2 = axs.bar(
+        x+1.5*width, 
+        bact,
+        width,
+        color="k",
+        # alpha=0.5,
+    )
+    axs.set_ylabel("Count Density")
+    axs.set_xlabel("Fitness")
+    axs.bar_label(r1, padding=2, fmt="%.2f", fontsize=7.5)
+    axs.bar_label(r2, padding=2, fmt="%.2f", fontsize=7.5)
+    # axs.set_title(f"Round {idx+1}")
+    # axs.set_xticks(np.arange(n_bins+1))
+    bin_labels = [f"{x:.2f}" for x in np.arange(0, 1.01, 1/n_bins)]
+    print(bin_labels)
+    axs.set_xticks(np.arange(0, n_bins+1, 1))
+    axs.set_xticklabels(bin_labels)
+    plt.xticks(rotation='vertical')
+    # axs.set_yscale('log')
+
+    # axs.xaxis.set_major_formatter(FormatStrFormatter('%.2f'))
+    # plt.gca().xaxis.set_major_formatter(StrMethodFormatter('{x:,.2f}'))
+    plt.legend(["Random", "BacterAI"])
+    fig.tight_layout()
+    fig.savefig("summarize_simulation_fitness_order_plot_combined.png", dpi=400)
 
 if __name__ == "__main__":
-    folder = "experiments/05-31-2021_7"
+    # folder = "experiments/05-31-2021_7"
     # folder = "experiments/05-31-2021_8"
     # folder = "experiments/05-31-2021_7 copy"
-    # folder = "experiments/07-26-2021_10"
+
     # folder = "experiments/07-26-2021_11"
 
-    plot_model_performance(folder)
-    # plot_ridgeline_policy_summary(folder)
-    # plot_ridgeline_frontier_summary(folder)
-    # plot_frontier_summary_alt(folder)
-    # plot_frontier_jitter(folder)
+    folder = "experiments/07-26-2021_10"
+    fig_name = "fig1_SGO_10_full"
 
-    # collect_data("data/SGO_data")
+    # folder = "experiments/08-20-2021_12"
+    # fig_name = "fig1_SSA_12_full"
+
+    # all_test_data, all_train_data = plot_model_performance(folder, max_n=13)
+
+    # plot_main_fig(folder, all_test_data, all_train_data, fig_name, skip=1, max_n=13)
+    # plot_main_fig(folder, all_test_data, all_train_data, fig_name, skip=2)
+    # plot_main_fig(folder, all_test_data, all_train_data, fig_name, skip=2, show_train=False)
+
+
+    data = utils.combined_round_data(folder, max_n=13)
+    print(data)
+
+    path = "Randoms (1) SGO CH1 17f3 mapped_data.csv"
+    # path = "BacterAI SGO CH1 (10R13) rule verify 12fb mapped_data.csv"
+    rand_data = utils.process_mapped_data(path)[0]
+    print(rand_data)
+
+    # rand_data = rand_data.sort_values(by="growth_pred").reset_index(drop=True)
+    # if "is_redo" in rand_data.columns:
+    #     rand_data = rand_data[~rand_data["is_redo"]]
+
+    make_growth_distribution_hist(data, rand_data)

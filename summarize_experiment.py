@@ -13,7 +13,7 @@ import utils
 
 
 def main(folder):
-    max_round_n = 12
+    max_round_n = 14
     folders = [
         os.path.join(folder, i, "results_all.csv")
         for i in os.listdir(folder)
@@ -26,7 +26,7 @@ def main(folder):
     if not os.path.exists(output_path):
         os.makedirs(output_path)
 
-    round_data = []
+    all_round_data = []
     for i, f in enumerate(folders):
         round_data = pd.read_csv(f, index_col=None)
         # round_data.append(df)
@@ -47,32 +47,38 @@ def main(folder):
                 "delta_od",
             ]
         )
+        all_round_data.append(round_data)
 
-        round_output = os.path.join(output_path, f"Round{i+1}")
-        if not os.path.exists(round_output):
-            os.makedirs(round_output)
+        # round_output = os.path.join(output_path, f"Round{i+1}")
+        # if not os.path.exists(round_output):
+        #     os.makedirs(round_output)
 
-        round_data_grouped = round_data.groupby(by=["type"])
-        threshold = 0.25
-        for group_type, df in round_data_grouped:
-            results = count(df, threshold)
+        # round_data_grouped = round_data.groupby(by=["type"])
+        # threshold = 0.25
+        # for group_type, df in round_data_grouped:
+        #     results = count(df, threshold)
 
-            # print(depth_counts)
-            grows = df[df["fitness"] >= threshold]
-            grows = grows.sort_values(by=["depth", "fitness"], ascending=[False, False])
+        #     # print(depth_counts)
+        #     grows = df[df["fitness"] >= threshold]
+        #     grows = grows.sort_values(by=["depth", "fitness"], ascending=[False, False])
 
-            # grows.to_csv(
-            #     os.path.join(round_output, f"{group_type}_grows.csv"),
-            #     index=False,
-            # )
-            results.to_csv(
-                os.path.join(round_output, f"summarize_{group_type}_results.csv")
-            )
+        #     # grows.to_csv(
+        #     #     os.path.join(round_output, f"{group_type}_grows.csv"),
+        #     #     index=False,
+        #     # )
+        #     results.to_csv(
+        #         os.path.join(round_output, f"summarize_{group_type}_results.csv")
+        #     )
 
-        results_all = count(round_data, threshold)
-        results_all.to_csv(os.path.join(round_output, f"summarize_ALL_results.csv"))
+        # results_all = count(round_data, threshold)
+        # results_all.to_csv(os.path.join(round_output, f"summarize_ALL_results.csv"))
 
-
+    all_round_data = pd.concat(all_round_data, ignore_index=True)
+    all_round_data = all_round_data.iloc[:, :20]
+    all_round_data["sum"] = all_round_data.iloc[:, :20].sum(axis=1)
+    sum_counts = dict(collections.Counter(all_round_data["sum"].values.tolist()))
+    print(all_round_data.shape)
+    print(sum_counts)
 # def collect_data(folder):
 #     files = [f for f in os.listdir(folder) if "mapped_data" in f]
 #     dfs = [utils.process_mapped_data(os.path.join(folder, f))[0] for f in files]
@@ -88,10 +94,10 @@ def main(folder):
 
 
 if __name__ == "__main__":
-    f = "experiments/05-31-2021_7"
+    # f = "experiments/05-31-2021_7"
     # f = "experiments/05-31-2021_8"
     # f = "experiments/05-31-2021_7 copy"
-    # f = "experiments/07-26-2021_10"
+    f = "experiments/07-26-2021_10"
     # f = "experiments/07-26-2021_11"
 
     main(f)

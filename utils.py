@@ -1,3 +1,4 @@
+import os 
 import time
 
 import numpy as np
@@ -115,6 +116,32 @@ def decoratortimer(decimal):
 
     return decoratorfunction
 
+def combined_round_data(experiment_folder, max_n=None):
+    paths = []
+    for root, dirs, files in os.walk(experiment_folder):
+        models = []
+        for name in files:
+            path = os.path.join(root, name)
+            if "bad_runs" in path:
+                continue
+            if "results_all" in name:
+                paths.append(path)
+
+    paths = sorted(paths, key=lambda x: (len(x), x), reverse=False)
+    if max_n:
+        paths = paths[:max_n]
+    all_results = []
+    for idx, path in enumerate(paths):
+        print(path)
+        results = normalize_ingredient_names(pd.read_csv(path, index_col=None))
+        results = results.sort_values(by="growth_pred").reset_index(drop=True)
+        if "is_redo" in results.columns:
+            results = results[~results["is_redo"]]
+        results["round"] = idx + 1
+        all_results.append(results)
+
+    all_results = pd.concat(all_results, ignore_index=True)
+    return all_results
 
 if __name__ == "__main__":
     m = softmax(np.array([0.1, 0.8, 0.6, 1, 0.9]), 0.2)

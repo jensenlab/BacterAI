@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import poisson
 from sklearn.metrics import confusion_matrix, log_loss
-from sklearn.model_selection import KFold
+from sklearn.model_selection import KFold, train_test_split
 
 from global_vars import *
 import utils
@@ -37,21 +37,26 @@ class GeneticSolver:
         )
 
         # np.array first 20 cols are input AAs (binary), last col is growth
-        self.data = data
+        self.train_data, self.test_data = train_test_split(data, test_size=0.25)
 
         self.generation_stats = {"fitness_avg": [], "fitness_max": []}
         self.generation_n = 0
         self.fitness_lambda = fitness_lambda
 
-    def fitness_score(self, rule, include_metrics=False):
-        results = self.apply_rule(rule)
+    def fitness_score(self, rule, include_metrics=False, use_test_data=False):
+        if use_test_data:
+            data = self.test_data
+        else:
+            data = self.train_data
 
-        results_grow = results == 1
-        data_grow = self.data[:, -1] == 1
-        tp = np.sum(np.logical_and(results_grow, data_grow))
-        tn = np.sum(np.logical_and(~results_grow, ~data_grow))
-        fp = np.sum(np.logical_and(results_grow, ~data_grow))
-        fn = np.sum(np.logical_and(~results_grow, data_grow))
+        results = self.apply_rule(rule, data)
+
+        pred_grow = results == 1
+        true_grow = data[:, -1] == 1
+        tp = np.sum(np.logical_and(pred_grow, true_grow))
+        tn = np.sum(np.logical_and(~pred_grow, ~true_grow))
+        fp = np.sum(np.logical_and(pred_grow, ~true_grow))
+        fn = np.sum(np.logical_and(~pred_grow, true_grow))
 
         tpr = tp / (tp + fn)
         tnr = tn / (tn + fp)
@@ -77,15 +82,15 @@ class GeneticSolver:
 
         return score
 
-    def apply_rule(self, rule):
+    def apply_rule(self, rule, data):
         rule_as_idxes = self.split_rule(rule - 1)
 
         r = rule_as_idxes[0]
-        results = np.any(self.data[:, r[r >= 0]], axis=1)
+        results = np.any(data[:, r[r >= 0]], axis=1)
         for r in rule_as_idxes[1:]:
             cols = r[r >= 0]
             if cols.size > 0:
-                results = results & np.any(self.data[:, cols], axis=1)
+                results = results & np.any(data[:, cols], axis=1)
 
         return results
 
@@ -216,7 +221,8 @@ class GeneticSolver:
         return selections
 
     def _build_summary_output(self, rule):
-        score, metrics = self.fitness_score(rule, include_metrics=True)
+        _, train_metrics = self.fitness_score(rule, include_metrics=True)
+        score, metrics = self.fitness_score(rule, include_metrics=True, use_test_data=True)
         rule_split = self.split_rule(rule)
 
         add_rule = np.zeros(len(rule))
@@ -226,12 +232,12 @@ class GeneticSolver:
         for idx, group in enumerate(rule_split):
 
             add_rule[0 : len(group)] = group
-            add_score = self.fitness_score(add_rule)
+            add_score = self.fitness_score(add_rule, use_test_data=True)
             add_scores.append(add_score)
 
             remove_rule = np.copy(rule)
             remove_rule[len(group) * idx : len(group) * (idx + 1)] = 0
-            remove_score = self.fitness_score(remove_rule)
+            remove_score = self.fitness_score(remove_rule, use_test_data=True)
             remove_scores.append(remove_score)
 
         rule_split = [
@@ -241,7 +247,8 @@ class GeneticSolver:
         output = [
             f"\n>> {self.run_name} ------------------------\n",
             f"Stopped after {self.generation_n-1} generations.\n",
-            f"Final accuracy: {metrics['accuracy']*100:.2f}%\n",
+            f"Final train accuracy: {train_metrics['accuracy']*100:.2f}%\n",
+            f"Final test accuracy: {metrics['accuracy']*100:.2f}%\n",
             f"Final balanced accuracy: {metrics['balanced_accuracy']*100:.2f}%\n",
             f"Final TPR: {metrics['TPR']*100:.2f}%\n",
             f"Final TNR: {metrics['TNR']*100:.2f}%\n",
@@ -350,7 +357,7 @@ def plot_hit_miss_rates(solver, round_data, rule):
     print(len(set(map(tuple, round_data.to_numpy()[:, :20]))))
 
     round_data["n_ingredients"] = 20 - round_data.iloc[:, :20].sum(axis=1)
-    round_data["rule_pred"] = solver.apply_rule(rule)
+    round_data["rule_pred"] = solver.apply_rule(rule, round_data.iloc[:, :20].to_numpy())
     round_data["fitness"] = round_data["fitness"].astype(bool)
     round_data["correct"] = round_data["fitness"] == round_data["rule_pred"]
 
@@ -383,7 +390,7 @@ def plot_hit_miss_rates(solver, round_data, rule):
     plt.savefig("rule_solver_counts.png", dpi=400)
 
 
-def solve(round_data, run_name, output_folder, threshold=0.25):
+def solve(round_data, run_name, output_folder, n_groups = 7, threshold=0.25):
     # Median all duplicated experiments since we repeat some
     round_data = round_data.groupby(
         list(round_data.columns[:20]), as_index=False
@@ -404,11 +411,10 @@ def solve(round_data, run_name, output_folder, threshold=0.25):
 
     choices = np.arange(21)
     pop_size = 1000
-    n_groups = 7
     solver = GeneticSolver(
         run_name, output_folder, n_groups, choices, pop_size, round_data.to_numpy()
     )
-    rule = solver.solve(elite_p=0.25, mutation_mu=5, max_generations=3000)
+    rule = solver.solve(elite_p=0.25, mutation_mu=5, max_generations=250)
 
     # rule = np.array([0, 6, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
     # plot_hit_miss_rates(solver, round_data, rule)
@@ -453,7 +459,7 @@ def solve_kfold_regularization(round_data, run_name, threshold=0.25):
         print()
 
 
-def evaluate_rule(rule, round_data, run_name, threshold=0.25):
+def evaluate_rule(rule, round_data, run_name, output_folder, threshold=0.25):
     # Median all duplicated experiments since we repeat some
     round_data = round_data.groupby(
         list(round_data.columns[:20]), as_index=False
@@ -466,16 +472,19 @@ def evaluate_rule(rule, round_data, run_name, threshold=0.25):
     round_data = round_data.iloc[:, :20]
     round_data.columns = list(range(1, 21))
     round_data["fitness"] = fitness_data
+    round_data = round_data.to_numpy()
+
+    train_set, test_set = train_test_split(round_data, test_size=0.25)
 
     choices = np.arange(21)
     pop_size = 1000
     n_groups = 4
-    solver = GeneticSolver(run_name, n_groups, choices, pop_size, round_data.to_numpy())
+    solver = GeneticSolver(run_name, output_folder, n_groups, choices, pop_size, train_set)
 
     solver.summarize_score(rule)
 
 
-def main(folder, max_round_n):
+def main(folder, max_round_n, n_groups):
     folders = [
         os.path.join(folder, i, "results_all.csv")
         for i in os.listdir(folder)
@@ -496,55 +505,65 @@ def main(folder, max_round_n):
     print(f"Round data: {round_data.shape[0]}")
     run_name = f"{folder} - Round {max_round_n}"
     output_folder = os.path.join(folder, "rule_results")
-    solve(round_data, run_name, output_folder)
+    solve(round_data, run_name, output_folder, n_groups)
     # solve_kfold_regularization(round_data)
 
 
-# def main2():
-#     folder = "data/SMU_data/standards"
-#     # folder = "data/SMU_data/kk1"
-#     # folder = "data/SMU_data/kk2"
-#     # folder = "data/SMU_data/kk3"
-#     # folder = "data/SMU_data/randoms"
-#     files = [os.path.join(folder, i) for i in os.listdir(folder)]
+def main2(experiment_folder):
+    # experiment_folder = "experiments/07-26-2021_11"
+    # folder = "data/SMU_data/kk1"
+    # folder = "data/SMU_data/kk2"
+    # folder = "data/SMU_data/kk3"
+    # folder = "data/SMU_data/randoms"
+    # files = [os.path.join(folder, i) for i in os.listdir(folder)]
 
-#     # files = ["data/SMU_data/standards/L1I-L2I SMU a438.csv", "data/SMU_data/standards/L1O-L2O SMU 3e31.csvs"]
-#     # files = [
-#     #     # "data/SMU_data/standards/L1IO-L2IO-Rand SMU UA159 69be.csv",
-#     #     # "data/SMU_data/standards/L1IO-L2IO-Rand SMU UA159 (3) 9b54.csv",
-#     #     "data/SMU_data/standards/L1I-L2I SMU a438.csv",
-#     # ]
+    # files = ["data/SMU_data/standards/L1I-L2I SMU a438.csv", "data/SMU_data/standards/L1O-L2O SMU 3e31.csvs"]
+    # files = [
+    #     # "data/SMU_data/standards/L1IO-L2IO-Rand SMU UA159 69be.csv",
+    #     # "data/SMU_data/standards/L1IO-L2IO-Rand SMU UA159 (3) 9b54.csv",
+    #     "data/SMU_data/standards/L1I-L2I SMU a438.csv",
+    # ]
 
-#     round_data = [
-#         utils.normalize_ingredient_names(pd.read_csv(f, index_col=None)) for f in files
-#     ]
-#     round_data = pd.concat(round_data, ignore_index=True)
-#     round_data = round_data.replace(
-#         {"Anaerobic Chamber @ 37 C": "anaerobic", "5% CO2 @ 37 C": "aerobic"}
-#     )
-#     round_data = round_data[round_data["environment"] == "aerobic"]
-#     round_data["direction"] = "DOWN"
-#     round_data["solution_id_hex"] = None
-#     print(round_data.shape)
-#     round_data = round_data[round_data["good_data"] != False]
-#     print(round_data.shape)
+    # round_data = [
+    #     utils.normalize_ingredient_names(pd.read_csv(f, index_col=None)) for f in files
+    # ]
+    # round_data = pd.concat(round_data, ignore_index=True)
+    # round_data = round_data.replace(
+    #     {"Anaerobic Chamber @ 37 C": "anaerobic", "5% CO2 @ 37 C": "aerobic"}
+    # )
+    # round_data = round_data[round_data["environment"] == "aerobic"]
+    # round_data["direction"] = "DOWN"
+    # round_data["solution_id_hex"] = None
+    # print(round_data.shape)
+    # round_data = round_data[round_data["good_data"] != False]
+    # print(round_data.shape)
 
-#     drops = [i for i in ["good_data", "reason", "reasons"] if i in round_data.columns]
-#     round_data = round_data.drop(columns=drops)
-#     round_data = round_data.reset_index(drop=True)
-#     round_data.to_csv("data.csv", index=False)
-#     round_data, _, _ = utils.process_mapped_data("data.csv")
-#     # round_data["depth"] = round_data.iloc[:, :20].sum(axis=1)
-#     # round_data = round_data[round_data["depth"] <= 2]
+    # drops = [i for i in ["good_data", "reason", "reasons"] if i in round_data.columns]
+    # round_data = round_data.drop(columns=drops)
+    # round_data = round_data.reset_index(drop=True)
+    # round_data.to_csv("data.csv", index=False)
+    # round_data, _, _ = utils.process_mapped_data("data.csv")
+    # round_data["depth"] = round_data.iloc[:, :20].sum(axis=1)
+    # round_data = round_data[round_data["depth"] <= 2]
 
-#     # print(round_data["depth"])
-#     # print(round_data.shape)
+    # print(round_data["depth"])
+    # print(round_data.shape)
 
-#     # rule = np.array([0, 6, 7, 0, 0, 10, 11, 20, 0, 0, 0, 0, 0, 0, 0, 0])
-#     # rule = np.array([0, 6, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
-#     # evaluate_rule(rule, round_data)
-#     solve(round_data)
-#     # solve_kfold_regularization(round_data)
+    # rule = np.array([0, 6, 7, 0, 0, 10, 11, 20, 0, 0, 0, 0, 0, 0, 0, 0])
+    round_data = utils.combined_round_data(experiment_folder, max_n=11)
+    round_data = round_data[list(round_data.columns)[:20] + ["fitness"]]
+    print(round_data)
+    
+    rule = np.array([0, 19, 0, 0, 0, 14, 0, 0, 0, 5, 11, 0, 0, 2, 0, 0, 0, 6, 7, 0, 0, 16, 0, 0, 0, 5, 20, 0])
+    evaluate_rule(rule, round_data, "SGO2_11", experiment_folder)
+
+    rule = np.array([0, 19, 0, 0, 0, 14, 0, 0, 0, 0, 11, 0, 0, 2, 0, 0, 0, 6, 7, 0, 0, 16, 0, 0, 0, 5, 20, 0])
+    evaluate_rule(rule, round_data, "SGO2_11-2", experiment_folder)
+
+    rule = np.array([0, 14, 0, 0, 0, 5, 11, 0, 0, 8, 20, 0, 0, 19, 0, 0, 0, 2, 0, 0, 0, 16, 0, 0, 0, 6, 7, 0, 0, 5, 20, 0])
+    evaluate_rule(rule, round_data, "SGO2_11-3", experiment_folder)
+    # solve(round_data)
+    # solve_kfold_regularization(round_data)
 
 
 if __name__ == "__main__":
@@ -554,14 +573,21 @@ if __name__ == "__main__":
     # experiment_folder = "experiments/05-31-2021_7/"
     # experiment_folder = "experiments/05-31-2021_8/"
     # experiment_folder = "experiments/05-31-2021_9/"
-    experiment_folder = "experiments/07-26-2021_10"
+    # experiment_folder = "experiments/07-26-2021_10"
+    experiment_folder = "experiments/07-26-2021_11"
+    # experiment_folder = "experiments/08-20-2021_12"
 
-    # for i in range(1, 13):
+    # for i in range(1, 15):
     #     print()
     #     print(i, "-----------------------------")
-    #     main(experiment_folder, i)
+    #     main(experiment_folder, i, n_groups=7)
 
-    main(experiment_folder, 13)
-    # main(experiment_folder, 7)
+    # for i in range(10, 12):
+    #     print()
+    #     print(i, "-----------------------------")
+    #     main(experiment_folder, 13, n_groups=i)
 
-    # main2()
+    # main(experiment_folder, 13, n_groups=7)
+    # main(experiment_folder, 4, n_groups=7)
+
+    main2(experiment_folder)

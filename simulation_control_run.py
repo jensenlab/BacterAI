@@ -235,27 +235,27 @@ def fitness_order_plot(batch_1, batch_2):
     all_b2.sort()
     all_b2 = np.clip(all_b2, 0, 1)
 
-    axs.plot(np.arange(len(all_b1)), all_b1, "r.", markersize=2, alpha=0.025)
-    axs.plot(np.arange(len(all_b2)), all_b2, "k.", markersize=2, alpha=0.025)
-    # axs.hist(
-    #     all_b1,
-    #     bins=50,
-    #     color="r",
-    #     alpha=0.5,
-    # )
-    # axs.hist(
-    #     all_b2,
-    #     bins=50,
-    #     color="k",
-    #     alpha=0.5,
-    # )
+    # axs.plot(np.arange(len(all_b1)), all_b1, "r.", markersize=2, alpha=0.025)
+    # axs.plot(np.arange(len(all_b2)), all_b2, "k.", markersize=2, alpha=0.025)
+    axs.hist(
+        all_b1,
+        bins=50,
+        color="r",
+        alpha=0.5,
+    )
+    axs.hist(
+        all_b2,
+        bins=50,
+        color="k",
+        alpha=0.5,
+    )
     axs.set_ylabel("Count")
-    # axs.set_xlabel("Fitness")
+    axs.set_xlabel("Fitness")
     # axs.set_title(f"Round {idx+1}")
 
     plt.legend(["Random", "BacterAI"])
     fig.tight_layout()
-    fig.savefig("summarize_simulation_fitness_order_plot_combined_line.png", dpi=400)
+    fig.savefig("summarize_simulation_fitness_order_plot_combined.png", dpi=400)
 
 
 def plot_summary_with_replicates(n_replicates):
