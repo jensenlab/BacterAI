@@ -8,9 +8,6 @@ R-*
 rpy2*
 experiments/
 Bag\ v\ Boost\ figs\ and\ data/
-bag_models/
-bag_tests/
-boost_tests/
 __pycache__/
 plots/
 img/

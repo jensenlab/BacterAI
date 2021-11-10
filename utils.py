@@ -116,7 +116,7 @@ def decoratortimer(decimal):
 
     return decoratorfunction
 
-def combined_round_data(experiment_folder, max_n=None):
+def combined_round_data(experiment_folder, max_n=None, sort=True):
     paths = []
     for root, dirs, files in os.walk(experiment_folder):
         models = []
@@ -134,10 +134,11 @@ def combined_round_data(experiment_folder, max_n=None):
     for idx, path in enumerate(paths):
         print(path)
         results = normalize_ingredient_names(pd.read_csv(path, index_col=None))
-        results = results.sort_values(by="growth_pred").reset_index(drop=True)
+        if sort:
+            results = results.sort_values(by="growth_pred").reset_index(drop=True)
         if "is_redo" in results.columns:
             results = results[~results["is_redo"]]
-        results["round"] = idx + 1
+        # results["round"] = idx + 1
         all_results.append(results)
 
     all_results = pd.concat(all_results, ignore_index=True)
