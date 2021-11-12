@@ -27,3 +27,4 @@ SPSAvFDSA_expt/
 plots/
 COBRANet
 *Pipfile.lock
+.vscode

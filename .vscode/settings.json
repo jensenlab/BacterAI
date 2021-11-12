@@ -1,7 +1,0 @@
-{
-    "python.formatting.blackPath": "${workspaceFolder}/BacterAI/bin/black",
-    "python.pythonPath": "BacterAI/bin/python",
-    "python.formatting.provider": "black",
-    "python.venvPath": "${workspaceFolder}/",
-    "python.terminal.activateEnvInCurrentTerminal": true
-}
