@@ -1,5 +1,6 @@
 import argparse
 import csv
+import datetime
 import json
 import os
 import shutil
@@ -60,11 +61,12 @@ def make_batch(
     n_exps = batch_size // n_types
     batch_set = used_experiments
     sub_batches = []
+    all_metrics = {}
     for idx, sim_type in enumerate(sim_types):
         if idx == n_types - 1:
             n_exps = batch_size - sum([len(x) for x in sub_batches])
         print(idx, sim_type, batch_size, n_exps, sum([len(x) for x in sub_batches]))
-        batch, batch_set = perform_simulations(
+        batch, batch_set, metrics = perform_simulations(
             model,
             media,
             n_exps,
@@ -79,9 +81,10 @@ def make_batch(
             go_beyond_frontier=go_beyond_frontier,
         )
         sub_batches.append(batch)
+        all_metrics[sim_type.name] = metrics
 
     batch = pd.concat([redo_experiments] + sub_batches, ignore_index=True)
-    return batch, batch_set
+    return batch, batch_set, all_metrics
 
 
 def process_results(
@@ -375,7 +378,8 @@ def main(args):
         batch_size = BATCH_SIZE // 2
 
     # Create the batches
-    batch, batch_used = make_batch(
+    all_metrics = {}
+    batch, batch_used, metrics = make_batch(
         model,
         starting_media,
         new_round_n=NEW_ROUND_N,
@@ -390,12 +394,13 @@ def main(args):
         used_experiments=used_experiments,
         redo_experiments=redo_experiments,
     )
+    all_metrics[direction.name] = metrics
 
     ###### UP DIRECTION (used only when direction is BOTH) #####
     if DIRECTION == SimDirection.BOTH:
         direction = SimDirection.UP
         starting_media = np.zeros(20)
-        batch2, _ = make_batch(
+        batch2, _, metrics = make_batch(
             model,
             starting_media,
             new_round_n=NEW_ROUND_N,
@@ -410,7 +415,13 @@ def main(args):
             used_experiments=batch_used,
         )
         batch = pd.concat((batch, batch2), ignore_index=True)
+        all_metrics[direction.name] = metrics
     #############################################################
+
+    # Output run metrics
+    run_metrics_path = os.path.join(new_round_folder, "run_metrics.json")
+    with open(run_metrics_path, "w") as f:
+        json.dump(all_metrics, f, indent=4)
 
     model.close()
     export_to_dp_batch(new_round_folder, batch, date, NICKNAME)

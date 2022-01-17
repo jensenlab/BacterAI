@@ -1,6 +1,7 @@
 import datetime
 import os
 import random
+import time
 
 import torch
 from torch import nn
@@ -72,26 +73,11 @@ class NeuralNetwork(nn.Module):
             nn.Linear(256, 32),
             nn.ReLU(),
             nn.Linear(32, 1),
-            # nn.Linear(1)
-            # nn.Sigmoid(),
         )
-        # self.linear_relu_stack = nn.Sequential(
-        #     nn.Linear(20, 873),
-        #     nn.ReLU(),
-        #     nn.Linear(873, 1038),
-        #     nn.ReLU(),
-        #     nn.Linear(1038, 636),
-        #     nn.ReLU(),
-        #     nn.Linear(636, 1),
-        #     nn.Sigmoid(),
-        # )
 
         self.criterion = nn.MSELoss()
         self.mse = nn.MSELoss()
-        # self.optimizer = Adam(self.parameters(), lr=lr)
-        self.optimizer = Adam(
-            self.parameters(), lr=lr  # , weight_decay=0.001
-        )  # weight_decay=1e-2)
+        self.optimizer = Adam(self.parameters(), lr=lr)
         self.threshold = 0.25
 
     def forward(self, x):
@@ -393,6 +379,7 @@ def train_bagged(
     start_time = time.time()
     model_paths = []
     models = []
+    avg_mse = []
     n_train_data = int(bag_proportion * len(X_train))
 
     for b in range(n_bags):
@@ -409,7 +396,7 @@ def train_bagged(
             print(f"Using transfer model: {b}")
             model = transfer_models[b].to(DEVICE)
         else:
-        model = NeuralNetwork(lr=lr).to(DEVICE)
+            model = NeuralNetwork(lr=lr).to(DEVICE)
 
         # Training Model
         for epoch in range(1, epochs + 1):  # loop over the dataset multiple times
@@ -452,6 +439,12 @@ def train_bagged(
         torch.save(model, model_path)
         model_paths.append(model_path)
         models.append(model)
+        avg_mse.append(tr_mse)
+
+    end_time = time.time()
+    print(
+        f"\nAverage Training MSE ({end_time - start_time:.1f}s): {sum(avg_mse)/len(avg_mse):.4f}\n"
+    )
     return models
 
 
