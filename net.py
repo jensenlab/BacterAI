@@ -1,5 +1,6 @@
 import datetime
 import os
+import random
 
 import torch
 from torch import nn
@@ -380,7 +381,16 @@ def train_bagged(
     epochs=50,
     batch_size=360,
     lr=0.001,
+    transfer_models=[],
 ):
+
+    if transfer_models:
+        if len(transfer_models) != n_bags:
+            raise "The number of transfer models needs to match the number of bags."
+        else:
+            random.shuffle(transfer_models)
+
+    start_time = time.time()
     model_paths = []
     models = []
     n_train_data = int(bag_proportion * len(X_train))
@@ -395,6 +405,10 @@ def train_bagged(
         y_train_true_bag = y_train_true[train_indexes]
         dataset_bag = DatasetAminoAcids(X_train_bag, y_train_true_bag)
 
+        if transfer_models:
+            print(f"Using transfer model: {b}")
+            model = transfer_models[b].to(DEVICE)
+        else:
         model = NeuralNetwork(lr=lr).to(DEVICE)
 
         # Training Model

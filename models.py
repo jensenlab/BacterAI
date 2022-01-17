@@ -1,4 +1,3 @@
-
 from abc import ABC, abstractmethod
 from enum import Enum
 import os
@@ -82,7 +81,7 @@ class GPRModel(Model):
 
 
 class NeuralNetModel(Model):
-    def __init__(self, models_path):
+    def __init__(self, models_path, transfer_models=[]):
         self.models_path = models_path
         self.models = []
         self.is_trained = False
