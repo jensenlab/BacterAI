@@ -81,7 +81,7 @@ class GPRModel(Model):
 
 
 class NeuralNetModel(Model):
-    def __init__(self, models_path, transfer_models=[]):
+    def __init__(self, models_path):
         self.models_path = models_path
         self.models = []
         self.is_trained = False
