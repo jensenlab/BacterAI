@@ -1,9 +1,9 @@
 import argparse
 import csv
+import datetime
 import json
 import os
-import time
-import datetime
+import shutil
 
 import numpy as np
 import pandas as pd
@@ -61,11 +61,12 @@ def make_batch(
     n_exps = batch_size // n_types
     batch_set = used_experiments
     sub_batches = []
+    all_metrics = {}
     for idx, sim_type in enumerate(sim_types):
         if idx == n_types - 1:
             n_exps = batch_size - sum([len(x) for x in sub_batches])
         print(idx, sim_type, batch_size, n_exps, sum([len(x) for x in sub_batches]))
-        batch, batch_set = perform_simulations(
+        batch, batch_set, metrics = perform_simulations(
             model,
             media,
             n_exps,
@@ -80,9 +81,10 @@ def make_batch(
             go_beyond_frontier=go_beyond_frontier,
         )
         sub_batches.append(batch)
+        all_metrics[sim_type.name] = metrics
 
     batch = pd.concat([redo_experiments] + sub_batches, ignore_index=True)
-    return batch, batch_set
+    return batch, batch_set, all_metrics
 
 
 def process_results(
@@ -264,6 +266,11 @@ def main(args):
     SIMULATION_TYPE = [SimType(x) for x in config["simulation_types"]]
     BEYOND_FRONTIER = config["beyond_frontier"]
     USE_UNIQUE = config["use_unique"]
+    TRANSFER_MODEL_FOLDER = config.get("transfer_model_folder", None)
+
+    if TRANSFER_MODEL_FOLDER is not None:
+        print(f"Using transfer learning from '{TRANSFER_MODEL_FOLDER}' model.")
+        transfer_model = NeuralNetModel.load_trained_models(TRANSFER_MODEL_FOLDER)
 
     date = datetime.datetime.now().isoformat().replace(":", ".")
     prev_round_folder = (
@@ -284,8 +291,12 @@ def main(args):
             redo_prev_round=True,
             plot_only=args.plot_only,
         )
+    elif TRANSFER_MODEL_FOLDER:
+        # Skip any initial random training if using a pre-trained model
+        used_experiments = None
+        redo_experiments = None
     else:
-        # Cold start the AI (only for the first round!):
+        # Cold start the AI (only for the 1st round AND if not using pre-trained model):
         #   1) Use random data to train the model.
         #   2) Compute a new batch using the RANDOM policy
         #   3) The random data doesn't get used for training in future rounds
@@ -322,21 +333,35 @@ def main(args):
 
     # Train the models on the data from all previous rounds (excluding Round 1)
     if MODEL_TYPE == ModelType.GPR:
+        # Train GPR Model
         model = GPRModel()
         model.train(X_train, y_train)
+    elif TRANSFER_MODEL_FOLDER and NEW_ROUND_N == 1:
+        # Use purely pre-trained NN model for 1st round
+        models_folder = os.path.join(new_round_folder, f"nn_models")
+        if os.path.exists(models_folder):
+            raise (
+                Exception(
+                    f"File exists: '{models_folder}'. Cannot copy pre-trained models to here unless you remove it first."
+                )
+            )
+        shutil.copytree(TRANSFER_MODEL_FOLDER, models_folder)
+        model = transfer_model
     else:
+        # Train pre-trained NN model using new data
         models_folder = os.path.join(new_round_folder, f"nn_models")
         model = NeuralNetModel(models_folder)
 
+        transfer_models = transfer_model.models if TRANSFER_MODEL_FOLDER else []
         model.train(
             X_train,
             y_train,
-            # n_bags=1,
             n_bags=config["n_bags"],
             bag_proportion=1.0,
             epochs=50,
             batch_size=360,
             lr=0.001,
+            transfer_models=transfer_models,
         )
 
     if DIRECTION == SimDirection.DOWN:
@@ -353,7 +378,8 @@ def main(args):
         batch_size = BATCH_SIZE // 2
 
     # Create the batches
-    batch, batch_used = make_batch(
+    all_metrics = {}
+    batch, batch_used, metrics = make_batch(
         model,
         starting_media,
         new_round_n=NEW_ROUND_N,
@@ -368,12 +394,13 @@ def main(args):
         used_experiments=used_experiments,
         redo_experiments=redo_experiments,
     )
+    all_metrics[direction.name] = metrics
 
     ###### UP DIRECTION (used only when direction is BOTH) #####
     if DIRECTION == SimDirection.BOTH:
         direction = SimDirection.UP
         starting_media = np.zeros(20)
-        batch2, _ = make_batch(
+        batch2, _, metrics = make_batch(
             model,
             starting_media,
             new_round_n=NEW_ROUND_N,
@@ -388,7 +415,13 @@ def main(args):
             used_experiments=batch_used,
         )
         batch = pd.concat((batch, batch2), ignore_index=True)
+        all_metrics[direction.name] = metrics
     #############################################################
+
+    # Output run metrics
+    run_metrics_path = os.path.join(new_round_folder, "run_metrics.json")
+    with open(run_metrics_path, "w") as f:
+        json.dump(all_metrics, f, indent=4)
 
     model.close()
     export_to_dp_batch(new_round_folder, batch, date, NICKNAME)

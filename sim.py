@@ -1,4 +1,3 @@
-
 from enum import Enum
 import time
 
@@ -96,8 +95,8 @@ def rollout_trajectory(model, states, n_trajectories, threshold, sim_direction):
     trajectory_states = np.repeat(states, n_trajectories, axis=0)
     rewards = {i: [] for i in range(len(states))}
 
-    # State boundaries keeps track of the start and end row indexes for each state in the 
-    # trajectory_states 2D-array 
+    # State boundaries keeps track of the start and end row indexes for each state in the
+    # trajectory_states 2D-array
     states_boundaries = np.arange(0, n_trajectories * len(states) + 1, n_trajectories)
 
     reward_idx = 0
@@ -106,7 +105,7 @@ def rollout_trajectory(model, states, n_trajectories, threshold, sim_direction):
     while trajectory_states.size > 0:
         # Choices are the remaining actions available (depends on simulation direction)
         choices = np.argwhere(trajectory_states == sim_direction.target_value())
-        
+
         # If no more items can be removed from any trajectory state, calculate
         # the remaining rewards and end.
         if choices.size == 0:
@@ -117,7 +116,7 @@ def rollout_trajectory(model, states, n_trajectories, threshold, sim_direction):
             break
 
         # boundaries separates the returned np.argwhere indexes of the available choices
-        # to indexes that we can use for choices 
+        # to indexes that we can use for choices
         boundaries = np.r_[
             0,
             np.flatnonzero(choices[1:, 0] > choices[:-1, 0]) + 1,
@@ -126,10 +125,14 @@ def rollout_trajectory(model, states, n_trajectories, threshold, sim_direction):
 
         for i in range(boundaries.shape[0] - 1):
             row = choices[boundaries[i], 0]
-            idxes = choices[boundaries[i] : boundaries[i + 1], 1] # obtain the available choices 
-            np.random.shuffle(idxes) # randomize 
-            chosen_action = idxes[0] # pick random action
-            trajectory_states[row, chosen_action] = sim_direction.action_value() # take action
+            idxes = choices[
+                boundaries[i] : boundaries[i + 1], 1
+            ]  # obtain the available choices
+            np.random.shuffle(idxes)  # randomize
+            chosen_action = idxes[0]  # pick random action
+            trajectory_states[
+                row, chosen_action
+            ] = sim_direction.action_value()  # take action
 
         # Obtain predicted fitnesses for action taken for each tracjectory
         results, _ = model.evaluate(trajectory_states)
@@ -231,6 +234,7 @@ def perform_simulations(
     start_time = time.time()
     loops = 1
     n_found_but_exists = 0
+    adaptive_choice_history = []
 
     while len(batch) < n and not_timed_out:
         tq.desc = f"{desc} ({loops} loops)"
@@ -274,9 +278,6 @@ def perform_simulations(
                     threshold,
                     sim_direction,
                 )
-                # print(rollout_results)
-
-                # print("choices:", choices)
                 if sim_type == SimType.ROLLOUT_PROB:
                     # Pick an action idx from a distribution based on softmax of rollout results
                     # Adaptive K, defaults to 100, where softmax() acts as ~max(). Then as
@@ -284,6 +285,7 @@ def perform_simulations(
                     # is the standard softmax(). At K=0, the choice become random. The
                     # percent of actions remaining is also calculated to contribute a
                     # depth decay effect as well.
+
                     n_actions_remaining = (
                         current_state == sim_direction.target_value()
                     ).sum()
@@ -291,11 +293,11 @@ def perform_simulations(
                     a = 100
                     k = -a * (1 - np.exp(-np.power(n_found_but_exists / 30, 3))) + a
                     k = (k * 0.50) * (1 + percent_remaining)
+                    adaptive_choice_history.append((k, n_found_but_exists))
 
                     # Weighted softmax
                     p = utils.softmax(rollout_results, k=k)
                     action_idx = np.random.choice(choices.size, 1, p=p)[0]
-                    max_action_idx = np.argsort(rollout_results)[-1]
                 else:
                     # Pick highest predicted reward (mean # removed)
                     action_idx = np.argsort(rollout_results)[-1]
@@ -310,12 +312,12 @@ def perform_simulations(
             # Pick highest predicted growth as best action
             best_action_idx = np.argsort(results)[-1]
             best_action = choices[best_action_idx]
-            # print(best_action, results)
 
             # Keep track of prev state values
             old_state = current_state.copy()
             old_growth_result = current_grow_pred
             old_growth_var = current_grow_var
+
             # Set new state values
             new_state = current_state.copy()
             new_growth_result = float(results[best_action_idx])
@@ -392,6 +394,8 @@ def perform_simulations(
             not_timed_out = (time.time() - start_time) <= timeout
         loops += 1
 
+    duration = time.time() - start_time
+
     tq.close()
     if batch:
         batch = pd.DataFrame(np.vstack(batch))
@@ -405,4 +409,23 @@ def perform_simulations(
     else:
         batch = pd.DataFrame()
 
-    return batch, batch_set
+    k_history = [a[0] for a in adaptive_choice_history]
+    count_history = [a[1] for a in adaptive_choice_history]
+
+    if len(k_history):
+        k_avg = sum(k_history) / len(k_history)
+        count_avg = sum(count_history) / len(count_history)
+    else:
+        k_avg = "n/a"
+        count_avg = "n/a"
+
+    metrics = {
+        "k_history": k_history,
+        "count_history": count_history,
+        "k_avg": k_avg,
+        "count_avg": count_avg,
+        "total_loops_count": loops - 1,
+        "time_to_finish_sec": round(duration, 2),
+    }
+
+    return batch, batch_set, metrics
