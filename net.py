@@ -372,7 +372,9 @@ def train_bagged(
 
     if transfer_models:
         if len(transfer_models) != n_bags:
-            raise "The number of transfer models needs to match the number of bags."
+            raise Exception(
+                "The number of transfer models needs to match the number of bags."
+            )
         else:
             random.shuffle(transfer_models)
 
