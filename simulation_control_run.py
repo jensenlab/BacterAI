@@ -64,7 +64,7 @@ def load_data_and_batch(filepath, batch_size, max_batches=8, exclude_LOs=False):
 
     max_batches += 1  # to account for round 1 training set, we'll use first batch
     batch_indexes = batch_indexes[:max_batches]
-    batches = [data.loc[idx, :] for idx in batch_indexes]
+    batches = [data.iloc[idx, :] for idx in batch_indexes]
     return batches
 
 
@@ -255,7 +255,7 @@ def fitness_order_plot(batch_1, batch_2):
 
     plt.legend(["Random", "BacterAI"])
     fig.tight_layout()
-    fig.savefig("summarize_simulation_fitness_order_plot_combined.png", dpi=400)
+    fig.savefig("simulation_control_run_fitness_order_plot.png", dpi=400)
 
 
 def plot_summary_with_replicates(n_replicates):
