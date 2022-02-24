@@ -93,6 +93,8 @@ def process_results(
     new_folder,
     new_round_n,
     threshold,
+    n_redos=0,
+    redo_threshold=[0, 1],
     redo_prev_round=False,
     plot_only=False,
 ):
@@ -102,21 +104,26 @@ def process_results(
 
     Parameters
     ----------
-    folder : str
+    folder: str
         The folder path of the current round.
-    prev_folder : str
+    prev_folder: str
         The folder path of the previous round.
-    new_folder : str
+    new_folder: str
         The folder path of the new round.
-    new_round_n : int
+    new_round_n: int
         The number of the new round.
-    threshold : float
+    threshold: float
         The grow/no grow threshold used to determine when to terminate
         a rollout simulation.
-    redo_prev_round : bool, optional
+    n_redos: int, optional
+        The number of the experiments to redo from previous round.
+    redo_threshold: [float, float], optional
+        The lower and upper thresholds used to determine which experiments to use when
+        sampling for redos. Lower threshold is inclusive, upper is exclusive.
+    redo_prev_round: bool, optional
         Run the previous round's batch again,
         by default False
-    plot_only : bool, optional
+    plot_only: bool, optional
         Only save plot, don't save/export any other files.
 
     Returns
@@ -207,27 +214,52 @@ def process_results(
 
     # Assemble redo experiments, starting with bad experiments
     results_grow_only = results[results["fitness"] >= threshold]
-    remove_cols = [
-        "fitness",
-        "environment",
-        "strain",
-        "parent_plate",
-        "initial_od",
-        "final_od",
-        "delta_od",
-        "depth",
-    ]
 
     # Obtain the experiments from the current round to rescreen in the new round
     if redo_prev_round:
         redo_experiments = batch_df[batch_df["type"] != "REDO"]
         if "is_redo" in redo_experiments.columns:
             redo_experiments = redo_experiments[redo_experiments["is_redo"] == False]
+        redo_experiments["is_redo"] = True
+        redo_experiments["round"] = new_round_n - 1
+        redo_experiments.columns = list(range(20)) + list(redo_experiments.columns[20:])
         print(f"Redoing {len(redo_experiments)} experiments from previous round.")
+    elif n_redos > 0:
+        redo_experiments = results[results["type"] != "REDO"]
+        if "is_redo" in redo_experiments.columns:
+            redo_experiments = redo_experiments[redo_experiments["is_redo"] == False]
+
+        if isinstance(redo_threshold, list) or isinstance(redo_threshold, tuple):
+            if len(redo_threshold) != 2:
+                raise Exception("Length of redo_threshold must be 2.")
+
+            thresholded_indexes = redo_experiments[
+                (redo_experiments["fitness"] >= redo_threshold[0])
+                & (redo_experiments["fitness"] < redo_threshold[1])
+            ].index
+
+            n_needed = max(n_redos - len(thresholded_indexes), 0)
+            if n_needed > 0:
+                # Need more to fill out redos
+                print(f"Picking {n_needed} more random experiments to redo.")
+                unused_indexes = redo_experiments.index.difference(thresholded_indexes)
+                additional_indexes = np.random.choice(
+                    unused_indexes,
+                    size=min(n_needed, len(unused_indexes)),
+                    replace=False,
+                )
+                thresholded_indexes = thresholded_indexes.union(additional_indexes)
+
+            redo_experiments = redo_experiments.loc[thresholded_indexes, :]
+
+        redo_experiments = redo_experiments.sample(
+            min(n_redos, len(redo_experiments)), replace=False
+        )
 
         redo_experiments["is_redo"] = True
         redo_experiments["round"] = new_round_n - 1
         redo_experiments.columns = list(range(20)) + list(redo_experiments.columns[20:])
+        print(f"Redoing {len(redo_experiments)} experiments from previous round.")
 
     # Save and output successful results
     results_grow_only.to_csv(os.path.join(folder, "results_grow_only.csv"), index=False)
@@ -267,6 +299,8 @@ def main(args):
     BEYOND_FRONTIER = config["beyond_frontier"]
     USE_UNIQUE = config["use_unique"]
     TRANSFER_MODEL_FOLDER = config.get("transfer_model_folder", None)
+    N_REDOS = config.get("redo_size", None)
+    REDO_THRESHOLD = config.get("redo_threshold", None)
 
     if TRANSFER_MODEL_FOLDER is not None:
         print(f"Using transfer learning from '{TRANSFER_MODEL_FOLDER}' model.")
@@ -282,13 +316,16 @@ def main(args):
         os.makedirs(new_round_folder)
     if NEW_ROUND_N > 1:
         # Continue the experiment (for all rounds except the first)
+        redo_entire_round = False if N_REDOS is not None else True
         X_train, y_train, used_experiments, redo_experiments = process_results(
             current_round_folder,
             prev_round_folder,
             new_round_folder,
             NEW_ROUND_N,
             GROW_THRESHOLD,
-            redo_prev_round=True,
+            n_redos=N_REDOS,
+            redo_threshold=REDO_THRESHOLD,
+            redo_prev_round=redo_entire_round,
             plot_only=args.plot_only,
         )
     elif TRANSFER_MODEL_FOLDER:
