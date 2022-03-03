@@ -217,7 +217,7 @@ def process_results(
 
     # Obtain the experiments from the current round to rescreen in the new round
     if redo_prev_round:
-        redo_experiments = batch_df[batch_df["type"] != "REDO"]
+        redo_experiments = batch_df.loc[batch_df["type"] != "REDO", :]
         if "is_redo" in redo_experiments.columns:
             redo_experiments = redo_experiments[redo_experiments["is_redo"] == False]
         redo_experiments["is_redo"] = True
@@ -256,6 +256,7 @@ def process_results(
             min(n_redos, len(redo_experiments)), replace=False
         )
 
+        redo_experiments = redo_experiments.loc[:, batch_df.columns]
         redo_experiments["is_redo"] = True
         redo_experiments["round"] = new_round_n - 1
         redo_experiments.columns = list(range(20)) + list(redo_experiments.columns[20:])
