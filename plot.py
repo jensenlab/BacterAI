@@ -1,4 +1,3 @@
-
 import collections
 import os
 import matplotlib.pyplot as plt
@@ -6,6 +5,7 @@ import numpy as np
 import pandas as pd
 
 from global_vars import *
+
 
 def plot_redos(folder, prev_results, redo_results):
     """Plot the rescreen results of the previous round against the previous round's results.
@@ -18,12 +18,12 @@ def plot_redos(folder, prev_results, redo_results):
         The previous round's processed results.
     redo_results : pd.DataFrame
         The current round's processed results, includes only the rescreens.
-    """    
+    """
 
     merged_results = pd.merge(
         prev_results,
         redo_results,
-        how="left",
+        how="right",
         left_on=AA_SHORT,
         right_on=AA_SHORT,
         sort=True,
@@ -39,7 +39,9 @@ def plot_redos(folder, prev_results, redo_results):
     plt.plot(
         x, fitness_prev[order], "-", c="black", markersize=2, label="Previous Round"
     )
-    plt.plot(x, fitness_redo[order], ".", c=COLORS["REDO"], markersize=2, label="Rescreen")
+    plt.plot(
+        x, fitness_redo[order], ".", c=COLORS["REDO"], markersize=2, label="Rescreen"
+    )
 
     plt.xlabel("Assay N")
     plt.ylabel("Fitness")
@@ -52,11 +54,11 @@ def plot_redos(folder, prev_results, redo_results):
 
 
 def plot_results(folder, results, threshold):
-    """Plot a summary of the current round's results for both the FRONTIER type and 
+    """Plot a summary of the current round's results for both the FRONTIER type and
     BEYOND_FRONTIER type:
-        1) Shows a order plot of the  actual fitnesses vs. the model's 
-        predicted fitnesses. 
-        2) Shows a histogram of the depth (# ingredients removed) counts for each 
+        1) Shows a order plot of the  actual fitnesses vs. the model's
+        predicted fitnesses.
+        2) Shows a histogram of the depth (# ingredients removed) counts for each
         search policy (RANDOM and ROLLOUT)
 
 
@@ -68,7 +70,7 @@ def plot_results(folder, results, threshold):
         The processed results of the round.
     threshold : float
         The no grow/grow threshold.
-    """    
+    """
 
     results = results.sort_values(by="growth_pred").reset_index(drop=True)
     fig, axs = plt.subplots(
