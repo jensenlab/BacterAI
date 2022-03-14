@@ -528,21 +528,7 @@ def main(folder):
         results_all.to_csv(os.path.join(round_output, f"summarize_ALL_results.csv"))
 
 
-# def collect_data(folder):
-#     files = [f for f in os.listdir(folder) if "mapped_data" in f]
-#     dfs = [utils.process_mapped_data(os.path.join(folder, f))[0] for f in files]
-#     df = pd.concat(dfs, ignore_index=True)
-#     df = df.replace(
-#         {"Anaerobic Chamber @ 37 C": "anaerobic", "5% CO2 @ 37 C": "aerobic"}
-#     )
-#     df = df[df["environment"] == "aerobic"]
-#     df = df.drop(
-#         columns=["strain", "parent_plate", "initial_od", "final_od", "bad", "delta_od"]
-#     )
-#     df.to_csv(os.path.join(folder, "SGO CH1 Processed-Aerobic.csv"), index=False)
-
-
-def make_growth_distribution_hist(bacterai_data, random_data):
+def make_growth_distribution_hist(bacterai_data, random_data, experiment_folder):
     fig, axs = plt.subplots(nrows=1, ncols=1, figsize=(10, 6))
 
     width = 0.5
@@ -598,8 +584,12 @@ def make_growth_distribution_hist(bacterai_data, random_data):
     # axs.xaxis.set_major_formatter(FormatStrFormatter('%.2f'))
     # plt.gca().xaxis.set_major_formatter(StrMethodFormatter('{x:,.2f}'))
     plt.legend(["Random", "BacterAI"])
+
+    fig_path = os.path.join(
+        experiment_folder, "summarize_simulation_fitness_order_plot_combined.png"
+    )
     fig.tight_layout()
-    fig.savefig("summarize_simulation_fitness_order_plot_combined.png", dpi=400)
+    fig.savefig(fig_path, dpi=400)
 
 
 if __name__ == "__main__":
@@ -637,6 +627,14 @@ if __name__ == "__main__":
         help="Plot every or every other",
     )
 
+    parser.add_argument(
+        "-t",
+        "--show_train",
+        action="store_true",
+        default=False,
+        help="Include train plots.",
+    )
+
     args = parser.parse_args()
 
     name = args.name
@@ -654,18 +652,15 @@ if __name__ == "__main__":
         name,
         skip=args.increment,
         max_n=args.rounds,
+        show_train=args.show_train,
     )
-    # plot_main_fig(folder, all_test_data, all_train_data, fig_name, skip=2)
-    # plot_main_fig(folder, all_test_data, all_train_data, fig_name, skip=2, show_train=False)
 
-    # # Second plot
-    # data = utils.combined_round_data(folder, max_n=13)
-    # print(data)
-    # path = "Randoms (1) SGO CH1 17f3 mapped_data.csv"
-    # # path = "BacterAI SGO CH1 (10R13) rule verify 12fb mapped_data.csv"
-    # rand_data = utils.process_mapped_data(path)[0]
-    # print(rand_data)
-    # # rand_data = rand_data.sort_values(by="growth_pred").reset_index(drop=True)
-    # # if "is_redo" in rand_data.columns:
-    # #     rand_data = rand_data[~rand_data["is_redo"]]
-    # make_growth_distribution_hist(data, rand_data)
+    # Second plot
+    data = utils.combined_round_data(args.path, max_n=args.rounds)
+    path = "Randoms (1) SGO CH1 17f3 mapped_data.csv"
+    rand_data = utils.process_mapped_data(path)[0]
+    rand_data = rand_data.sort_values(by="growth_pred").reset_index(drop=True)
+    if "is_redo" in rand_data.columns:
+        rand_data = rand_data[~rand_data["is_redo"]]
+
+    make_growth_distribution_hist(data, rand_data, args.path)
