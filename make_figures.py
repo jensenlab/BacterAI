@@ -30,11 +30,20 @@ COLORS = {
 }
 
 
-plt.rcParams['font.family'] = 'sans-serif'
-plt.rcParams['font.sans-serif'] = 'Arial'
-plt.rcParams['svg.fonttype'] = 'none'
+plt.rcParams["font.family"] = "sans-serif"
+plt.rcParams["font.sans-serif"] = "Arial"
+plt.rcParams["svg.fonttype"] = "none"
 
-def plot_main_fig(experiment_folder, all_test_data, all_train_data, fig_name, skip=1, show_train=True, max_n=None):
+
+def plot_main_fig(
+    experiment_folder,
+    all_test_data,
+    all_train_data,
+    fig_name,
+    skip=1,
+    show_train=True,
+    max_n=None,
+):
     GROUP_WIDTH = 4
     SPACER_WIDTH = 1.5
     N_GROUPS = 21
@@ -144,7 +153,9 @@ def plot_main_fig(experiment_folder, all_test_data, all_train_data, fig_name, sk
         axs[graph_idx, 0].set_xticks(major_ticks)
         axs[graph_idx, 0].set_xticklabels(np.arange(0, 21))
         axs[graph_idx, 0].set_yticklabels([])
-        axs[graph_idx, 0].set_ylabel(f"Day {round_idx+1}", rotation=0, horizontalalignment='left')
+        axs[graph_idx, 0].set_ylabel(
+            f"Day {round_idx+1}", rotation=0, horizontalalignment="left"
+        )
         axs[graph_idx, 0].yaxis.set_label_coords(0.0, 0.8)
 
         axs[graph_idx, 0].spines["left"].set_visible(False)
@@ -162,7 +173,6 @@ def plot_main_fig(experiment_folder, all_test_data, all_train_data, fig_name, sk
             verticalalignment="top",
             # bbox=dict(facecolor="white", alpha=0.5, linewidth=0),
         )
-        
 
         train_data = all_train_data.get(round_idx, None)
         col = 1
@@ -173,22 +183,27 @@ def plot_main_fig(experiment_folder, all_test_data, all_train_data, fig_name, sk
             mse = mean_squared_error(y_true, preds)
             acc = _get_acc(preds, y_true, threshold)
             order = np.argsort(preds)
-            axs[graph_idx+1, col].plot(
-                x_axis_points, y_true[order], "k.", alpha=0.2, markersize=3, linewidth=0, markeredgewidth=0
+            axs[graph_idx + 1, col].plot(
+                x_axis_points,
+                y_true[order],
+                "k.",
+                alpha=0.2,
+                markersize=3,
+                linewidth=0,
+                markeredgewidth=0,
             )
-            axs[graph_idx+1, col].plot(
+            axs[graph_idx + 1, col].plot(
                 x_axis_points,
                 preds[order],
                 color="dodgerblue",
             )
 
-            axs[graph_idx+1, col].text(
+            axs[graph_idx + 1, col].text(
                 0, 1.05, f"Acc: {acc*100:.1f}%", **metric_style
             )
-        
+
         if show_train:
             col += 1
-            
 
         test_data = all_test_data.get(round_idx, None)
         if test_data is not None:
@@ -200,29 +215,31 @@ def plot_main_fig(experiment_folder, all_test_data, all_train_data, fig_name, sk
 
             order = np.argsort(preds)
             axs[graph_idx, col].plot(
-                x_axis_points, y_true[order], "k.", alpha=1, markersize=3, linewidth=0, markeredgewidth=0
+                x_axis_points,
+                y_true[order],
+                "k.",
+                alpha=1,
+                markersize=3,
+                linewidth=0,
+                markeredgewidth=0,
             )
             axs[graph_idx, col].plot(x_axis_points, preds[order], color="dodgerblue")
-            axs[graph_idx, col].text(
-                0, 1.05, f"Acc: {acc*100:.1f}%", **metric_style
-            )
+            axs[graph_idx, col].text(0, 1.05, f"Acc: {acc*100:.1f}%", **metric_style)
 
         if graph_idx == 0 and show_train:
             axs[graph_idx, 1].axis("off")
-            
+
         # if graph_idx == 3:
-            # axs[graph_idx, 1].set_ylabel("Fitness")
-        
+        # axs[graph_idx, 1].set_ylabel("Fitness")
 
     for ax in axs[:, 1:].flatten():
         # ax.set_aspect("equal")
         # ax.axes.get_xaxis().set_visible(False)
-        ax.set_xticks([]) 
-        ax.set_xticklabels([]) 
+        ax.set_xticks([])
+        ax.set_xticklabels([])
         ax.set_ybound(-0.15, 1.15)
         ax.set_yticks([0, 1])
         ax.set_yticklabels([0, 1])
-
 
     if show_train:
         axs[-1, 1].set_xlabel(f"Train Set")
@@ -233,8 +250,7 @@ def plot_main_fig(experiment_folder, all_test_data, all_train_data, fig_name, sk
         axs[-1, 1].set_xlabel(f"Test Set")
         # axs[-1, 1].axes.get_xaxis().set_visible(True)
 
-    
-    if skip==2:
+    if skip == 2:
         # fig.text(0.84, 0.07, "Model Performance", ha="center")
         loc = (0.84, 0.06)
     else:
@@ -260,7 +276,6 @@ def plot_main_fig(experiment_folder, all_test_data, all_train_data, fig_name, sk
                 markersize=3,
                 linewidth=0,
             ),
-            
         ],
         loc="center",
         frameon=False,
@@ -370,7 +385,6 @@ def plot_model_performance(experiment_folder, fig_name, max_n=None):
             round_name = root.split("/")[-2]
             models_in_rounds[round_name] = models
 
-    
     round_names = sorted(list(models_in_rounds.keys()), key=lambda x: (len(x), x))
     if max_n:
         round_names = round_names[:max_n]
@@ -514,7 +528,6 @@ def main(folder):
         results_all.to_csv(os.path.join(round_output, f"summarize_ALL_results.csv"))
 
 
-
 # def collect_data(folder):
 #     files = [f for f in os.listdir(folder) if "mapped_data" in f]
 #     dfs = [utils.process_mapped_data(os.path.join(folder, f))[0] for f in files]
@@ -528,22 +541,19 @@ def main(folder):
 #     )
 #     df.to_csv(os.path.join(folder, "SGO CH1 Processed-Aerobic.csv"), index=False)
 
+
 def make_growth_distribution_hist(bacterai_data, random_data):
-    fig, axs = plt.subplots(
-        nrows=1,
-        ncols=1,
-        figsize=(10,6)
-    )
+    fig, axs = plt.subplots(nrows=1, ncols=1, figsize=(10, 6))
 
     width = 0.5
     n_bins = 20
 
-    bins = np.arange(0, 1.01, 1/n_bins)
+    bins = np.arange(0, 1.01, 1 / n_bins)
     rand, rand_bounds = np.histogram(random_data["fitness"], bins)
     bact, bact_bounds = np.histogram(bacterai_data["fitness"], bins)
 
-    rand = rand/len(random_data)
-    bact = bact/len(bacterai_data)
+    rand = rand / len(random_data)
+    bact = bact / len(bacterai_data)
     # axs.hist(
     #     random_data["fitness"],
     #     bins=50,
@@ -556,17 +566,17 @@ def make_growth_distribution_hist(bacterai_data, random_data):
     #     color="k",
     #     alpha=0.5,
     # )
-        
+
     x = np.arange(n_bins)
     r1 = axs.bar(
-        x+width/2, 
+        x + width / 2,
         rand,
         width,
         color="dodgerblue",
         # alpha=0.5,
     )
     r2 = axs.bar(
-        x+1.5*width, 
+        x + 1.5 * width,
         bact,
         width,
         color="k",
@@ -578,11 +588,11 @@ def make_growth_distribution_hist(bacterai_data, random_data):
     axs.bar_label(r2, padding=2, fmt="%.2f", fontsize=7.5)
     # axs.set_title(f"Round {idx+1}")
     # axs.set_xticks(np.arange(n_bins+1))
-    bin_labels = [f"{x:.2f}" for x in np.arange(0, 1.01, 1/n_bins)]
+    bin_labels = [f"{x:.2f}" for x in np.arange(0, 1.01, 1 / n_bins)]
     print(bin_labels)
-    axs.set_xticks(np.arange(0, n_bins+1, 1))
+    axs.set_xticks(np.arange(0, n_bins + 1, 1))
     axs.set_xticklabels(bin_labels)
-    plt.xticks(rotation='vertical')
+    plt.xticks(rotation="vertical")
     # axs.set_yscale('log')
 
     # axs.xaxis.set_major_formatter(FormatStrFormatter('%.2f'))
@@ -590,6 +600,7 @@ def make_growth_distribution_hist(bacterai_data, random_data):
     plt.legend(["Random", "BacterAI"])
     fig.tight_layout()
     fig.savefig("summarize_simulation_fitness_order_plot_combined.png", dpi=400)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="BacterAI Figures")
