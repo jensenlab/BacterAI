@@ -1,3 +1,4 @@
+import argparse
 import collections
 import os
 from math import comb
@@ -59,7 +60,8 @@ def plot_main_fig(experiment_folder, all_test_data, all_train_data, fig_name, sk
         paths = paths[:max_n]
     all_results = []
 
-    for round_idx in range(0, len(paths), skip):
+    n_plots = len(paths)
+    for round_idx in range(0, n_plots, skip):
         path = paths[round_idx]
         print(path)
         results = utils.normalize_ingredient_names(pd.read_csv(path, index_col=None))
@@ -68,7 +70,7 @@ def plot_main_fig(experiment_folder, all_test_data, all_train_data, fig_name, sk
             results = results[~results["is_redo"]]
         all_results.append((round_idx, results))
 
-    height = 10 if skip == 2 else 20
+    height = 1.5 * n_plots + 1.5
     width = 11 if show_train else 10
 
     if show_train:
@@ -306,9 +308,11 @@ def plot_main_fig(experiment_folder, all_test_data, all_train_data, fig_name, sk
     )
     plt.subplots_adjust(left=0, right=1, top=1, bottom=0.1, wspace=0, hspace=0.1)
 
+    fig_path = os.path.join(experiment_folder, fig_name)
     plt.tight_layout()
-    plt.savefig(f"{fig_name}.png", dpi=400)
-    plt.savefig(f"{fig_name}.svg", dpi=400)
+    plt.savefig(fig_path + ".png", dpi=400)
+    plt.savefig(fig_path + ".svg", dpi=400)
+
 
 def _get_acc(a, b, threshold):
     a = a.copy()
@@ -322,7 +326,7 @@ def _get_acc(a, b, threshold):
     return acc
 
 
-def plot_model_performance(experiment_folder, max_n=None):
+def plot_model_performance(experiment_folder, fig_name, max_n=None):
 
     threshold = 0.25
     models_in_rounds = {}
@@ -421,8 +425,11 @@ def plot_model_performance(experiment_folder, max_n=None):
             axs[1, i].set_xlabel("Experiment")
             axs[1, i].set_title(f"{name} NNs, Train\nMSE:{mse:.3f}\nAcc:{acc:.3f}")
 
+    fig_path = os.path.join(
+        experiment_folder, f"summarize_nn_performance_{fig_name}.png"
+    )
     fig.tight_layout()
-    fig.savefig("summarize_nn_performance.png", dpi=400)
+    fig.savefig(fig_path, dpi=400)
     return all_test_data, all_train_data
 
 
@@ -585,35 +592,69 @@ def make_growth_distribution_hist(bacterai_data, random_data):
     fig.savefig("summarize_simulation_fitness_order_plot_combined.png", dpi=400)
 
 if __name__ == "__main__":
-    # folder = "experiments/05-31-2021_7"
-    # folder = "experiments/05-31-2021_8"
-    # folder = "experiments/05-31-2021_7 copy"
+    parser = argparse.ArgumentParser(description="BacterAI Figures")
 
-    # folder = "experiments/07-26-2021_11"
+    parser.add_argument(
+        "path",
+        type=str,
+        help="The path to the experiment folder",
+    )
 
-    folder = "experiments/07-26-2021_10"
-    fig_name = "fig1_SGO_10_full"
+    parser.add_argument(
+        "-r",
+        "--rounds",
+        type=int,
+        required=True,
+        help="The number of rounds to plot out starting at 1",
+    )
 
-    # folder = "experiments/08-20-2021_12"
-    # fig_name = "fig1_SSA_12_full"
+    parser.add_argument(
+        "-n",
+        "--name",
+        type=str,
+        required=False,
+        help="The name of the figure",
+    )
 
-    # all_test_data, all_train_data = plot_model_performance(folder, max_n=13)
+    parser.add_argument(
+        "-i",
+        "--increment",
+        type=int,
+        required=False,
+        choices=(1, 2),
+        default=1,
+        help="Plot every or every other",
+    )
 
-    # plot_main_fig(folder, all_test_data, all_train_data, fig_name, skip=1, max_n=13)
+    args = parser.parse_args()
+
+    name = args.name
+    if not name:
+        name = args.path.replace(" ", "-").replace("/", "_")
+
+    all_test_data, all_train_data = plot_model_performance(
+        args.path, name, max_n=args.rounds
+    )
+
+    plot_main_fig(
+        args.path,
+        all_test_data,
+        all_train_data,
+        name,
+        skip=args.increment,
+        max_n=args.rounds,
+    )
     # plot_main_fig(folder, all_test_data, all_train_data, fig_name, skip=2)
     # plot_main_fig(folder, all_test_data, all_train_data, fig_name, skip=2, show_train=False)
 
-
-    data = utils.combined_round_data(folder, max_n=13)
-    print(data)
-
-    path = "Randoms (1) SGO CH1 17f3 mapped_data.csv"
-    # path = "BacterAI SGO CH1 (10R13) rule verify 12fb mapped_data.csv"
-    rand_data = utils.process_mapped_data(path)[0]
-    print(rand_data)
-
-    # rand_data = rand_data.sort_values(by="growth_pred").reset_index(drop=True)
-    # if "is_redo" in rand_data.columns:
-    #     rand_data = rand_data[~rand_data["is_redo"]]
-
-    make_growth_distribution_hist(data, rand_data)
+    # # Second plot
+    # data = utils.combined_round_data(folder, max_n=13)
+    # print(data)
+    # path = "Randoms (1) SGO CH1 17f3 mapped_data.csv"
+    # # path = "BacterAI SGO CH1 (10R13) rule verify 12fb mapped_data.csv"
+    # rand_data = utils.process_mapped_data(path)[0]
+    # print(rand_data)
+    # # rand_data = rand_data.sort_values(by="growth_pred").reset_index(drop=True)
+    # # if "is_redo" in rand_data.columns:
+    # #     rand_data = rand_data[~rand_data["is_redo"]]
+    # make_growth_distribution_hist(data, rand_data)
