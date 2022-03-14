@@ -540,18 +540,6 @@ def make_growth_distribution_hist(bacterai_data, random_data, experiment_folder)
 
     rand = rand / len(random_data)
     bact = bact / len(bacterai_data)
-    # axs.hist(
-    #     random_data["fitness"],
-    #     bins=50,
-    #     color="r",
-    #     alpha=0.5,
-    # )
-    # axs.hist(
-    #     bacterai_data["fitness"],
-    #     bins=50,
-    #     color="k",
-    #     alpha=0.5,
-    # )
 
     x = np.arange(n_bins)
     r1 = axs.bar(
@@ -559,21 +547,18 @@ def make_growth_distribution_hist(bacterai_data, random_data, experiment_folder)
         rand,
         width,
         color="dodgerblue",
-        # alpha=0.5,
     )
     r2 = axs.bar(
         x + 1.5 * width,
         bact,
         width,
         color="k",
-        # alpha=0.5,
     )
     axs.set_ylabel("Count Density")
     axs.set_xlabel("Fitness")
     axs.bar_label(r1, padding=2, fmt="%.2f", fontsize=7.5)
     axs.bar_label(r2, padding=2, fmt="%.2f", fontsize=7.5)
-    # axs.set_title(f"Round {idx+1}")
-    # axs.set_xticks(np.arange(n_bins+1))
+
     bin_labels = [f"{x:.2f}" for x in np.arange(0, 1.01, 1 / n_bins)]
     print(bin_labels)
     axs.set_xticks(np.arange(0, n_bins + 1, 1))
