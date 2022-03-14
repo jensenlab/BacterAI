@@ -535,8 +535,8 @@ def make_growth_distribution_hist(bacterai_data, random_data, experiment_folder)
     n_bins = 20
 
     bins = np.arange(0, 1.01, 1 / n_bins)
-    rand, rand_bounds = np.histogram(random_data["fitness"], bins)
-    bact, bact_bounds = np.histogram(bacterai_data["fitness"], bins)
+    rand, _ = np.histogram(random_data["fitness"], bins)
+    bact, _ = np.histogram(bacterai_data["fitness"], bins)
 
     rand = rand / len(random_data)
     bact = bact / len(bacterai_data)
