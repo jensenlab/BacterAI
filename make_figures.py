@@ -46,7 +46,8 @@ def plot_main_fig(
 ):
     GROUP_WIDTH = 4
     SPACER_WIDTH = 1.5
-    N_GROUPS = 21
+    TOTAL_WIDTH = GROUP_WIDTH + SPACER_WIDTH
+    N_GROUPS = 20
 
     def _idx_to_pos(idx):
         x = idx % GROUP_WIDTH
@@ -115,7 +116,7 @@ def plot_main_fig(
         print()
         print(f"{graph_idx=}")
         results = results.reset_index(drop=True)
-        cumulative_count = {i: 0 for i in range(0, 21)}
+        cumulative_count = {i: 0 for i in range(0, N_GROUPS + 1)}
         tot = 0
         for kind in ["CORRECT", "INCORRECT"]:
             for t, opts in zip(["FRONTIER", "BEYOND"], point_opts):
@@ -132,12 +133,12 @@ def plot_main_fig(
                 ):
                     depths = r[r["fitness"] < threshold]["depth"].to_list()
 
-                counts = {i: 0 for i in range(0, 21)}
+                counts = {i: 0 for i in range(0, N_GROUPS + 1)}
                 counts.update(collections.Counter(depths))
                 print(counts)
                 tot += sum(list(counts.values()))
                 for group_n, count in counts.items():
-                    group_offset = group_n * (GROUP_WIDTH + SPACER_WIDTH)
+                    group_offset = group_n * (TOTAL_WIDTH)
                     for i in range(count):
                         x, y = _idx_to_pos(i + cumulative_count[group_n])
                         x += group_offset
@@ -146,12 +147,12 @@ def plot_main_fig(
         print(f"{tot=}")
         max_h = max(list(cumulative_count.values()) + [max_h])
 
-        major_ticks = (
-            np.arange(0, GROUP_WIDTH * 21, GROUP_WIDTH) + np.arange(21) * SPACER_WIDTH
-        ) + 1.5
+        major_ticks = np.arange(0, TOTAL_WIDTH * (N_GROUPS + 1), TOTAL_WIDTH) + 1.5
 
+        axs[graph_idx, 0].set_aspect("auto")
+        axs[graph_idx, 0].set_xlim(-1, N_GROUPS + 1)
         axs[graph_idx, 0].set_xticks(major_ticks)
-        axs[graph_idx, 0].set_xticklabels(np.arange(0, 21))
+        axs[graph_idx, 0].set_xticklabels(np.arange(0, N_GROUPS + 1))
         axs[graph_idx, 0].set_yticklabels([])
         axs[graph_idx, 0].set_ylabel(
             f"Day {round_idx+1}", rotation=0, horizontalalignment="left"
@@ -164,7 +165,6 @@ def plot_main_fig(
         axs[graph_idx, 0].tick_params(axis="y", which="both", length=0)
 
         if graph_idx != len(all_results) - 1:
-            # axs[graph_idx, 0].spines["bottom"].set_visible(False)
             axs[graph_idx, 0].tick_params(axis="x", which="both", length=0)
             axs[graph_idx, 0].axes.get_xaxis().set_visible(False)
 
@@ -641,11 +641,11 @@ if __name__ == "__main__":
     )
 
     # Second plot
-    data = utils.combined_round_data(args.path, max_n=args.rounds)
-    path = "Randoms (1) SGO CH1 17f3 mapped_data.csv"
-    rand_data = utils.process_mapped_data(path)[0]
-    rand_data = rand_data.sort_values(by="growth_pred").reset_index(drop=True)
-    if "is_redo" in rand_data.columns:
-        rand_data = rand_data[~rand_data["is_redo"]]
+    # data = utils.combined_round_data(args.path, max_n=args.rounds)
+    # path = "Randoms (1) SGO CH1 17f3 mapped_data.csv"
+    # rand_data = utils.process_mapped_data(path)[0]
+    # rand_data = rand_data.sort_values(by="growth_pred").reset_index(drop=True)
+    # if "is_redo" in rand_data.columns:
+    #     rand_data = rand_data[~rand_data["is_redo"]]
 
-    make_growth_distribution_hist(data, rand_data, args.path)
+    # make_growth_distribution_hist(data, rand_data, args.path)
