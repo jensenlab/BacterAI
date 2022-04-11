@@ -56,11 +56,11 @@ def split_data(path, train_size=0.15, test_size=0.25):
 
 
 class NeuralNetwork(nn.Module):
-    def __init__(self, lr=0.001):
+    def __init__(self, lr=0.001, n_inputs=20):
         super(NeuralNetwork, self).__init__()
 
         self.linear_relu_stack = nn.Sequential(
-            nn.Linear(20, 64),
+            nn.Linear(n_inputs, 64),
             nn.ReLU(),
             nn.Linear(64, 256),
             nn.ReLU(),

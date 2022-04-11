@@ -17,24 +17,27 @@ import utils
 os.environ["MKL_DEBUG_CPU_TYPE"] = "5"  # Use IntelMKL - does this work?
 
 
-def export_to_dp_batch(parent_path, batch, date, nickname=None):
+def export_to_dp_batch(parent_path, batch, ingredient_names, date, nickname=None):
     """ Export the BacterAI batch to a Deep Phenotyping-compatible file. """
 
     if len(batch) == 0:
         print("Empty Batch: No files generated.")
         return
 
-    batch = batch.rename(columns={a: b for a, b in zip(range(20), AA_NAMES_TEMPEST)})
+    n_ingredients = len(ingredient_names)
+    batch = batch.rename(
+        columns={a: b for a, b in zip(range(n_ingredients), ingredient_names)}
+    )
     batch = batch.sort_values(by=["growth_pred", "var"], ascending=[False, True])
     batch.to_csv(os.path.join(parent_path, f"batch_meta_{date}.csv"), index=None)
 
     # DeepPhenotyping compatible list
-    batch = batch.drop(columns=batch.columns[20:])
+    batch = batch.drop(columns=batch.columns[n_ingredients:])
     nickname = f"_{nickname}" if nickname != None else ""
 
     with open(os.path.join(parent_path, f"batch_dp{nickname}_{date}.csv"), "w") as f:
         writer = csv.writer(f, delimiter=",")
-        for row_idx, row_data in batch.iterrows():
+        for _, row_data in batch.iterrows():
             row_data = row_data[row_data == 0]
             removed_ingredients = list(row_data.index.to_numpy())
             writer.writerow(removed_ingredients)
@@ -92,6 +95,7 @@ def process_results(
     prev_folder,
     new_folder,
     new_round_n,
+    ingredient_names,
     threshold,
     n_redos=0,
     redo_threshold=[0, 1],
@@ -112,6 +116,8 @@ def process_results(
         The folder path of the new round.
     new_round_n: int
         The number of the new round.
+    ingredient_names: int
+        The ingredients used.
     threshold: float
         The grow/no grow threshold used to determine when to terminate
         a rollout simulation.
@@ -135,6 +141,7 @@ def process_results(
     """
 
     folder_contents = os.listdir(folder)
+    n_ingredients = len(ingredient_names)
 
     # Get paths for the necessary files in the current folder (new round # - 1)
     mapped_path = None
@@ -151,10 +158,15 @@ def process_results(
     new_dataset_path = os.path.join(new_folder, "train_pred.csv")
 
     # Merge results (mapped data) with predictions (batch data)
-    data, plate_controls, plate_blanks = utils.process_mapped_data(mapped_path)
+    data, _, _ = utils.process_mapped_data(mapped_path, ingredient_names)
     batch_df = utils.normalize_ingredient_names(pd.read_csv(batch_path, index_col=None))
     results = pd.merge(
-        batch_df, data, how="left", left_on=AA_SHORT, right_on=AA_SHORT, sort=True
+        batch_df,
+        data,
+        how="left",
+        left_on=ingredient_names,
+        right_on=ingredient_names,
+        sort=True,
     )
 
     # Plot the rescreen experiments if available
@@ -167,11 +179,11 @@ def process_results(
             prev_results = utils.normalize_ingredient_names(
                 pd.read_csv(prev_result_path, index_col=None)
             )
-            plot_redos(folder, prev_results, redo_results)
+            plot_redos(folder, prev_results, redo_results, ingredient_names)
 
     # Process results
-    results.iloc[:, :20] = results.iloc[:, :20].astype(int)
-    results["depth"] = 20 - results.iloc[:, :20].sum(axis=1)
+    results.iloc[:, :n_ingredients] = results.iloc[:, :n_ingredients].astype(int)
+    results["depth"] = n_ingredients - results.iloc[:, :n_ingredients].sum(axis=1)
     results = results.sort_values(["depth", "fitness"], ascending=False)
     if "frontier_type" not in results.columns:
         results["frontier_type"] = "FRONTIER"
@@ -189,8 +201,8 @@ def process_results(
     results = results.loc[results["bad"] == 0, :].drop(columns="bad")
 
     # Assemble new training data set, either from scratch or appending to previous Round's set
-    cols = list(results.columns[:20]) + ["fitness", "growth_pred", "var"]
-    cols_new = list(range(20)) + ["y_true", "y_pred", "y_pred_var"]
+    cols = list(results.columns[:n_ingredients]) + ["fitness", "growth_pred", "var"]
+    cols_new = list(range(n_ingredients)) + ["y_true", "y_pred", "y_pred_var"]
     if dataset_path == None:
         new_dataset = pd.DataFrame(
             results.loc[:, cols].to_numpy(),
@@ -202,14 +214,16 @@ def process_results(
         )
 
         data_batch = results.loc[:, cols]
-        data_batch.iloc[:, :20] = data_batch.iloc[:, :20].astype(int)
+        data_batch.iloc[:, :n_ingredients] = data_batch.iloc[:, :n_ingredients].astype(
+            int
+        )
         dataset.columns = data_batch.columns = cols_new
         new_dataset = pd.concat([dataset, data_batch], ignore_index=True)
 
     # Used experiments are the new dataset (old dataset plus "good" experiments from current round)
-    used_experiments = set(map(tuple, new_dataset.to_numpy()[:, :20]))
+    used_experiments = set(map(tuple, new_dataset.to_numpy()[:, :n_ingredients]))
     new_dataset.to_csv(new_dataset_path, index=None)
-    X_train = new_dataset.iloc[:, :20].to_numpy()
+    X_train = new_dataset.iloc[:, :n_ingredients].to_numpy()
     y_train = new_dataset.loc[:, "y_true"].to_numpy()
 
     # Assemble redo experiments, starting with bad experiments
@@ -222,7 +236,9 @@ def process_results(
             redo_experiments = redo_experiments[redo_experiments["is_redo"] == False]
         redo_experiments["is_redo"] = True
         redo_experiments["round"] = new_round_n - 1
-        redo_experiments.columns = list(range(20)) + list(redo_experiments.columns[20:])
+        redo_experiments.columns = list(range(n_ingredients)) + list(
+            redo_experiments.columns[n_ingredients:]
+        )
         print(f"Redoing {len(redo_experiments)} experiments from previous round.")
     elif n_redos > 0:
         redo_experiments = results[results["type"] != "REDO"]
@@ -259,7 +275,9 @@ def process_results(
         redo_experiments = redo_experiments.loc[:, batch_df.columns]
         redo_experiments["is_redo"] = True
         redo_experiments["round"] = new_round_n - 1
-        redo_experiments.columns = list(range(20)) + list(redo_experiments.columns[20:])
+        redo_experiments.columns = list(range(n_ingredients)) + list(
+            redo_experiments.columns[n_ingredients:]
+        )
         print(f"Redoing {len(redo_experiments)} experiments from previous round.")
 
     # Save and output successful results
@@ -270,7 +288,7 @@ def process_results(
     print("Media Results (Top 10):")
     for idx, (_, row) in enumerate(top_10.iterrows()):
         print(f"{idx+1:2}. Depth: {row['depth']:2}, Fitness: {row['fitness']:.3f}")
-        for l in row[:20][row[:20] == 1].index:
+        for l in row[:n_ingredients][row[:n_ingredients] == 1].index:
             print(f"\t{l}")
 
     print(f"Total unique experiments: {len(used_experiments)}")
@@ -282,9 +300,10 @@ def process_results(
 
 
 def main(args):
-    # Process command line args and load the specified configuration file
+    # Process command line args
     NEW_ROUND_N = args.round
 
+    # Load the configuration file
     with open(args.path) as f:
         config = json.load(f)
 
@@ -302,6 +321,9 @@ def main(args):
     TRANSFER_MODEL_FOLDER = config.get("transfer_model_folder", None)
     N_REDOS = config.get("redo_size", None)
     REDO_THRESHOLD = config.get("redo_threshold", None)
+
+    INGREDIENTS = AA_NAMES_TEMPEST
+    n_ingredients = len(INGREDIENTS)
 
     if TRANSFER_MODEL_FOLDER is not None:
         print(f"Using transfer learning from '{TRANSFER_MODEL_FOLDER}' model.")
@@ -323,6 +345,7 @@ def main(args):
             prev_round_folder,
             new_round_folder,
             NEW_ROUND_N,
+            INGREDIENTS,
             GROW_THRESHOLD,
             n_redos=N_REDOS,
             redo_threshold=REDO_THRESHOLD,
@@ -339,9 +362,9 @@ def main(args):
         #   2) Compute a new batch using the RANDOM policy
         #   3) The random data doesn't get used for training in future rounds
 
-        # Create 1000 (arbitrary) binary AA inputs and assign random fitness [0, 1]
+        # Create random binary inputs of shape (1000, n_ingredients) and assign random fitness [0, 1]
         n_examples = 1000
-        X_train = np.random.rand(n_examples, 20)
+        X_train = np.random.rand(n_examples, n_ingredients)
         X_train[X_train >= 0.5] = 1
         X_train[X_train < 0.5] = 0
         y_train = np.random.rand(n_examples, 1).flatten()
@@ -403,15 +426,15 @@ def main(args):
         )
 
     if DIRECTION == SimDirection.DOWN:
-        starting_media = np.ones(20)
+        starting_media = np.ones(n_ingredients)
         direction = SimDirection.DOWN
         batch_size = BATCH_SIZE
     elif DIRECTION == SimDirection.UP:
-        starting_media = np.zeros(20)
+        starting_media = np.zeros(n_ingredients)
         direction = SimDirection.UP
         batch_size = BATCH_SIZE
     elif DIRECTION == SimDirection.BOTH:
-        starting_media = np.ones(20)
+        starting_media = np.ones(n_ingredients)
         direction = SimDirection.DOWN
         batch_size = BATCH_SIZE // 2
 
@@ -437,7 +460,7 @@ def main(args):
     ###### UP DIRECTION (used only when direction is BOTH) #####
     if DIRECTION == SimDirection.BOTH:
         direction = SimDirection.UP
-        starting_media = np.zeros(20)
+        starting_media = np.zeros(n_ingredients)
         batch2, _, metrics = make_batch(
             model,
             starting_media,
@@ -462,7 +485,7 @@ def main(args):
         json.dump(all_metrics, f, indent=4)
 
     model.close()
-    export_to_dp_batch(new_round_folder, batch, date, NICKNAME)
+    export_to_dp_batch(new_round_folder, batch, INGREDIENTS, date, NICKNAME)
 
 
 if __name__ == "__main__":
