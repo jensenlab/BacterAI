@@ -10,8 +10,6 @@ import pandas as pd
 from sklearn.metrics import mean_squared_error
 
 import models
-import net
-import run
 import utils
 
 SEED = 0

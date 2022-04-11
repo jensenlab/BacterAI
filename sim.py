@@ -160,6 +160,26 @@ def rollout_trajectory(model, states, n_trajectories, threshold, sim_direction):
     return rewards.mean(axis=1)
 
 
+def compute_adaptive_choice_const(state, direction, n_already_exists):
+    """
+    Compute the K for softmax, defaults to 100, where softmax() acts as ~max().
+    Then as the number of duplicate media increases, K decreases. At K=1, it is
+    the standard softmax(). At K=0, the choice becomes random. The percent of
+    actions remaining is also calculated to contribute a depth decay effect as
+    well.
+    """
+    # Hyperparams
+    A = 100
+    B = 30
+    C = 3
+
+    n_actions_remaining = (state == direction.target_value()).sum()
+    percent_remaining = n_actions_remaining / len(state)
+    k = -A * (1 - np.exp(-np.power(n_already_exists / B, C))) + A
+    k = (k * 0.50) * (1 + percent_remaining)
+    return k
+
+
 @utils.decoratortimer(2)
 def perform_simulations(
     model,
@@ -280,19 +300,9 @@ def perform_simulations(
                 )
                 if sim_type == SimType.ROLLOUT_PROB:
                     # Pick an action idx from a distribution based on softmax of rollout results
-                    # Adaptive K, defaults to 100, where softmax() acts as ~max(). Then as
-                    # the number of duplicate media increases, K decreases. At K=1, it
-                    # is the standard softmax(). At K=0, the choice become random. The
-                    # percent of actions remaining is also calculated to contribute a
-                    # depth decay effect as well.
-
-                    n_actions_remaining = (
-                        current_state == sim_direction.target_value()
-                    ).sum()
-                    percent_remaining = n_actions_remaining / len(current_state)
-                    a = 100
-                    k = -a * (1 - np.exp(-np.power(n_found_but_exists / 30, 3))) + a
-                    k = (k * 0.50) * (1 + percent_remaining)
+                    k = compute_adaptive_choice_const(
+                        current_state, sim_direction, n_found_but_exists
+                    )
                     adaptive_choice_history.append((k, n_found_but_exists))
 
                     # Weighted softmax
