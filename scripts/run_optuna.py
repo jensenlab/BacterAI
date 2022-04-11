@@ -4,7 +4,7 @@ import optuna
 import pandas as pd
 from torch import nn
 
-from ..net import DatasetAminoAcids, NeuralNetwork, DEVICE
+from ..net import DatasetAminoAcids, NeuralNetwork, DEVICE, train
 
 
 def optuna_objective(trial):
