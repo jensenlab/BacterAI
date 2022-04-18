@@ -350,10 +350,13 @@ def main(args):
 
     if AAS_ONLY:
         INGREDIENTS = AA_SHORT
+        TEMPEST_INGREDIENTS = AA_NAMES_TEMPEST
     elif not AAS_ONLY and NEW_ROUND_N > 2:
         INGREDIENTS = AA_SHORT + BASE_NAMES
+        TEMPEST_INGREDIENTS = AA_NAMES_TEMPEST + BASE_NAMES_TEMPEST
     elif not AAS_ONLY and NEW_ROUND_N <= 2:
         INGREDIENTS = BASE_NAMES
+        TEMPEST_INGREDIENTS = BASE_NAMES_TEMPEST
 
     n_ingredients = len(INGREDIENTS)
 
@@ -444,6 +447,7 @@ def main(args):
     # experiment (file located at TRANSFER_DATA_DIR) in the following way:
     if tl_transition_round:
         INGREDIENTS = AA_SHORT + BASE_NAMES
+        TEMPEST_INGREDIENTS = AA_NAMES_TEMPEST + BASE_NAMES_TEMPEST
         n_ingredients = len(INGREDIENTS)
 
         # Load transfer data
@@ -581,7 +585,7 @@ def main(args):
         json.dump(all_metrics, f, indent=4)
 
     model.close()
-    export_to_dp_batch(new_round_folder, batch, INGREDIENTS, date, NICKNAME)
+    export_to_dp_batch(new_round_folder, batch, TEMPEST_INGREDIENTS, date, NICKNAME)
 
 
 if __name__ == "__main__":
