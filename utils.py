@@ -75,9 +75,10 @@ def process_mapped_data(path, ingredients=AA_SHORT):
 
 
 def normalize_ingredient_names(data):
-    names1 = {AA_NAMES_TEMPEST[i]: AA_SHORT[i] for i in range(len(AA_NAMES_TEMPEST))}
-    names2 = {AA_NAMES_2[i]: AA_SHORT[i] for i in range(len(AA_NAMES_2))}
-    name_map = dict(names1, **names2)
+    names1 = dict(zip(AA_NAMES_TEMPEST, AA_SHORT))
+    names2 = dict(zip(AA_NAMES_2, AA_SHORT))
+    names3 = dict(zip(BASE_NAMES_TEMPEST, BASE_NAMES))
+    name_map = {**names1, **names2, **names3}
 
     data = data.replace(name_map)
     data = data.rename(columns=name_map, index=name_map)

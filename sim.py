@@ -387,14 +387,14 @@ def perform_simulations(
                         batch_frontier_types.append(ft)
                         batch_set.add(key)
                         tq.update()
-                        print(f"ADDED: {st} - {ft}")
+                        print(f"\n\tADDED: {st} - {ft}")
                         if sim_type == SimType.ROLLOUT_PROB:
                             n_found_but_exists -= 1
                             n_found_but_exists = max(n_found_but_exists, 0)
                     else:
                         if sim_type == SimType.ROLLOUT_PROB:
                             n_found_but_exists += 1
-                        print(f"EXISTS: {st} - {ft}")
+                        print(f"\n\tEXISTS: {st} - {ft}")
 
                     if len(batch) >= n:
                         break

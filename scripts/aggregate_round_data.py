@@ -1,5 +1,7 @@
 import os
+import sys
 
+sys.path.append("../")
 from utils import combined_round_data
 
 path = "../experiments/08-20-2021_12"
