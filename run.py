@@ -11,6 +11,7 @@ import pandas as pd
 from global_vars import *
 from models import GPRModel, NeuralNetModel, ModelType
 from plot import plot_redos, plot_results
+from scripts.size_n_to_m_conversion import fill_new_ingredients
 from sim import SimType, SimDirection, perform_simulations
 import utils
 
@@ -101,6 +102,7 @@ def process_results(
     redo_threshold=[0, 1],
     redo_prev_round=False,
     plot_only=False,
+    transfer_padding_needed=False,
 ):
     """Process the results of the previous round, generate plots, and
     return batch information to be used when generating the new round's
@@ -131,6 +133,9 @@ def process_results(
         by default False
     plot_only: bool, optional
         Only save plot, don't save/export any other files.
+    transfer_padding_needed: bool, optional
+        Whether or not to pad datasets with ones for transfer learning (data
+        dir method)
 
     Returns
     -------
@@ -152,7 +157,7 @@ def process_results(
             mapped_path = os.path.join(folder, i)
         elif "batch_meta" in i and "results" not in i:
             batch_path = os.path.join(folder, i)
-        elif "train_pred" in i:
+        elif "train_pred" in i and "orig" not in i:
             dataset_path = os.path.join(folder, i)
 
     new_dataset_path = os.path.join(new_folder, "train_pred.csv")
@@ -168,6 +173,22 @@ def process_results(
         right_on=ingredient_names,
         sort=True,
     )
+
+    if transfer_padding_needed:
+        # Expand dimensions of non-AA data by the length of AA data and pad with ones
+        batch_df = fill_new_ingredients(
+            batch_df,
+            original_size=len(BASE_NAMES),
+            fill_column_names=AA_SHORT,
+            fill_on_right=False,
+        )
+        results = fill_new_ingredients(
+            results,
+            original_size=len(BASE_NAMES),
+            fill_column_names=AA_SHORT,
+            fill_on_right=False,
+        )
+        n_ingredients = len(AA_SHORT) + len(BASE_NAMES)
 
     # Plot the rescreen experiments if available
     if "is_redo" in results.columns:
@@ -222,6 +243,9 @@ def process_results(
 
     # Used experiments are the new dataset (old dataset plus "good" experiments from current round)
     used_experiments = set(map(tuple, new_dataset.to_numpy()[:, :n_ingredients]))
+    new_dataset.iloc[:, :n_ingredients] = new_dataset.iloc[:, :n_ingredients].astype(
+        int
+    )
     new_dataset.to_csv(new_dataset_path, index=None)
     X_train = new_dataset.iloc[:, :n_ingredients].to_numpy()
     y_train = new_dataset.loc[:, "y_true"].to_numpy()
@@ -321,12 +345,29 @@ def main(args):
     TRANSFER_MODEL_FOLDER = config.get("transfer_model_folder", None)
     N_REDOS = config.get("redo_size", None)
     REDO_THRESHOLD = config.get("redo_threshold", None)
+    AAS_ONLY = config.get("aas_only", True)
+    TRANSFER_DATA_DIR = config.get("transfer_model_dir", None)
 
-    INGREDIENTS = AA_NAMES_TEMPEST
+    if AAS_ONLY:
+        INGREDIENTS = AA_SHORT
+    elif not AAS_ONLY and NEW_ROUND_N > 2:
+        INGREDIENTS = AA_SHORT + BASE_NAMES
+    elif not AAS_ONLY and NEW_ROUND_N <= 2:
+        INGREDIENTS = BASE_NAMES
+
     n_ingredients = len(INGREDIENTS)
 
+    tl_transition_round = False
+    if TRANSFER_DATA_DIR is not None and not AAS_ONLY:
+        print(
+            f"Using transfer learning (data dir method) from '{TRANSFER_DATA_DIR}' directory."
+        )
+        tl_transition_round = NEW_ROUND_N == 2
+
     if TRANSFER_MODEL_FOLDER is not None:
-        print(f"Using transfer learning from '{TRANSFER_MODEL_FOLDER}' model.")
+        print(
+            f"Using transfer learning (model method) from '{TRANSFER_MODEL_FOLDER}' model."
+        )
         transfer_model = NeuralNetModel.load_trained_models(TRANSFER_MODEL_FOLDER)
 
     date = datetime.datetime.now().isoformat().replace(":", ".")
@@ -351,6 +392,7 @@ def main(args):
             redo_threshold=REDO_THRESHOLD,
             redo_prev_round=redo_entire_round,
             plot_only=args.plot_only,
+            transfer_padding_needed=tl_transition_round,
         )
     elif TRANSFER_MODEL_FOLDER:
         # Skip any initial random training if using a pre-trained model
@@ -386,11 +428,64 @@ def main(args):
         SIMULATION_TYPE = [SimType.RANDOM]
 
         data = pd.DataFrame(np.hstack((X_train, y_train.reshape(-1, 1))))
-        data.to_csv(
-            os.path.join(new_round_folder, "random_train_kickstart.csv"), index=False
+        random_data_filename = (
+            f"random_train_kickstart_{'aas' if AAS_ONLY else 'others'}.csv"
         )
+        data.to_csv(os.path.join(new_round_folder, random_data_filename), index=False)
         used_experiments = None
         redo_experiments = None
+
+    # When doing transfer learning (data dir method), Round 1 is a special case
+    # using the 'new' ingredients only so that we can kickstart that side of the NN,
+    # to prevent those weights from collapsing.
+    #
+    # So, for the second round for 20+19 CDM, we have to combine round 1 data
+    # (which has only non-AA ingredient inputs) with the transfer data of the AA-only
+    # experiment (file located at TRANSFER_DATA_DIR) in the following way:
+    if tl_transition_round:
+        INGREDIENTS = AA_SHORT + BASE_NAMES
+        n_ingredients = len(INGREDIENTS)
+
+        # Load transfer data
+        if "train_pred.csv" not in TRANSFER_DATA_DIR:
+            raise Exception("TRANSFER_DATA_DIR must point to a 'train_pred.csv'")
+
+        transfer_data = utils.normalize_ingredient_names(
+            pd.read_csv(TRANSFER_DATA_DIR, index_col=None)
+        )
+        # Expand dimensions by the length of non-AA data
+        transfer_data = fill_new_ingredients(
+            transfer_data,
+            original_size=len(AA_SHORT),
+            fill_column_names=list(
+                range(len(AA_SHORT), len(AA_SHORT) + len(BASE_NAMES))
+            ),
+            fill_on_right=True,
+        )
+
+        # Load Round 1 data (already padded)
+        round_one_data_dir = os.path.join(new_round_folder, "train_pred.csv")
+        round_one_data = utils.normalize_ingredient_names(
+            pd.read_csv(round_one_data_dir, index_col=None)
+        )
+
+        # Concat data together
+        cols_new = list(range(n_ingredients)) + ["y_true", "y_pred", "y_pred_var"]
+        transfer_data.columns = round_one_data.columns = cols_new
+        combined_data = pd.concat(
+            [transfer_data, round_one_data], axis=0, ignore_index=True
+        )
+
+        # Backup og_train_pred and replace files:
+        round_one_data_backup_dir = os.path.join(
+            new_round_folder, "train_pred_orig.csv"
+        )
+        shutil.copyfile(round_one_data_dir, round_one_data_backup_dir)
+        combined_data.to_csv(round_one_data_dir, index=None)
+
+        # Update references to new data
+        X_train = combined_data.iloc[:, :n_ingredients].to_numpy()
+        y_train = combined_data.loc[:, "y_true"].to_numpy()
 
     # Train the models on the data from all previous rounds (excluding Round 1)
     if MODEL_TYPE == ModelType.GPR:
@@ -417,6 +512,7 @@ def main(args):
         model.train(
             X_train,
             y_train,
+            n_ingredients=n_ingredients,
             n_bags=config["n_bags"],
             bag_proportion=1.0,
             epochs=50,
