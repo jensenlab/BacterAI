@@ -242,6 +242,7 @@ def train_bagged(
     X_train,
     y_train_true,
     model_path_folder,
+    n_ingredients=20,
     n_bags=25,
     bag_proportion=1.0,
     epochs=50,
@@ -276,7 +277,7 @@ def train_bagged(
             print(f"Using transfer model: {b}")
             model = transfer_models[b].to(DEVICE)
         else:
-            model = NeuralNetwork(lr=lr).to(DEVICE)
+            model = NeuralNetwork(lr=lr, n_inputs=n_ingredients).to(DEVICE)
 
         # Training Model
         for epoch in range(1, epochs + 1):  # loop over the dataset multiple times
