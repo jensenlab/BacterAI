@@ -1,7 +1,6 @@
 import sys
 import numpy as np
 import pandas as pd
-from torch import rand
 
 sys.path.append("../")
 from global_vars import *
