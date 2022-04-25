@@ -451,8 +451,8 @@ def main(args):
         n_ingredients = len(INGREDIENTS)
 
         # Load transfer data
-        if "train_pred.csv" not in TRANSFER_DATA_DIR:
-            raise Exception("TRANSFER_DATA_DIR must point to a 'train_pred.csv'")
+        if "train_pred" not in TRANSFER_DATA_DIR:
+            raise Exception("TRANSFER_DATA_DIR must point to a 'train_pred' CSV.")
 
         transfer_data = utils.normalize_ingredient_names(
             pd.read_csv(TRANSFER_DATA_DIR, index_col=None)
