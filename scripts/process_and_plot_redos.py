@@ -52,7 +52,10 @@ def main(args):
     if "is_redo" not in results.columns:
         raise Exception("Error: 'is_redo' columns is missing.")
 
-    redo_results = results[results["is_redo"] == True]
+    if not args.compare_all:
+        results = results[results["is_redo"] == True]
+        if len(results) == 0:
+            raise Exception("Error: no data for 'is_redo' == True.")
 
     prev_results = utils.normalize_ingredient_names(
         pd.read_csv(args.prev_results_path, index_col=None)
@@ -61,7 +64,7 @@ def main(args):
     if not os.path.exists(args.output_folder):
         os.makedirs(args.output_folder)
 
-    plot.plot_redos(args.output_folder, prev_results, redo_results, ingredient_names)
+    plot.plot_redos(args.output_folder, prev_results, results, ingredient_names)
 
 
 if __name__ == "__main__":
@@ -103,6 +106,14 @@ if __name__ == "__main__":
         type=str,
         required=True,
         help="The folder to save the plot in",
+    )
+
+    parser.add_argument(
+        "-a",
+        "--compare_all",
+        action="store_true",
+        required=False,
+        help="Compare all data points",
     )
 
     args = parser.parse_args()
