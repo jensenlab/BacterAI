@@ -57,6 +57,10 @@ def main(args):
     prev_results = utils.normalize_ingredient_names(
         pd.read_csv(args.prev_results_path, index_col=None)
     )
+
+    if not os.path.exists(args.output_folder):
+        os.makedirs(args.output_folder)
+
     plot.plot_redos(args.output_folder, prev_results, redo_results, ingredient_names)
 
 
