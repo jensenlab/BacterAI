@@ -33,6 +33,9 @@ def plot_redos(folder, prev_results, redo_results, ingredients):
     fitness_prev = merged_results["fitness_prev"].to_numpy()
     fitness_redo = merged_results["fitness_redo"].to_numpy()
 
+    if np.isnan(fitness_prev).all():
+        print("\n\n====== WARNING: No overlapping data from previous round. ======\n\n")
+
     order = np.argsort(fitness_prev)
     fig = plt.figure()
     x = np.arange(len(order))
@@ -47,6 +50,7 @@ def plot_redos(folder, prev_results, redo_results, ingredients):
     plt.ylabel("Fitness")
     plt.title("Rescreen Fitness Comparison")
     plt.suptitle(f"Experiment: {folder}")
+    plt.legend()
 
     plt.tight_layout()
     save_path = os.path.join(folder, "redo_compare_order_plot.png")
