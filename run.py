@@ -18,7 +18,9 @@ import utils
 os.environ["MKL_DEBUG_CPU_TYPE"] = "5"  # Use IntelMKL - does this work?
 
 
-def export_to_dp_batch(parent_path, batch, ingredient_names, date, nickname=None):
+def export_to_dp_batch(
+    parent_path, batch, ingredient_names, date, nickname=None, is_redo=False
+):
     """ Export the BacterAI batch to a Deep Phenotyping-compatible file. """
 
     if len(batch) == 0:
@@ -30,13 +32,22 @@ def export_to_dp_batch(parent_path, batch, ingredient_names, date, nickname=None
         columns={a: b for a, b in zip(range(n_ingredients), ingredient_names)}
     )
     batch = batch.sort_values(by=["growth_pred", "var"], ascending=[False, True])
-    batch.to_csv(os.path.join(parent_path, f"batch_meta_{date}.csv"), index=None)
+
+    meta_file_name = (
+        f"batch_redo_meta_{date}.csv" if is_redo else f"batch_meta_{date}.csv"
+    )
+    batch.to_csv(os.path.join(parent_path, meta_file_name), index=None)
 
     # DeepPhenotyping compatible list
     batch = batch.drop(columns=batch.columns[n_ingredients:])
     nickname = f"_{nickname}" if nickname != None else ""
 
-    with open(os.path.join(parent_path, f"batch_dp{nickname}_{date}.csv"), "w") as f:
+    dp_file_name = (
+        f"batch_redo_dp{nickname}_{date}.csv"
+        if is_redo
+        else f"batch_dp{nickname}_{date}.csv"
+    )
+    with open(os.path.join(parent_path, dp_file_name), "w") as f:
         writer = csv.writer(f, delimiter=",")
         for _, row_data in batch.iterrows():
             row_data = row_data[row_data == 0]
@@ -102,6 +113,7 @@ def process_results(
     redo_threshold=[0, 1],
     redo_prev_round=False,
     plot_only=False,
+    plot_redos=True,
     transfer_padding_needed=False,
 ):
     """Process the results of the previous round, generate plots, and
@@ -133,6 +145,8 @@ def process_results(
         by default False
     plot_only: bool, optional
         Only save plot, don't save/export any other files.
+    plot_redos: bool, optional
+        Whether or not to plot redos.
     transfer_padding_needed: bool, optional
         Whether or not to pad datasets with ones for transfer learning (data
         dir method)
@@ -195,7 +209,7 @@ def process_results(
         redo_results = results[results["is_redo"] == True]
         results = results[results["is_redo"] != True]
 
-        if prev_folder != None:
+        if prev_folder != None and plot_redos:
             prev_result_path = os.path.join(prev_folder, "results_all.csv")
             prev_results = utils.normalize_ingredient_names(
                 pd.read_csv(prev_result_path, index_col=None)
@@ -347,6 +361,7 @@ def main(args):
     REDO_THRESHOLD = config.get("redo_threshold", None)
     AAS_ONLY = config.get("aas_only", True)
     TRANSFER_DATA_DIR = config.get("transfer_model_dir", None)
+    SEPARATE_REDOS = config.get("separate_redos", False)
 
     if AAS_ONLY:
         INGREDIENTS = AA_SHORT
@@ -395,6 +410,7 @@ def main(args):
             redo_threshold=REDO_THRESHOLD,
             redo_prev_round=redo_entire_round,
             plot_only=args.plot_only,
+            plot_redos=not SEPARATE_REDOS,
             transfer_padding_needed=tl_transition_round,
         )
     elif TRANSFER_MODEL_FOLDER:
@@ -524,6 +540,18 @@ def main(args):
             lr=0.001,
             transfer_models=transfer_models,
         )
+
+    # Export redos into separate file if requested
+    if SEPARATE_REDOS:
+        export_to_dp_batch(
+            new_round_folder,
+            redo_experiments,
+            TEMPEST_INGREDIENTS,
+            date,
+            NICKNAME,
+            is_redo=True,
+        )
+        redo_experiments = None
 
     if DIRECTION == SimDirection.DOWN:
         starting_media = np.ones(n_ingredients)
