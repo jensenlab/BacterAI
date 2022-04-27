@@ -1,4 +1,4 @@
-import os 
+import os
 import time
 
 import numpy as np
@@ -11,11 +11,12 @@ def seed_numpy_state(seed):
     return np.random.RandomState(np.random.MT19937(np.random.SeedSequence(seed)))
 
 
-def process_mapped_data(path):
+def process_mapped_data(path, ingredients=AA_SHORT):
     """Processes DeepPhenotyping data. It normalizes the
     change in OD (delta OD) to their plate controls' mean delta OD.
     """
 
+    n_ingredients = len(ingredients)
     data = pd.read_csv(path, index_col=None).fillna("")
     if "bad" not in data.columns:
         data["bad"] = False
@@ -57,10 +58,10 @@ def process_mapped_data(path):
     data = data_grouped.median()
     # data = data_grouped.mean()
 
-    cols = list(AA_SHORT) + list(data.columns)
+    cols = list(ingredients) + list(data.columns)
 
     data = pd.concat(
-        (pd.DataFrame(np.ones((data.shape[0], 20), dtype=int)), data),
+        (pd.DataFrame(np.ones((data.shape[0], n_ingredients), dtype=int)), data),
         axis=1,
         ignore_index=True,
     )
@@ -74,9 +75,10 @@ def process_mapped_data(path):
 
 
 def normalize_ingredient_names(data):
-    names1 = {AA_NAMES_TEMPEST[i]: AA_SHORT[i] for i in range(len(AA_NAMES_TEMPEST))}
-    names2 = {AA_NAMES_2[i]: AA_SHORT[i] for i in range(len(AA_NAMES_2))}
-    name_map = dict(names1, **names2)
+    names1 = dict(zip(AA_NAMES_TEMPEST, AA_SHORT))
+    names2 = dict(zip(AA_NAMES_2, AA_SHORT))
+    names3 = dict(zip(BASE_NAMES_TEMPEST, BASE_NAMES))
+    name_map = {**names1, **names2, **names3}
 
     data = data.replace(name_map)
     data = data.rename(columns=name_map, index=name_map)
@@ -116,6 +118,7 @@ def decoratortimer(decimal):
 
     return decoratorfunction
 
+
 def combined_round_data(experiment_folder, max_n=None, sort=True):
     paths = []
     for root, dirs, files in os.walk(experiment_folder):
@@ -143,6 +146,7 @@ def combined_round_data(experiment_folder, max_n=None, sort=True):
 
     all_results = pd.concat(all_results, ignore_index=True)
     return all_results
+
 
 if __name__ == "__main__":
     m = softmax(np.array([0.1, 0.8, 0.6, 1, 0.9]), 0.2)

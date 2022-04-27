@@ -40,6 +40,7 @@ def plot_main_fig(
     all_test_data,
     all_train_data,
     fig_name,
+    n_ingredients,
     skip=1,
     show_train=True,
     max_n=None,
@@ -47,7 +48,7 @@ def plot_main_fig(
     GROUP_WIDTH = 4
     SPACER_WIDTH = 1.5
     TOTAL_WIDTH = GROUP_WIDTH + SPACER_WIDTH
-    N_GROUPS = 20
+    N_GROUPS = n_ingredients
 
     def _idx_to_pos(idx):
         x = idx % GROUP_WIDTH
@@ -341,7 +342,8 @@ def _get_acc(a, b, threshold):
     return acc
 
 
-def plot_model_performance(experiment_folder, fig_name, max_n=None):
+
+def plot_model_performance(experiment_folder, fig_name, n_ingredients, max_n=None):
 
     threshold = 0.25
     models_in_rounds = {}
@@ -422,7 +424,9 @@ def plot_model_performance(experiment_folder, fig_name, max_n=None):
         data = training_data_in_rounds.get(name, None)
         if data is not None:
             models = models_in_rounds.get(name, None)
-            preds, variances = net.eval_bagged(data.to_numpy()[:, :20], models)
+            preds, variances = net.eval_bagged(
+                data.to_numpy()[:, :n_ingredients], models
+            )
 
             data_1 = preds
             data_2 = data["y_true"].to_numpy()
@@ -447,7 +451,7 @@ def plot_model_performance(experiment_folder, fig_name, max_n=None):
     return all_test_data, all_train_data
 
 
-def count(df, threshold):
+def count(df, threshold, n_ingredients):
     depth_groups = df.groupby(by=["depth"])
     depth_counts = {}
     for jdx, df2 in depth_groups:
@@ -471,7 +475,7 @@ def count(df, threshold):
             "n_beyond": n_beyond,
             "proportion_frontier_grow": n_frontier_grows / n_frontier,
             "proportion_beyond_no_grows": n_beyond_no_grows / n_beyond,
-            "proportion_explored": n_total / comb(20, jdx),
+            "proportion_explored": n_total / comb(n_ingredients, jdx),
         }
 
     results = pd.DataFrame.from_dict(depth_counts, orient="index")
@@ -479,7 +483,7 @@ def count(df, threshold):
     return results
 
 
-def main(folder):
+def main(folder, n_ingredients):
     max_round_n = 12
     folders = [
         os.path.join(folder, i, "results_all.csv")
@@ -516,7 +520,7 @@ def main(folder):
         round_data_grouped = round_data.groupby(by=["type"])
         threshold = 0.25
         for group_type, df in round_data_grouped:
-            results = count(df, threshold)
+            results = count(df, threshold, n_ingredients)
             grows = df[df["fitness"] >= threshold]
             grows = grows.sort_values(by=["depth", "fitness"], ascending=[False, False])
 
@@ -524,15 +528,16 @@ def main(folder):
                 os.path.join(round_output, f"summarize_{group_type}_results.csv")
             )
 
-        results_all = count(round_data, threshold)
+        results_all = count(round_data, threshold, n_ingredients)
         results_all.to_csv(os.path.join(round_output, f"summarize_ALL_results.csv"))
 
 
-def make_growth_distribution_hist(bacterai_data, random_data, experiment_folder):
+def make_growth_distribution_hist(
+    bacterai_data, random_data, experiment_folder, n_bins
+):
     fig, axs = plt.subplots(nrows=1, ncols=1, figsize=(10, 6))
 
     width = 0.5
-    n_bins = 20
 
     bins = np.arange(0, 1.01, 1 / n_bins)
     rand, _ = np.histogram(random_data["fitness"], bins)
@@ -620,6 +625,15 @@ if __name__ == "__main__":
         help="Include train plots.",
     )
 
+    parser.add_argument(
+        "-num",
+        "--num_ingredients",
+        type=int,
+        required=False,
+        default=20,
+        help="The number of experiment ingredients",
+    )
+
     args = parser.parse_args()
 
     name = args.name
@@ -627,7 +641,7 @@ if __name__ == "__main__":
         name = args.path.replace(" ", "-").replace("/", "_")
 
     all_test_data, all_train_data = plot_model_performance(
-        args.path, name, max_n=args.rounds
+        args.path, name, n_ingredients=args.num_ingredients, max_n=args.rounds
     )
 
     plot_main_fig(
@@ -635,6 +649,7 @@ if __name__ == "__main__":
         all_test_data,
         all_train_data,
         name,
+        n_ingredients=args.num_ingredients,
         skip=args.increment,
         max_n=args.rounds,
         show_train=args.show_train,
@@ -648,4 +663,4 @@ if __name__ == "__main__":
     # if "is_redo" in rand_data.columns:
     #     rand_data = rand_data[~rand_data["is_redo"]]
 
-    # make_growth_distribution_hist(data, rand_data, args.path)
+    # make_growth_distribution_hist(data, rand_data, args.path, args.num_ingredients)

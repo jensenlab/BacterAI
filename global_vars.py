@@ -74,3 +74,48 @@ AA_SHORT = [
     "tyr",
     "val",
 ]
+
+
+BASE_NAMES = [
+    "adenine",
+    "biotin",
+    "d_glucose",
+    "folic_acid",
+    "guanine",
+    "irons",
+    "magnesium_sulfate",
+    "manganese_sulfate",
+    "nadp",
+    "niacinamide",
+    "paba",
+    "pantothenate",
+    "pyridoxal",
+    "pyridoxamine",
+    "riboflavin",
+    "sodium_acetate",
+    "thiamine",
+    "uracil",
+    "vitamin_b12",
+]
+
+BASE_NAMES_TEMPEST = [
+    "adenine_80x",
+    "biotin_80x",
+    "d_glucose_20x",
+    "folic_acid_80x",
+    "guanine_80x",
+    "irons_80x",
+    "magnesium_sulfate_80x",
+    "manganese_sulfate_80x",
+    "nadp_80x",
+    "niacinamide_80x",
+    "paba_80x",
+    "pantothenate_80x",
+    "pyridoxal_80x",
+    "pyridoxamine_80x",
+    "riboflavin_20x",
+    "sodium_acetate_80x",
+    "thiamine_80x",
+    "uracil_80x",
+    "vitamin_b12_80x",
+]

@@ -7,7 +7,7 @@ import pandas as pd
 from global_vars import *
 
 
-def plot_redos(folder, prev_results, redo_results):
+def plot_redos(folder, prev_results, redo_results, ingredients):
     """Plot the rescreen results of the previous round against the previous round's results.
 
     Parameters
@@ -24,8 +24,8 @@ def plot_redos(folder, prev_results, redo_results):
         prev_results,
         redo_results,
         how="right",
-        left_on=AA_SHORT,
-        right_on=AA_SHORT,
+        left_on=ingredients,
+        right_on=ingredients,
         sort=True,
         suffixes=["_prev", "_redo"],
     )

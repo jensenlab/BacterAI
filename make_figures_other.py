@@ -402,7 +402,7 @@ def plot_ridgeline_frontier_summary(experiment_folder):
 def plot_frontier_summary_alt(experiment_folder):
     GROUP_WIDTH = 6
     SPACER_WIDTH = 2
-    N_GROUPS = 21
+    N_GROUPS = 20
 
     def _idx_to_pos(idx):
         x = idx % GROUP_WIDTH
@@ -455,7 +455,7 @@ def plot_frontier_summary_alt(experiment_folder):
     ]
     for graph_idx, results in enumerate(all_results):
         results = results.reset_index(drop=True)
-        cumulative_count = {i: 0 for i in range(0, 21)}
+        cumulative_count = {i: 0 for i in range(0, N_GROUPS + 1)}
         print("correct")
         for t, opts in zip(types, point_opts):
             r = results[results["frontier_type"] == t]
@@ -465,7 +465,7 @@ def plot_frontier_summary_alt(experiment_folder):
             else:
                 correct = r[r["fitness"] < threshold]["depth"].to_list()
 
-            correct_counts = {i: 0 for i in range(0, 21)}
+            correct_counts = {i: 0 for i in range(0, N_GROUPS + 1)}
             correct_counts.update(collections.Counter(correct))
 
             for group_n, count in correct_counts.items():
@@ -492,7 +492,7 @@ def plot_frontier_summary_alt(experiment_folder):
             else:
                 incorrect = results[results["fitness"] >= threshold]["depth"].to_list()
 
-            incorrect_counts = {i: 0 for i in range(0, 21)}
+            incorrect_counts = {i: 0 for i in range(0, N_GROUPS + 1)}
             incorrect_counts.update(collections.Counter(incorrect))
             for group_n, count in incorrect_counts.items():
                 group_offset = (group_n + 1) * GROUP_WIDTH + SPACER_WIDTH * group_n
@@ -507,12 +507,12 @@ def plot_frontier_summary_alt(experiment_folder):
                     )
                 cumulative_count[group_n] += count
         major_ticks = (
-            np.arange(0, GROUP_WIDTH * 20 + 1, GROUP_WIDTH)
-            + np.arange(21) * SPACER_WIDTH
+            np.arange(0, GROUP_WIDTH * (N_GROUPS + 1), GROUP_WIDTH)
+            + np.arange(N_GROUPS + 1) * SPACER_WIDTH
         ) + 0.5
 
         axs[graph_idx].set_xticks(major_ticks)
-        axs[graph_idx].set_xticklabels(np.arange(0, 21))
+        axs[graph_idx].set_xticklabels(np.arange(0, N_GROUPS + 1))
         axs[graph_idx].set_yticklabels([])
         axs[graph_idx].set_ylabel(f"Round {graph_idx+1}")
         axs[graph_idx].spines["left"].set_visible(False)
@@ -527,7 +527,7 @@ def plot_frontier_summary_alt(experiment_folder):
         # axs[graph_idx].set_xticks(minor_ticks, minor=True)
         # axs[graph_idx].set_yticks(major_ticks)
         # axs[graph_idx].set_yticks(minor_ticks, minor=True)
-        # axs[graph_idx].set_ylim(-1, 20)
+        # axs[graph_idx].set_ylim(-1, N_GROUPS)
 
         # And a corresponding grid
         # axs[graph_idx].grid(which="both", alpha=0.2)
@@ -692,7 +692,7 @@ def plot_frontier_jitter(experiment_folder):
     # plt.savefig(f"summarize_ridgeline_fontier_violin_SMU.png", dpi=400)
 
 
-def plot_model_performance(experiment_folder):
+def plot_model_performance(experiment_folder, n_ingredients=20):
     def _get_acc(a, b):
         a = a.copy()
         b = b.copy()
@@ -779,7 +779,9 @@ def plot_model_performance(experiment_folder):
         data = training_data_in_rounds.get(name, None)
         if data is not None:
             models = models_in_rounds.get(name, None)
-            preds, variances = net.eval_bagged(data.to_numpy()[:, :20], models)
+            preds, variances = net.eval_bagged(
+                data.to_numpy()[:, :n_ingredients], models
+            )
 
             data_1 = preds
             data_2 = data["y_true"].to_numpy()
@@ -798,7 +800,7 @@ def plot_model_performance(experiment_folder):
     fig.savefig("summarize_nn_performance.png", dpi=400)
 
 
-def count(df, threshold):
+def count(df, threshold, n_ingredients=20):
     depth_groups = df.groupby(by=["depth"])
     depth_counts = {}
     for jdx, df2 in depth_groups:
@@ -822,7 +824,7 @@ def count(df, threshold):
             "n_beyond": n_beyond,
             "proportion_frontier_grow": n_frontier_grows / n_frontier,
             "proportion_beyond_no_grows": n_beyond_no_grows / n_beyond,
-            "proportion_explored": n_total / comb(20, jdx),
+            "proportion_explored": n_total / comb(n_ingredients, jdx),
         }
 
     results = pd.DataFrame.from_dict(depth_counts, orient="index")
