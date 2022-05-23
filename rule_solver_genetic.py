@@ -26,12 +26,13 @@ class GeneticSolver:
         rule_choices,
         population_size,
         data,
+        summary_file_info,
         fitness_lambda=1,
     ):
         self.run_name = run_name
         self.output_folder = output_folder
         self.n_groups = n_groups
-        self.rule_choices = rule_choices  # np.arange(21)
+        self.rule_choices = rule_choices
         self.current_generation = np.random.choice(
             rule_choices, size=(population_size, self.n_groups * 4), replace=True
         )
@@ -42,6 +43,7 @@ class GeneticSolver:
         self.generation_stats = {"fitness_avg": [], "fitness_max": []}
         self.generation_n = 0
         self.fitness_lambda = fitness_lambda
+        self.summary_file_info = summary_file_info
 
     def fitness_score(self, rule, include_metrics=False, use_test_data=False):
         if use_test_data:
@@ -222,7 +224,9 @@ class GeneticSolver:
 
     def _build_summary_output(self, rule):
         _, train_metrics = self.fitness_score(rule, include_metrics=True)
-        score, metrics = self.fitness_score(rule, include_metrics=True, use_test_data=True)
+        score, metrics = self.fitness_score(
+            rule, include_metrics=True, use_test_data=True
+        )
         rule_split = self.split_rule(rule)
 
         add_rule = np.zeros(len(rule))
@@ -243,17 +247,22 @@ class GeneticSolver:
         rule_split = [
             sorted([AA_SHORT[i - 1] for i in y if i != 0]) for y in rule_split
         ]
+        rule_str = "".join([f"({' or '.join(group)})" for group in rule_split])
 
         output = [
             f"\n>> {self.run_name} ------------------------\n",
             f"Stopped after {self.generation_n-1} generations.\n",
+            f"Number of groups: {self.n_groups}\n",
             f"Final train accuracy: {train_metrics['accuracy']*100:.2f}%\n",
             f"Final test accuracy: {metrics['accuracy']*100:.2f}%\n",
-            f"Final balanced accuracy: {metrics['balanced_accuracy']*100:.2f}%\n",
+            f"Final test balanced accuracy: {metrics['balanced_accuracy']*100:.2f}%\n",
             f"Final TPR: {metrics['TPR']*100:.2f}%\n",
             f"Final TNR: {metrics['TNR']*100:.2f}%\n",
-            f"Best Rule: {rule.tolist()}:\n",
+            f"Best Rule:\n",
+            f"\t{rule.tolist()}\n",
+            f"\t{rule_str}\n\n",
         ]
+
         for group, add_score, remove_score in zip(
             rule_split, add_scores, remove_scores
         ):
@@ -269,8 +278,11 @@ class GeneticSolver:
         cleaned_rule = self.final_rule_clean(rule)
         clean_output = self._build_summary_output(cleaned_rule)
 
-        current_date = datetime.datetime.now().isoformat().replace(":", ".")
-        output_file = os.path.join(self.output_folder, "genetic_solver_output.txt")
+        # current_date = datetime.datetime.now().isoformat().replace(":", ".")
+        output_file = os.path.join(
+            self.output_folder,
+            f"genetic_solver_output-{self.n_groups}_groups-{self.summary_file_info}.txt",
+        )
         if not os.path.exists(self.output_folder):
             os.makedirs(self.output_folder)
 
@@ -352,12 +364,16 @@ class GeneticSolver:
         return best_rule
 
 
-def plot_hit_miss_rates(solver, round_data, rule):
+def plot_hit_miss_rates(solver, round_data, rule, n_ingredients):
     print(len(round_data))
-    print(len(set(map(tuple, round_data.to_numpy()[:, :20]))))
+    print(len(set(map(tuple, round_data.to_numpy()[:, :n_ingredients]))))
 
-    round_data["n_ingredients"] = 20 - round_data.iloc[:, :20].sum(axis=1)
-    round_data["rule_pred"] = solver.apply_rule(rule, round_data.iloc[:, :20].to_numpy())
+    round_data["n_ingredients"] = n_ingredients - round_data.iloc[
+        :, :n_ingredients
+    ].sum(axis=1)
+    round_data["rule_pred"] = solver.apply_rule(
+        rule, round_data.iloc[:, :n_ingredients].to_numpy()
+    )
     round_data["fitness"] = round_data["fitness"].astype(bool)
     round_data["correct"] = round_data["fitness"] == round_data["rule_pred"]
 
@@ -382,7 +398,7 @@ def plot_hit_miss_rates(solver, round_data, rule):
     axs[1, 1].set_title("no grow incorrect counts")
 
     for ax in axs.flatten():
-        ax.set_xticks(np.arange(0, 21))
+        ax.set_xticks(np.arange(0, n_ingredients + 1))
         ax.set_xlabel("N ingredients removed")
 
     # plt.suptitle(f"Experiment: {prev_folder}")
@@ -390,10 +406,18 @@ def plot_hit_miss_rates(solver, round_data, rule):
     plt.savefig("rule_solver_counts.png", dpi=400)
 
 
-def solve(round_data, run_name, output_folder, n_groups = 7, threshold=0.25):
+def solve(
+    round_data,
+    run_name,
+    output_folder,
+    n_ingredients,
+    n_groups,
+    summary_file_info,
+    threshold=0.25,
+):
     # Median all duplicated experiments since we repeat some
     round_data = round_data.groupby(
-        list(round_data.columns[:20]), as_index=False
+        list(round_data.columns[:n_ingredients]), as_index=False
     ).median()
 
     fitness_data = round_data["fitness"].to_numpy()
@@ -403,41 +427,47 @@ def solve(round_data, run_name, output_folder, n_groups = 7, threshold=0.25):
     if "round_n" in round_data.columns:
         round_nums = round_data["round_n"]
 
-    round_data = round_data.iloc[:, :20]
-    round_data.columns = list(range(1, 21))
+    round_data = round_data.iloc[:, :n_ingredients]
+    round_data.columns = list(range(1, n_ingredients + 1))
     round_data["fitness"] = fitness_data
     if "round_n" in round_data.columns:
         round_data["round_n"] = round_nums
 
-    choices = np.arange(21)
+    choices = np.arange(n_ingredients + 1)
     pop_size = 1000
     solver = GeneticSolver(
-        run_name, output_folder, n_groups, choices, pop_size, round_data.to_numpy()
+        run_name,
+        output_folder,
+        n_groups,
+        choices,
+        pop_size,
+        round_data.to_numpy(),
+        summary_file_info,
     )
     rule = solver.solve(elite_p=0.25, mutation_mu=5, max_generations=250)
 
     # rule = np.array([0, 6, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
-    # plot_hit_miss_rates(solver, round_data, rule)
+    # plot_hit_miss_rates(solver, round_data, rule, n_ingredients)
 
 
-def solve_kfold_regularization(round_data, run_name, threshold=0.25):
+def solve_kfold_regularization(round_data, run_name, n_ingredients, threshold=0.25):
     # Median all duplicated experiments since we repeat some
     round_data = round_data.groupby(
-        list(round_data.columns[:20]), as_index=False
+        list(round_data.columns[:n_ingredients]), as_index=False
     ).median()
 
     fitness_data = round_data["fitness"].to_numpy()
     fitness_data[fitness_data >= threshold] = 1
     fitness_data[fitness_data < threshold] = 0
 
-    round_data = round_data.iloc[:, :20]
-    round_data.columns = list(range(1, 21))
+    round_data = round_data.iloc[:, :n_ingredients]
+    round_data.columns = list(range(1, n_ingredients + 1))
     round_data["fitness"] = fitness_data
     round_data = round_data.to_numpy()
 
     fitness_lambdas = [1.0, 0.99, 0.975, 0.95, 0.9, 0.5]
     kf = KFold(n_splits=len(fitness_lambdas), shuffle=True)
-    choices = np.arange(21)
+    choices = np.arange(n_ingredients + 1)
     pop_size = 1000
     n_groups = 4
 
@@ -459,32 +489,36 @@ def solve_kfold_regularization(round_data, run_name, threshold=0.25):
         print()
 
 
-def evaluate_rule(rule, round_data, run_name, output_folder, threshold=0.25):
+def evaluate_rule(
+    rule, round_data, run_name, output_folder, n_ingredients, threshold=0.25
+):
     # Median all duplicated experiments since we repeat some
     round_data = round_data.groupby(
-        list(round_data.columns[:20]), as_index=False
+        list(round_data.columns[:n_ingredients]), as_index=False
     ).median()
 
     fitness_data = round_data["fitness"].to_numpy()
     fitness_data[fitness_data >= threshold] = 1
     fitness_data[fitness_data < threshold] = 0
 
-    round_data = round_data.iloc[:, :20]
-    round_data.columns = list(range(1, 21))
+    round_data = round_data.iloc[:, :n_ingredients]
+    round_data.columns = list(range(1, n_ingredients + 1))
     round_data["fitness"] = fitness_data
     round_data = round_data.to_numpy()
 
     train_set, test_set = train_test_split(round_data, test_size=0.25)
 
-    choices = np.arange(21)
+    choices = np.arange(n_ingredients + 1)
     pop_size = 1000
     n_groups = 4
-    solver = GeneticSolver(run_name, output_folder, n_groups, choices, pop_size, train_set)
+    solver = GeneticSolver(
+        run_name, output_folder, n_groups, choices, pop_size, train_set
+    )
 
     solver.summarize_score(rule)
 
 
-def main(folder, max_round_n, n_groups):
+def main(folder, n_ingredients, max_round_n, n_groups, summary_file_info):
     folders = [
         os.path.join(folder, i, "results_all.csv")
         for i in os.listdir(folder)
@@ -505,11 +539,13 @@ def main(folder, max_round_n, n_groups):
     print(f"Round data: {round_data.shape[0]}")
     run_name = f"{folder} - Round {max_round_n}"
     output_folder = os.path.join(folder, "rule_results")
-    solve(round_data, run_name, output_folder, n_groups)
+    solve(
+        round_data, run_name, output_folder, n_ingredients, n_groups, summary_file_info
+    )
     # solve_kfold_regularization(round_data)
 
 
-def main2(experiment_folder):
+def main2(experiment_folder, n_ingredients):
     # experiment_folder = "experiments/07-26-2021_11"
     # folder = "data/SMU_data/kk1"
     # folder = "data/SMU_data/kk2"
@@ -551,36 +587,46 @@ def main2(experiment_folder):
 
     # rule = np.array([0, 6, 7, 0, 0, 10, 11, 20, 0, 0, 0, 0, 0, 0, 0, 0])
     round_data = utils.combined_round_data(experiment_folder, max_n=11)
-    round_data = round_data[list(round_data.columns)[:20] + ["fitness"]]
+    round_data = round_data[list(round_data.columns)[:n_ingredients] + ["fitness"]]
     print(round_data)
-    
-    rule = np.array([0, 19, 0, 0, 0, 14, 0, 0, 0, 5, 11, 0, 0, 2, 0, 0, 0, 6, 7, 0, 0, 16, 0, 0, 0, 5, 20, 0])
-    evaluate_rule(rule, round_data, "SGO2_11", experiment_folder)
 
-    rule = np.array([0, 19, 0, 0, 0, 14, 0, 0, 0, 0, 11, 0, 0, 2, 0, 0, 0, 6, 7, 0, 0, 16, 0, 0, 0, 5, 20, 0])
-    evaluate_rule(rule, round_data, "SGO2_11-2", experiment_folder)
+    # rule = np.array([0, 19, 0, 0, 0, 14, 0, 0, 0, 5, 11, 0, 0, 2, 0, 0, 0, 6, 7, 0, 0, 16, 0, 0, 0, 5, 20, 0])
+    # evaluate_rule(rule, round_data, "SGO2_11", experiment_folder, n_ingredients)
 
-    rule = np.array([0, 14, 0, 0, 0, 5, 11, 0, 0, 8, 20, 0, 0, 19, 0, 0, 0, 2, 0, 0, 0, 16, 0, 0, 0, 6, 7, 0, 0, 5, 20, 0])
-    evaluate_rule(rule, round_data, "SGO2_11-3", experiment_folder)
+    # rule = np.array([0, 19, 0, 0, 0, 14, 0, 0, 0, 0, 11, 0, 0, 2, 0, 0, 0, 6, 7, 0, 0, 16, 0, 0, 0, 5, 20, 0])
+    # evaluate_rule(rule, round_data, "SGO2_11-2", experiment_folder, n_ingredients)
+
+    # rule = np.array([0, 14, 0, 0, 0, 5, 11, 0, 0, 8, 20, 0, 0, 19, 0, 0, 0, 2, 0, 0, 0, 16, 0, 0, 0, 6, 7, 0, 0, 5, 20, 0])
+    # evaluate_rule(rule, round_data, "SGO2_11-3", experiment_folder, n_ingredients)
     # solve(round_data)
     # solve_kfold_regularization(round_data)
 
 
 if __name__ == "__main__":
     VERBOSE = True
+    N_INGREDIENTS = 20
     # experiment_folder = "experiments/04-07-2021 copy"
     # experiment_folder = "experiments/04-30-2021_3/both"
     # experiment_folder = "experiments/05-31-2021_7/"
     # experiment_folder = "experiments/05-31-2021_8/"
     # experiment_folder = "experiments/05-31-2021_9/"
     # experiment_folder = "experiments/07-26-2021_10"
-    experiment_folder = "experiments/07-26-2021_11"
-    # experiment_folder = "experiments/08-20-2021_12"
+    # experiment_folder = "experiments/07-26-2021_11"
+    experiment_folder = "experiments/2022-01-17_19"
 
-    # for i in range(1, 15):
-    #     print()
-    #     print(i, "-----------------------------")
-    #     main(experiment_folder, i, n_groups=7)
+    for max_round_n in range(1, 6):
+        for n_groups in range(6, 7):
+            print()
+            print(
+                f"---------------Max Round: {max_round_n}, N Groups: {n_groups} ---------------"
+            )
+            main(
+                experiment_folder,
+                N_INGREDIENTS,
+                max_round_n,
+                n_groups,
+                f"{max_round_n}_rounds",
+            )
 
     # for i in range(10, 12):
     #     print()
@@ -590,4 +636,4 @@ if __name__ == "__main__":
     # main(experiment_folder, 13, n_groups=7)
     # main(experiment_folder, 4, n_groups=7)
 
-    main2(experiment_folder)
+    # main2(experiment_folder, N_INGREDIENTS)
