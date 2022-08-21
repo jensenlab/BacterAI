@@ -166,13 +166,14 @@ def process_results(
     mapped_path = None
     batch_path = None
     dataset_path = None
-    for i in folder_contents:
-        if "mapped_data" in i:
-            mapped_path = os.path.join(folder, i)
-        elif "batch_meta" in i and "results" not in i:
-            batch_path = os.path.join(folder, i)
-        elif "train_pred" in i and "orig" not in i:
-            dataset_path = os.path.join(folder, i)
+    for filename in folder_contents:
+        filename_low = filename.lower()
+        if "mapped_data" in filename_low and "redo" not in filename_low:
+            mapped_path = os.path.join(folder, filename)
+        elif "batch_meta" in filename_low and "results" not in filename_low:
+            batch_path = os.path.join(folder, filename)
+        elif "train_pred" in filename_low and "orig" not in filename_low:
+            dataset_path = os.path.join(folder, filename)
 
     new_dataset_path = os.path.join(new_folder, "train_pred.csv")
 
