@@ -81,8 +81,15 @@ def plot_main_fig(
             results = results[~results["is_redo"]]
         all_results.append((round_idx, results))
 
-    height = 1.5 * n_plots + 1.5
-    width = 11 if show_train else 10
+    if n_ingredients <= 20:
+        h_mult = 1.5
+        w_add = 0
+    else:
+        h_mult = 3
+        w_add = 2
+
+    height = h_mult * (n_plots + 1)
+    width = (11 if show_train else 10) + w_add
 
     if show_train:
         fig, axs = plt.subplots(
@@ -100,7 +107,7 @@ def plot_main_fig(
             sharex=False,
             sharey=False,
             figsize=(width, height),
-            gridspec_kw={"width_ratios": [6, 1]},
+            gridspec_kw={"width_ratios": [6, 2]},
         )
 
     point_opts = [
@@ -128,12 +135,15 @@ def plot_main_fig(
                 if (t == "FRONTIER" and kind == "CORRECT") or (
                     t == "BEYOND" and kind == "INCORRECT"
                 ):
-                    depths = r[r["fitness"] >= threshold]["depth"].to_list()
+                    depths = r[r["fitness"] >= threshold]["depth"]
                 elif (t == "FRONTIER" and kind == "INCORRECT") or (
                     t == "BEYOND" and kind == "CORRECT"
                 ):
-                    depths = r[r["fitness"] < threshold]["depth"].to_list()
+                    depths = r[r["fitness"] < threshold]["depth"]
 
+                depths = (
+                    n_ingredients - depths
+                ).to_list()  # reverse from # removed to # added
                 counts = {i: 0 for i in range(0, N_GROUPS + 1)}
                 counts.update(collections.Counter(depths))
                 print(counts)
@@ -313,8 +323,7 @@ def plot_main_fig(
         for attrs in legend_elements_attrs
     ]
 
-    # axs[-2].legend(handles=legend_elements)
-    axs[-1, 0].set_xlabel("Amino Acids Removed")
+    axs[-1, 0].set_xlabel("Ingredients in Media")
     axs[-1, 0].legend(
         handles=legend_elements,
         loc="upper center",
@@ -342,7 +351,6 @@ def _get_acc(a, b, threshold):
     return acc
 
 
-
 def plot_model_performance(experiment_folder, fig_name, n_ingredients, max_n=None):
 
     threshold = 0.25
@@ -359,7 +367,7 @@ def plot_model_performance(experiment_folder, fig_name, n_ingredients, max_n=Non
                 model = torch.load(path).cuda()
                 models.append(model)
                 # print(path)
-            if "train_pred" in name:
+            if "train_pred.csv" in name:
                 # This round's train_pred.csv has the data from all previous_rounds
                 # and is used to train this round's models, therefore, we have to
                 # assign the training data to our prev round for these plots
@@ -374,7 +382,7 @@ def plot_model_performance(experiment_folder, fig_name, n_ingredients, max_n=Non
                     results = results[~results["is_redo"]]
                 training_data_in_rounds[f"Round{round_n-1}"] = results
 
-            if "results_all" in name:
+            if "results_all.csv" in name:
                 round_name = root.split("/")[-1]
                 results = utils.normalize_ingredient_names(
                     pd.read_csv(path, index_col=None)
@@ -405,7 +413,8 @@ def plot_model_performance(experiment_folder, fig_name, n_ingredients, max_n=Non
             data_2 = test_data["fitness"].to_numpy()
             all_test_data[i] = (data_1, data_2)
             x_axis_points = np.arange(len(test_data))
-            # print(data)
+            print()
+            print(np.argwhere(np.isnan(data_2)).size, data_2.size)
             mse = mean_squared_error(test_data["fitness"], test_data["growth_pred"])
             acc = _get_acc(data_1, data_2, threshold)
 
@@ -422,26 +431,28 @@ def plot_model_performance(experiment_folder, fig_name, n_ingredients, max_n=Non
             axs[0, i].set_title(f"{name} NNs, Test\nMSE:{mse:.3f}\nAcc:{acc:.3f}")
 
         data = training_data_in_rounds.get(name, None)
-        if data is not None:
-            models = models_in_rounds.get(name, None)
-            preds, variances = net.eval_bagged(
-                data.to_numpy()[:, :n_ingredients], models
-            )
 
-            data_1 = preds
-            data_2 = data["y_true"].to_numpy()
-            all_train_data[i] = (data_1, data_2)
+        # TODO: fix the training data for TL runs w/ multiple models
+        # if data is not None:
+        #     models = models_in_rounds.get(name, None)
+        #     preds, variances = net.eval_bagged(
+        #         data.to_numpy()[:, :n_ingredients], models
+        #     )
 
-            x_axis_points = np.arange(len(data))
+        #     data_1 = preds
+        #     data_2 = data["y_true"].to_numpy()
+        #     all_train_data[i] = (data_1, data_2)
 
-            mse = mean_squared_error(data["y_true"], preds)
-            acc = _get_acc(data_1, data_2, threshold)
+        #     x_axis_points = np.arange(len(data))
 
-            order = np.argsort(data_1)
-            axs[1, i].plot(x_axis_points, data_2[order], ".", alpha=0.20, markersize=1)
-            axs[1, i].plot(x_axis_points, data_1[order], "-")
-            axs[1, i].set_xlabel("Experiment")
-            axs[1, i].set_title(f"{name} NNs, Train\nMSE:{mse:.3f}\nAcc:{acc:.3f}")
+        #     mse = mean_squared_error(data["y_true"], preds)
+        #     acc = _get_acc(data_1, data_2, threshold)
+
+        #     order = np.argsort(data_1)
+        #     axs[1, i].plot(x_axis_points, data_2[order], ".", alpha=0.20, markersize=1)
+        #     axs[1, i].plot(x_axis_points, data_1[order], "-")
+        #     axs[1, i].set_xlabel("Experiment")
+        #     axs[1, i].set_title(f"{name} NNs, Train\nMSE:{mse:.3f}\nAcc:{acc:.3f}")
 
     fig_path = os.path.join(
         experiment_folder, f"summarize_nn_performance_{fig_name}.png"
