@@ -28,3 +28,5 @@ plots/
 COBRANet
 *Pipfile.lock
 .vscode
+.venv*
+.DS_Store
