@@ -24,7 +24,7 @@ def fill_new_ingredients(data, original_size, fill_column_names, fill_on_right=T
 
 
 if __name__ == "__main__":
-    from ..global_vars import BASE_NAMES
+    from ..constants import BASE_NAMES
     from ..utils import combined_round_data
 
     def import_data(experiment_path, max_n=None):

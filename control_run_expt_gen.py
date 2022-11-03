@@ -2,7 +2,7 @@ import numpy as np
 
 import csv
 
-import global_vars
+import constants
 import utils
 
 SEED = 0
@@ -10,7 +10,7 @@ NP_RAND_STATE = utils.seed_numpy_state(SEED)
 
 
 def main(n=1120, out_name=f"control_run_randoms_SGO_seed{SEED}.csv"):
-    choice_map = {i: ingred for i, ingred in enumerate(global_vars.AA_NAMES_TEMPEST)}
+    choice_map = {i: ingred for i, ingred in enumerate(constants.AA_NAMES_TEMPEST)}
 
     chosen = set()
     skipped_count = 0

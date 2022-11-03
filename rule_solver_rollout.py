@@ -8,7 +8,7 @@ import pandas as pd
 from sklearn.metrics import f1_score, confusion_matrix, log_loss
 
 from utils import decoratortimer
-from global_vars import *
+from constants import *
 
 # @decoratortimer(2)
 def score_rule(rule, data):

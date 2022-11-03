@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 sys.path.append("../")
 from utils import normalize_ingredient_names
-from global_vars import *
+from constants import *
 
 # experiment_name = "07-26-2021_10"
 # friendly_name = "SGO CH1"

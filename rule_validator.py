@@ -9,7 +9,7 @@ import pandas as pd
 import numpy as np
 from sympy.logic.boolalg import And, Or, to_dnf, to_cnf, simplify_logic
 
-from global_vars import *
+from constants import *
 import models
 import utils
 

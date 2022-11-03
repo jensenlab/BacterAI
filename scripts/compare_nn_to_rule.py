@@ -5,7 +5,7 @@ import numpy as np
 
 sys.path.append("../")
 import models
-import global_vars
+import constants
 from rule_solver_genetic import GeneticSolver
 
 def import_neural_network(path):
@@ -59,7 +59,7 @@ def evaluate_neural_network(model, data, true_fitness, threshold):
     return accuracy
 
 def name_to_rule_index(ingredient_name):
-    all_ingredients = global_vars.AA_SHORT + global_vars.BASE_NAMES
+    all_ingredients = constants.AA_SHORT + constants.BASE_NAMES
     return all_ingredients.index(ingredient_name) + 1 # 0 is reserved for no ingredient
 
 def str_to_rule(rule_str):
@@ -102,6 +102,6 @@ if __name__ == '__main__':
     # EXPERIMENT_PATH = '../published_data/SSA aerobic'
     # EXPERIMENT_RULE = '(gly)(arg or cys)(cys or leu)(gln or glu)(leu or val)'
 
-    INGREDIENTS = global_vars.AA_SHORT
+    INGREDIENTS = constants.AA_SHORT
 
     main(EXPERIMENT_PATH, EXPERIMENT_RULE, INGREDIENTS)

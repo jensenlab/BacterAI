@@ -8,7 +8,7 @@ import rpy2.robjects.numpy2ri as rpyn
 from rpy2.robjects.packages import STAP
 import torch
 
-from global_vars import *
+from constants import *
 import net
 
 

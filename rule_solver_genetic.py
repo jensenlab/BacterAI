@@ -11,7 +11,7 @@ from scipy.stats import poisson
 from sklearn.metrics import confusion_matrix, log_loss
 from sklearn.model_selection import KFold, train_test_split
 
-from global_vars import *
+from constants import *
 import utils
 
 VERBOSE = True

@@ -8,7 +8,7 @@ import shutil
 import numpy as np
 import pandas as pd
 
-from global_vars import *
+from constants import *
 from models import GPRModel, NeuralNetModel, ModelType
 from plot import plot_redos, plot_results
 from scripts.size_n_to_m_conversion import fill_new_ingredients

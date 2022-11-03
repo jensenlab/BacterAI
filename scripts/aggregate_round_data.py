@@ -6,7 +6,7 @@ import numpy as np
 
 sys.path.append("../")
 import utils
-import global_vars
+import constants
 
 
 
@@ -90,7 +90,7 @@ def main(max_day, ingredient_names, experiment_path):
         folder_content = os.listdir(folder_path)
         
         if full_cdm and folder_name == 'Round1':
-            ingredient_names = global_vars.BASE_NAMES
+            ingredient_names = constants.BASE_NAMES
 
         n_ingredients = len(ingredient_names)
 
@@ -120,8 +120,8 @@ def main(max_day, ingredient_names, experiment_path):
         )
         results = results[~results['is_redo']]
         if full_cdm and folder_name == 'Round1':
-            ingredient_names = global_vars.AA_SHORT + global_vars.BASE_NAMES
-            ones = pd.DataFrame(np.ones((len(data), 20)), columns=global_vars.AA_SHORT)
+            ingredient_names = constants.AA_SHORT + constants.BASE_NAMES
+            ones = pd.DataFrame(np.ones((len(data), 20)), columns=constants.AA_SHORT)
             results = pd.concat([ones, results], axis=1)
 
         results[results.columns[:n_ingredients]] = results[results.columns[:n_ingredients]].astype(int)
@@ -133,7 +133,7 @@ def main(max_day, ingredient_names, experiment_path):
 
     # Pad with rest of CDM's ingredients
     if not full_cdm:
-        ones = pd.DataFrame(np.ones((len(data), 19)), columns=global_vars.BASE_NAMES)
+        ones = pd.DataFrame(np.ones((len(data), 19)), columns=constants.BASE_NAMES)
         data = pd.concat([data.iloc[:, :n_ingredients], ones, data.iloc[:, n_ingredients:]], axis=1)
 
     data[data.columns[:39]] = data[data.columns[:39]].astype(int)
@@ -169,27 +169,27 @@ if __name__ == '__main__':
     experiments = [
         {
             "max_day": 13,
-            "ingredient_names": global_vars.AA_SHORT,
+            "ingredient_names": constants.AA_SHORT,
             "experiment_path": "../experiments/2021-07-26_10",
         },
         {
             "max_day": 11,
-            "ingredient_names": global_vars.AA_SHORT,
+            "ingredient_names": constants.AA_SHORT,
             "experiment_path": "../experiments/2021-08-20_12",
         },
         {
             "max_day": 4,
-            "ingredient_names": global_vars.AA_SHORT,
+            "ingredient_names": constants.AA_SHORT,
             "experiment_path": "../experiments/2022-01-17_19",
         },
         {
             "max_day": 3,
-            "ingredient_names": global_vars.AA_SHORT,
+            "ingredient_names": constants.AA_SHORT,
             "experiment_path": "../experiments/2022-02-08_24",
         },
         {
             "max_day": 7,
-            "ingredient_names": global_vars.AA_SHORT + global_vars.BASE_NAMES,
+            "ingredient_names": constants.AA_SHORT + constants.BASE_NAMES,
             "experiment_path": "../experiments/2022-04-18_25",
         },
     ]
