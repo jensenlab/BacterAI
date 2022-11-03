@@ -1,0 +1,12 @@
+matplotlib
+numpy
+pandas
+rpy2
+scipy
+sklearn
+torch
+optuna
+seaborn
+
+# pin for compatibility
+backports.zoneinfo==0.2.1;python_version<"3.9"
