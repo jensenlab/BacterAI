@@ -8,11 +8,7 @@ sys.path.append("../")
 import utils
 import global_vars
 
-MAX_DAY = 7
-# INGREDIENT_NAMES = global_vars.AA_SHORT
-INGREDIENT_NAMES = global_vars.AA_SHORT + global_vars.BASE_NAMES
 
-EXPERIMENT_PATH = "../experiments/2022-04-18_25"
 
 def process_mapped_data(path, ingredients):
     """Processes DeepPhenotyping data. It normalizes the
@@ -23,7 +19,6 @@ def process_mapped_data(path, ingredients):
     data = pd.read_csv(path, index_col=None).fillna("")
     if "bad" not in data.columns:
         data["bad"] = False
-        print("Added 'bad' column")
 
     data = utils.normalize_ingredient_names(data)
     plate_control_indexes = data[data["plate_control"]].index
@@ -36,13 +31,14 @@ def process_mapped_data(path, ingredients):
     plate_controls = data.loc[plate_control_indexes, :].drop(columns=leave_out_cols)
     plate_blanks = data.loc[plate_blank_indexes, :].drop(columns=leave_out_cols)
     plate_control_means = (
-        plate_controls.groupby("parent_plate").mean().to_dict()["delta_od"]
+        plate_controls.groupby("parent_plate").agg(
+            delta_od_mean=('delta_od', np.mean),
+        ).to_dict()["delta_od_mean"]
     )
     data["fitness"] = data["delta_od"] / data["parent_plate"].replace(
         plate_control_means
     )
-
-    data = data.drop(data[(data["plate_control"] | data["plate_blank"])].index)
+    data = data.drop(data[data["plate_control"] | data["plate_blank"]].index)
     data = data.drop(
         columns=[
             "plate_control",
@@ -79,28 +75,32 @@ def process_mapped_data(path, ingredients):
     data = data.drop(columns=leave_out_cols)
     return data
 
-if __name__ == '__main__':
 
-    out_path = os.path.join(EXPERIMENT_PATH, "aggregated_data.csv")
+def main(max_day, ingredient_names, experiment_path):
 
-    full_cdm = len(INGREDIENT_NAMES) > 20
+    full_cdm = len(ingredient_names) > 20
 
     # data = import.combined_round_data(path, max_n=11, sort=False)
-    round_folders = sorted([f for f in os.listdir(EXPERIMENT_PATH) if "Round" in f], key=lambda x: (len(x), x))[:MAX_DAY]
+    round_folders = sorted([f for f in os.listdir(experiment_path) if "Round" in f], key=lambda x: (len(x), x))[:max_day]
     print(round_folders)
 
     all_round_data = []
     for folder_name in round_folders:
-        folder_path = os.path.join(EXPERIMENT_PATH, folder_name)
+        folder_path = os.path.join(experiment_path, folder_name)
         folder_content = os.listdir(folder_path)
         
         if full_cdm and folder_name == 'Round1':
-            INGREDIENT_NAMES = global_vars.BASE_NAMES
+            ingredient_names = global_vars.BASE_NAMES
 
-        n_ingredients = len(INGREDIENT_NAMES)
+        n_ingredients = len(ingredient_names)
 
         for i in folder_content:
-            if "bad_runs" in i or "redo" in i.lower():  
+            if (
+                "bad_runs" in i or 
+                "redo_dp" in i.lower() or 
+                "redo_meta" in i.lower() or 
+                "Redo Plate" in i
+            ):  
                 continue
             elif "mapped_data" in i:
                 mapped_path = os.path.join(folder_path, i)
@@ -108,22 +108,24 @@ if __name__ == '__main__':
                 batch_path = os.path.join(folder_path, i)
 
         # Merge results (mapped data) with predictions + experiment metadata (batch data)
-        data = process_mapped_data(mapped_path, INGREDIENT_NAMES)
+        data = process_mapped_data(mapped_path, ingredient_names)
         batch_df = utils.normalize_ingredient_names(pd.read_csv(batch_path, index_col=None))
         results = pd.merge(
             batch_df,
             data,
             how="left",
-            left_on=INGREDIENT_NAMES,
-            right_on=INGREDIENT_NAMES,
+            left_on=ingredient_names,
+            right_on=ingredient_names,
             sort=True,
         )
+        results = results[~results['is_redo']]
         if full_cdm and folder_name == 'Round1':
-            INGREDIENT_NAMES = global_vars.AA_SHORT + global_vars.BASE_NAMES
+            ingredient_names = global_vars.AA_SHORT + global_vars.BASE_NAMES
             ones = pd.DataFrame(np.ones((len(data), 20)), columns=global_vars.AA_SHORT)
             results = pd.concat([ones, results], axis=1)
 
-        results.iloc[:, :n_ingredients] = results.iloc[:, :n_ingredients].astype(int)
+        results[results.columns[:n_ingredients]] = results[results.columns[:n_ingredients]].astype(int)
+        print(folder_name, len(results))
         all_round_data.append(results)
 
     data = pd.concat(all_round_data)
@@ -134,7 +136,7 @@ if __name__ == '__main__':
         ones = pd.DataFrame(np.ones((len(data), 19)), columns=global_vars.BASE_NAMES)
         data = pd.concat([data.iloc[:, :n_ingredients], ones, data.iloc[:, n_ingredients:]], axis=1)
 
-    data.iloc[:, :39] = data.iloc[:, :39].astype(int)
+    data[data.columns[:39]] = data[data.columns[:39]].astype(int)
     data["ingredients_in_media_count"] = data.iloc[:, :39].sum(axis=1).astype(int)
 
     data = data.drop(
@@ -155,8 +157,42 @@ if __name__ == '__main__':
     if full_cdm:
         data['fitness_std'] = 'N/A'
 
-    print(data.columns)
+    print(list(data.columns))
     print(data.shape)
-    print(data)
+    # print(data)
+    print(max_day * 336)
 
+    out_path = os.path.join(experiment_path, "experiment_data.csv")
     data.to_csv(out_path, index=False)
+
+if __name__ == '__main__':
+    experiments = [
+        {
+            "max_day": 13,
+            "ingredient_names": global_vars.AA_SHORT,
+            "experiment_path": "../experiments/2021-07-26_10",
+        },
+        {
+            "max_day": 11,
+            "ingredient_names": global_vars.AA_SHORT,
+            "experiment_path": "../experiments/2021-08-20_12",
+        },
+        {
+            "max_day": 4,
+            "ingredient_names": global_vars.AA_SHORT,
+            "experiment_path": "../experiments/2022-01-17_19",
+        },
+        {
+            "max_day": 3,
+            "ingredient_names": global_vars.AA_SHORT,
+            "experiment_path": "../experiments/2022-02-08_24",
+        },
+        {
+            "max_day": 7,
+            "ingredient_names": global_vars.AA_SHORT + global_vars.BASE_NAMES,
+            "experiment_path": "../experiments/2022-04-18_25",
+        },
+    ]
+    for e in experiments:
+        print(e["experiment_path"])
+        main(**e)
