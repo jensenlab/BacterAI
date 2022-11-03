@@ -29,6 +29,7 @@ class GeneticSolver:
         summary_file_info,
         ingredient_names,
         fitness_lambda=1,
+        no_test_train_split=False,
     ):
         self.run_name = run_name
         self.output_folder = output_folder
@@ -39,7 +40,10 @@ class GeneticSolver:
         )
 
         # np.array first 20 cols are input AAs (binary), last col is growth
-        self.train_data, self.test_data = train_test_split(data, test_size=0.25)
+        if no_test_train_split:
+            self.train_data = data
+        else:
+            self.train_data, self.test_data = train_test_split(data, test_size=0.25)
 
         self.generation_stats = {"fitness_avg": [], "fitness_max": []}
         self.generation_n = 0
@@ -226,10 +230,8 @@ class GeneticSolver:
         return selections
 
     def _build_summary_output(self, rule):
-        _, train_metrics = self.fitness_score(rule, include_metrics=True)
-        score, metrics = self.fitness_score(
-            rule, include_metrics=True, use_test_data=True
-        )
+        _, train_metrics = self.fitness_score(rule, include_metrics=True, use_test_data=False)
+        score, metrics = self.fitness_score(rule, include_metrics=True, use_test_data=True)
         rule_split = self.split_rule(rule)
 
         add_rule = np.zeros(len(rule))
@@ -281,6 +283,8 @@ class GeneticSolver:
             output.append(
                 f"\t({' or '.join(group)}) - Added: {add_score*100:+.2f}%, Removed: {(remove_score-score)*100:+.2f}%\n"
             )
+        
+        print(f"Final test balanced accuracy: {metrics['balanced_accuracy']*100:.2f}%\n")
 
         return output
 
@@ -330,7 +334,7 @@ class GeneticSolver:
             # fitnesses = np.apply_along_axis(
             #     self.fitness_score, 1, self.current_generation
             # )
-            with multiprocessing.Pool(processes=30) as pool:
+            with multiprocessing.Pool(processes=10) as pool:
                 self.current_generation = np.vstack(
                     pool.starmap(
                         self.clean_rule,
@@ -389,7 +393,7 @@ def plot_hit_miss_rates(solver, round_data, rule, n_ingredients):
     round_data["fitness"] = round_data["fitness"].astype(bool)
     round_data["correct"] = round_data["fitness"] == round_data["rule_pred"]
 
-    fig, axs = plt.subplots(
+    _, axs = plt.subplots(
         nrows=2, ncols=2, sharex=False, sharey=True, figsize=(12, 10)
     )
 
@@ -432,7 +436,7 @@ def solve(
     n_ingredients = len(ingredient_names)
     round_data = round_data.groupby(
         list(round_data.columns[:n_ingredients]), as_index=False
-    ).median()
+    ).agg({'fitness': 'median'})
 
     fitness_data = round_data["fitness"].to_numpy()
     fitness_data[fitness_data >= threshold] = 1
@@ -460,8 +464,28 @@ def solve(
         ingredient_names,
     )
     rule = solver.solve(elite_p=0.25, mutation_mu=5, max_generations=max_generations)
-
-    # rule = np.array([0, 6, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+    
+    # # rule_and = [
+    # #     2, 0, 0, 0, #arg
+    # #     16, 0, 0, 0, #ser
+    # #     11, 0, 0, 0, #leu
+    # #     5, 0, 0, 0, #cys
+    # #     14, 0, 0, 0, #phe
+    # #     6, 7, 0, 0, #gln or glu
+    # #     20, 0, 0, 0, #val
+    # #     19, 0, 0, 0, #tyr
+    # # ]
+    # rule_or = [
+    #     2, 0, 0, 0, #arg
+    #     16, 0, 0, 0, #ser
+    #     11, 0, 0, 0, #leu
+    #     5, 20, 0, 0, #cys
+    #     14, 0, 0, 0, #phe
+    #     6, 6, 0, 0, #gln or glu
+    #     19, 0, 0, 0, #tyr
+    # ]
+    # rule = np.array(rule_or)
+    solver.summarize_score(rule)
     # plot_hit_miss_rates(solver, round_data, rule, n_ingredients)
 
 
@@ -505,7 +529,7 @@ def solve_kfold_regularization(round_data, run_name, n_ingredients, threshold=0.
 
 
 def evaluate_rule(
-    rule, round_data, run_name, output_folder, n_ingredients, threshold=0.25
+    rule, round_data, run_name, output_folder, n_ingredients, threshold=0.25, export_summary=True,
 ):
     # Median all duplicated experiments since we repeat some
     round_data = round_data.groupby(
@@ -530,11 +554,12 @@ def evaluate_rule(
         run_name, output_folder, n_groups, choices, pop_size, train_set
     )
 
-    solver.summarize_score(rule)
+    if export_summary:
+        solver.summarize_score(rule)
 
 
 def main(
-    folder, ingredient_names, max_round_n, n_groups, summary_file_info, max_generations
+    folder, ingredient_names, max_round_n, n_groups, summary_file_info, max_generations, include_nots=False
 ):
     folders = [
         os.path.join(folder, i, "results_all.csv")
@@ -543,7 +568,7 @@ def main(
     ]
     folders = sorted(folders, key=lambda x: (len(x), x))[:max_round_n]
 
-    print(folders)
+    # print(folders)
     round_data = []
     for i, f in enumerate(sorted(folders)):
         data = utils.normalize_ingredient_names(pd.read_csv(f, index_col=None))
@@ -551,9 +576,15 @@ def main(
         round_data.append(data)
 
     round_data = pd.concat(round_data, ignore_index=True)
-    # round_data.to_csv("roundata.csv", index=False)
     round_data["direction"] = "DOWN"
-    print(f"Round data: {round_data.shape[0]}")
+    
+    if include_nots:
+        half_n = len(ingredient_names) // 2
+        og_data = round_data.iloc[:, :half_n].to_numpy()
+        not_data = pd.DataFrame(1-og_data, columns=ingredient_names[half_n:])
+        round_data = pd.concat((round_data.iloc[:, :half_n], not_data, round_data.iloc[:, half_n:]), axis=1)
+
+    print(f"Round data: {round_data.shape[0]}, {list(round_data.columns)}")
     run_name = f"{folder} - Round {max_round_n}"
     output_folder = os.path.join(folder, "rule_results")
     solve(
@@ -627,7 +658,7 @@ def main2(experiment_folder, n_ingredients):
 
 if __name__ == "__main__":
     VERBOSE = True
-    INGREDIENT_NAMES = AA_SHORT + BASE_NAMES
+    INGREDIENT_NAMES = AA_SHORT + BASE_NAMES + AA_SHORT_NOTS + BASE_NAMES_NOTS
     MAX_GENERATIONS = 250
 
     # experiment_folder = "experiments/04-07-2021 copy"
@@ -635,27 +666,50 @@ if __name__ == "__main__":
     # experiment_folder = "experiments/05-31-2021_7/"
     # experiment_folder = "experiments/05-31-2021_8/"
     # experiment_folder = "experiments/05-31-2021_9/"
-    # experiment_folder = "experiments/07-26-2021_10"
-    # experiment_folder = "experiments/07-26-2021_11"
+    # experiment_folder = "experiments/2021-07-26_10"
+    # experiment_folder = "experiments/2021-07-26_11"
     # experiment_folder = "experiments/2022-01-17_19"
     # experiment_folder = "experiments/2022-01-27_22"
     # experiment_folder = "experiments/2022-02-08_24"
     experiment_folder = "experiments/2022-04-18_25"
+    
+    main(
+            experiment_folder,
+            INGREDIENT_NAMES,
+            # 4, # for 19
+            # 13, # for 10
+            9, # for 25
+            11,
+            f"{9}_rounds",
+            MAX_GENERATIONS,
+            include_nots=True
+        )
 
-    for max_round_n in range(4, 10):
-        for n_groups in range(4, 21):
-            print()
-            print(
-                f"---------------Max Round: {max_round_n}, N Groups: {n_groups} ---------------"
-            )
-            main(
-                experiment_folder,
-                INGREDIENT_NAMES,
-                max_round_n,
-                n_groups,
-                f"{max_round_n}_rounds",
-                MAX_GENERATIONS,
-            )
+    # for _ in range(10):
+    #     main(
+    #         experiment_folder,
+    #         INGREDIENT_NAMES,
+    #         4, # for 19
+    #         # 13, # for 10
+    #         7,
+    #         f"{4}_rounds",
+    #         MAX_GENERATIONS,
+    #     )
+
+    # for max_round_n in range(4, 10):
+    #     for n_groups in range(4, 21):
+    #         print()
+    #         print(
+    #             f"---------------Max Round: {max_round_n}, N Groups: {n_groups} ---------------"
+    #         )
+    #         main(
+    #             experiment_folder,
+    #             INGREDIENT_NAMES,
+    #             max_round_n,
+    #             n_groups,
+    #             f"{max_round_n}_rounds",
+    #             MAX_GENERATIONS,
+    #         )
 
     # for i in range(10, 12):
     #     print()

@@ -75,6 +75,29 @@ AA_SHORT = [
     "val",
 ]
 
+AA_SHORT_NOTS = [
+    "~ala",
+    "~arg",
+    "~asn",
+    "~asp",
+    "~cys",
+    "~glu",
+    "~gln",
+    "~gly",
+    "~his",
+    "~ile",
+    "~leu",
+    "~lys",
+    "~met",
+    "~phe",
+    "~pro",
+    "~ser",
+    "~thr",
+    "~trp",
+    "~tyr",
+    "~val",
+]
+
 
 BASE_NAMES = [
     "adenine",
@@ -96,6 +119,28 @@ BASE_NAMES = [
     "thiamine",
     "uracil",
     "vitamin_b12",
+]
+
+BASE_NAMES_NOTS = [
+    "~adenine",
+    "~biotin",
+    "~d_glucose",
+    "~folic_acid",
+    "~guanine",
+    "~irons",
+    "~magnesium_sulfate",
+    "~manganese_sulfate",
+    "~nadp",
+    "~niacinamide",
+    "~paba",
+    "~pantothenate",
+    "~pyridoxal",
+    "~pyridoxamine",
+    "~riboflavin",
+    "~sodium_acetate",
+    "~thiamine",
+    "~uracil",
+    "~vitamin_b12",
 ]
 
 BASE_NAMES_TEMPEST = [
