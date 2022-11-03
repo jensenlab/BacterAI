@@ -93,7 +93,7 @@ class NeuralNetModel(Model):
 
         for filename in os.listdir(models_path):
             if "bag_model" in filename:
-                model = torch.load(os.path.join(models_path, filename))
+                model = torch.load(os.path.join(models_path, filename), map_location=torch.device(net.DEVICE))
                 obj.models.append(model)
 
         obj.is_trained = True
