@@ -10,9 +10,6 @@ from matplotlib.ticker import StrMethodFormatter, AutoMinorLocator
 
 import numpy as np
 import pandas as pd
-import seaborn as sns
-from scipy.stats.kde import gaussian_kde
-from scipy.stats import norm
 from sklearn.metrics import mean_squared_error
 import torch
 
@@ -44,6 +41,7 @@ def plot_main_fig(
     skip=1,
     show_train=True,
     max_n=None,
+    show_rollout_proportion=False,
 ):
     GROUP_WIDTH = 4
     SPACER_WIDTH = 1.5
@@ -81,36 +79,21 @@ def plot_main_fig(
             results = results[~results["is_redo"]]
         all_results.append((round_idx, results))
 
-    # if n_ingredients <= 20:
-    #     h_mult = 1.5
-    #     w_add = 0
-    # else:
-    #     h_mult = 3
-    #     w_add = 2
-    h_mult = 1.3
-    w_add = -1
 
-    height = h_mult * (n_plots + 1)
-    width = (11 if show_train else 10) + w_add
+    bot_legend_pad = 1
+    height = 1.3 * (len(all_results) + 1) + bot_legend_pad
+    width = 10 if show_train else 8.57
 
-    if show_train:
-        fig, axs = plt.subplots(
-            nrows=len(all_results),
-            ncols=3,
-            sharex=False,
-            sharey=False,
-            figsize=(width, height),
-            gridspec_kw={"width_ratios": [5, 1, 1]},
-        )
-    else:
-        fig, axs = plt.subplots(
-            nrows=len(all_results),
-            ncols=2,
-            sharex=False,
-            sharey=False,
-            figsize=(width, height),
-            gridspec_kw={"width_ratios": [6, 2]},
-        )
+    n_cols = 3 if show_train else 2
+    gridspec = {"width_ratios": [5, 1, 1]} if show_train else {"width_ratios": [5, 1]}
+    fig, axs = plt.subplots(
+        nrows=len(all_results),
+        ncols=n_cols,
+        sharex=False,
+        sharey=False,
+        figsize=(width, height),
+        gridspec_kw=gridspec,
+    )
 
     point_opts = [
         {"markersize": 4, "marker": "."},
@@ -135,7 +118,6 @@ def plot_main_fig(
         for kind in ["CORRECT", "INCORRECT"]:
             for t, opts in zip(["FRONTIER", "BEYOND"], point_opts):
                 print(kind, t)
-                color = "k" if kind == "CORRECT" else "r"
                 r = results[results["frontier_type"] == t]
 
                 if (t == "FRONTIER" and kind == "CORRECT") or (
@@ -240,23 +222,24 @@ def plot_main_fig(
         )
 
         # proportion_rollouts = {i: 0 for i in range(0, N_GROUPS + 1)}
-        print(f"{stacked_heights=}")
-        offset = bar_width / 2
-        for media_size in range(n_ingredients + 1):
-            m = results[results["n_media_ingredients"] == media_size]
-            if not len(m):
-                continue
-            rollout_results = m[m["type"] == "ROLLOUT_PROB"]
-            proportion = len(rollout_results) / len(m)
-            prop_height = stacked_heights[media_size] * proportion
-            print(f"{media_size=}: {proportion=:.2f}, {prop_height=}")
-            axs[graph_idx, 0].plot(
-                [media_size - offset, media_size - offset],
-                [0, prop_height - 0.75],
-                "b-",
-                markersize=0,
-                linewidth=1,
-            )
+        if show_rollout_proportion:
+            print(f"{stacked_heights=}")
+            offset = bar_width / 2
+            for media_size in range(n_ingredients + 1):
+                m = results[results["n_media_ingredients"] == media_size]
+                if not len(m):
+                    continue
+                rollout_results = m[m["type"] == "ROLLOUT_PROB"]
+                proportion = len(rollout_results) / len(m)
+                prop_height = stacked_heights[media_size] * proportion
+                print(f"{media_size=}: {proportion=:.2f}, {prop_height=}")
+                axs[graph_idx, 0].plot(
+                    [media_size - offset, media_size - offset],
+                    [0, prop_height - 0.75],
+                    "b-",
+                    markersize=0,
+                    linewidth=1,
+                )
 
         print(f"{tot=}")
 
@@ -321,6 +304,14 @@ def plot_main_fig(
 
             axs[graph_idx + 1, col].text(0, 1.0, f"Acc: {acc*100:.1f}%", **metric_style)
 
+            # grow threshold 25%
+            axs[graph_idx + 1, col].plot(
+                [0, len(y_true)],
+                [0.25, 0.25],
+                color="k",
+                alpha=0.20,
+            )
+
         if show_train:
             col += 1
 
@@ -353,7 +344,7 @@ def plot_main_fig(
             )
             axs[graph_idx, col].plot(x_axis_points, preds[order], color="dodgerblue")
 
-            axs[graph_idx, col].text(0, 1.05, f"Acc: {acc*100:.1f}%", **metric_style)
+            axs[graph_idx, col].text(0, 1.0, f"Acc: {acc*100:.1f}%", **metric_style)
 
         if graph_idx == 0 and show_train:
             axs[graph_idx, 1].axis("off")
@@ -379,48 +370,6 @@ def plot_main_fig(
         axs[-1, 1].set_xlabel(f"Test Set")
         # axs[-1, 1].axes.get_xaxis().set_visible(True)
 
-    if skip == 2:
-        # fig.text(0.84, 0.07, "Model Performance", ha="center")
-        loc = (0.84, 0.06)
-    else:
-        # fig.text(0.84, 0.03, "Model Performance", ha="center")
-        loc = (0.84, 0.02)
-
-    fig.legend(
-        handles=[
-            Line2D(
-                [0],
-                [0],
-                label="Experiment",
-                color="k",
-                marker=".",
-                markersize=3,
-                linewidth=0,
-            ),
-            Line2D(
-                [0],
-                [0],
-                label="Model prediction",
-                color="dodgerblue",
-                markersize=0,
-                linewidth=2,
-            ),
-            Line2D(
-                [0],
-                [0],
-                label="Grow/No Grow Threshold",
-                color="k",
-                markersize=0,
-                linewidth=2,
-                alpha=0.20,
-            ),
-        ],
-        loc="center",
-        frameon=False,
-        bbox_to_anchor=loc,
-        ncol=1,
-    )
-
     for i, ax in enumerate(axs[:, 0]):
         ax.set_ybound(0, max_h)
         ax.text(
@@ -432,44 +381,43 @@ def plot_main_fig(
             weight="bold",
         )
 
-    legend_elements_attrs = [
-        dict(
-            facecolor="k",
-            label="Grow (Correctly Predicted)",
-        ),
-        dict(
-            facecolor="k",
-            label="No Grow (Correctly Predicted)",
-            alpha=0.2,
-        ),
-        dict(
-            facecolor="r",
-            label="Grow (Incorrectly Predicted)",
-        ),
-        dict(
-            facecolor="r",
-            label="No Grow (Incorrectly Predicted)",
-            alpha=0.2,
-        ),
-    ]
-    legend_elements = [Patch(**attrs) for attrs in legend_elements_attrs]
-
-    # axs[-2].legend(handles=legend_elements)
-    # axs[-1, 0].set_xlabel("Amino Acids Removed")
-    axs[-1, 0].set_xlabel("Ingredients in Media")
-    axs[-1, 0].legend(
-        handles=legend_elements,
-        loc="upper center",
-        bbox_to_anchor=(0.5, -0.5),
+    fig.legend(
+        handles=[
+            Line2D([0], [0], label="Experiment", color="k", marker=".", markersize=3, linewidth=0),
+            Line2D([0], [0], label="Model prediction", color="dodgerblue", markersize=0, linewidth=2),
+            Line2D([0], [0], label="Grow/No Grow Threshold", color="k", markersize=0, linewidth=2, alpha=0.20),
+        ],
+        loc="upper right",
+        frameon=False,
+        bbox_to_anchor=(0.95, bot_legend_pad/height),
+        ncol=1,
+    )
+    fig.legend(
+        handles=[
+            Patch(facecolor="k", label="Grow (Correctly Predicted)"),
+            Patch(facecolor="k", label="No Grow (Correctly Predicted)", alpha=0.2),
+            Patch(facecolor="r", label="Grow (Incorrectly Predicted)"),
+            Patch(facecolor="r", label="No Grow (Incorrectly Predicted)", alpha=0.2),
+        ],
+        loc="upper left",
+        bbox_to_anchor=(0.05, bot_legend_pad/height),
         frameon=False,
         ncol=1,
     )
-    plt.subplots_adjust(left=0, right=1, top=1, bottom=0.1, wspace=0, hspace=0.1)
+
+    x_label = "Ingredients in Media" if n_ingredients > 20 else "Amino Acids in Media"
+    axs[-1, 0].set_xlabel(x_label)
+    
+    plt.subplots_adjust(wspace=0, hspace=0.1)
+    plt.tight_layout(rect=[0, bot_legend_pad/height, 1, 1])
+    # plt.tight_layout()
 
     fig_path = os.path.join(experiment_folder, fig_name)
-    plt.tight_layout()
-    plt.savefig(fig_path + ".png", dpi=400)
-    plt.savefig(fig_path + ".svg", dpi=400)
+    paths = [fig_path + suffix for suffix in (".png", ".svg")]
+    for p in paths:
+        plt.savefig(p, dpi=400)
+
+    return paths
 
 
 def _get_acc(a, b, threshold):
@@ -484,8 +432,7 @@ def _get_acc(a, b, threshold):
     return acc
 
 
-def plot_model_performance(experiment_folder, fig_name, n_ingredients, max_n=None):
-
+def plot_model_performance(experiment_folder, fig_name, n_ingredients, max_n=None, transfer_learning=False):
     threshold = 0.25
     models_in_rounds = {}
     training_data_in_rounds = {}
@@ -497,7 +444,7 @@ def plot_model_performance(experiment_folder, fig_name, n_ingredients, max_n=Non
             if "bad_runs" in path:
                 continue
             if "bag_model" in name:
-                model = torch.load(path).cuda()
+                model = torch.load(path, map_location=torch.device(net.DEVICE))
                 models.append(model)
                 # print(path)
             if "train_pred.csv" in name:
@@ -563,27 +510,31 @@ def plot_model_performance(experiment_folder, fig_name, n_ingredients, max_n=Non
             axs[0, i].set_xlabel("Experiment")
             axs[0, i].set_title(f"{name} NNs, Test\nMSE:{mse:.3f}\nAcc:{acc:.3f}")
 
-        data = training_data_in_rounds.get(name, None)
-        # if data is not None:
-        #     models = models_in_rounds.get(name, None)
-        #     preds, variances = net.eval_bagged(
-        #         data.to_numpy()[:, :n_ingredients], models
-        #     )
+        training_data = training_data_in_rounds.get(name, None)
+        if training_data is not None:
+            models = models_in_rounds.get(name, None)
+            if transfer_learning and i == 0:
+                _n_ingredients = 19
+            else:
+                _n_ingredients = n_ingredients
+            preds, _ = net.eval_bagged(
+                training_data.to_numpy()[:, :_n_ingredients], models
+            )
 
-        #     data_1 = preds
-        #     data_2 = data["y_true"].to_numpy()
-        #     all_train_data[i] = (data_1, data_2)
+            data_1 = preds
+            data_2 = training_data["y_true"].to_numpy()
+            all_train_data[i] = (data_1, data_2)
 
-        #     x_axis_points = np.arange(len(data))
+            x_axis_points = np.arange(len(training_data))
 
-        #     mse = mean_squared_error(data["y_true"], preds)
-        #     acc = _get_acc(data_1, data_2, threshold)
+            mse = mean_squared_error(training_data["y_true"], preds)
+            acc = _get_acc(data_1, data_2, threshold)
 
-        #     order = np.argsort(data_1)
-        #     axs[1, i].plot(x_axis_points, data_2[order], ".", alpha=0.20, markersize=1)
-        #     axs[1, i].plot(x_axis_points, data_1[order], "-")
-        #     axs[1, i].set_xlabel("Experiment")
-        #     axs[1, i].set_title(f"{name} NNs, Train\nMSE:{mse:.3f}\nAcc:{acc:.3f}")
+            order = np.argsort(data_1)
+            axs[1, i].plot(x_axis_points, data_2[order], ".", alpha=0.20, markersize=1)
+            axs[1, i].plot(x_axis_points, data_1[order], "-")
+            axs[1, i].set_xlabel("Experiment")
+            axs[1, i].set_title(f"{name} NNs, Train\nMSE:{mse:.3f}\nAcc:{acc:.3f}")
 
     fig_path = os.path.join(
         experiment_folder, f"summarize_nn_performance_{fig_name}.png"
@@ -591,7 +542,6 @@ def plot_model_performance(experiment_folder, fig_name, n_ingredients, max_n=Non
     fig.tight_layout()
     fig.savefig(fig_path, dpi=400)
     return all_test_data, all_train_data
-
 
 def count(df, threshold, n_ingredients):
     depth_groups = df.groupby(by=["depth"])
@@ -623,56 +573,6 @@ def count(df, threshold, n_ingredients):
     results = pd.DataFrame.from_dict(depth_counts, orient="index")
     results.index.name = "depth"
     return results
-
-
-def main(folder, n_ingredients):
-    max_round_n = 12
-    folders = [
-        os.path.join(folder, i, "results_all.csv")
-        for i in os.listdir(folder)
-        if "Round" in i
-    ]
-    folders = sorted(folders, key=lambda x: (len(x), x))[:max_round_n]
-
-    print(folders)
-    output_path = os.path.join(folder, "summary")
-    if not os.path.exists(output_path):
-        os.makedirs(output_path)
-
-    round_data = []
-    for i, f in enumerate(folders):
-        round_data = pd.read_csv(f, index_col=None)
-        round_data = round_data.drop(
-            columns=[
-                "var",
-                "environment",
-                "strain",
-                "parent_plate",
-                "initial_od",
-                "final_od",
-                "bad",
-                "delta_od",
-            ]
-        )
-
-        round_output = os.path.join(output_path, f"Round{i+1}")
-        if not os.path.exists(round_output):
-            os.makedirs(round_output)
-
-        round_data_grouped = round_data.groupby(by=["type"])
-        threshold = 0.25
-        for group_type, df in round_data_grouped:
-            results = count(df, threshold, n_ingredients)
-            grows = df[df["fitness"] >= threshold]
-            grows = grows.sort_values(by=["depth", "fitness"], ascending=[False, False])
-
-            results.to_csv(
-                os.path.join(round_output, f"summarize_{group_type}_results.csv")
-            )
-
-        results_all = count(round_data, threshold, n_ingredients)
-        results_all.to_csv(os.path.join(round_output, f"summarize_ALL_results.csv"))
-
 
 def make_growth_distribution_hist(
     bacterai_data, random_data, experiment_folder, n_bins
@@ -768,6 +668,15 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
+        "-rp",
+        "--show_rollout_proportion",
+        action="store_true",
+        default=False,
+        help="Show the proportion of 'rollout' guesses alongside each bar.",
+    )
+
+
+    parser.add_argument(
         "-num",
         "--num_ingredients",
         type=int,
@@ -782,11 +691,12 @@ if __name__ == "__main__":
     if not name:
         name = args.path.replace(" ", "-").replace("/", "_")
 
+    is_transfer_learning_scheme = args.num_ingredients > 20
     all_test_data, all_train_data = plot_model_performance(
-        args.path, name, n_ingredients=args.num_ingredients, max_n=args.rounds
+        args.path, name, n_ingredients=args.num_ingredients, max_n=args.rounds, transfer_learning=is_transfer_learning_scheme
     )
 
-    plot_main_fig(
+    out_paths = plot_main_fig(
         args.path,
         all_test_data,
         all_train_data,
@@ -795,14 +705,7 @@ if __name__ == "__main__":
         skip=args.increment,
         max_n=args.rounds,
         show_train=args.show_train,
+        show_rollout_proportion=args.show_rollout_proportion,
     )
 
-    # Second plot
-    # data = utils.combined_round_data(args.path, max_n=args.rounds)
-    # path = "Randoms (1) SGO CH1 17f3 mapped_data.csv"
-    # rand_data = utils.process_mapped_data(path)[0]
-    # rand_data = rand_data.sort_values(by="growth_pred").reset_index(drop=True)
-    # if "is_redo" in rand_data.columns:
-    #     rand_data = rand_data[~rand_data["is_redo"]]
-
-    # make_growth_distribution_hist(data, rand_data, args.path, args.num_ingredients)
+    print(f'Saved to: {out_paths}')

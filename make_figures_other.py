@@ -8,8 +8,7 @@ from matplotlib.lines import Line2D
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from scipy.stats.kde import gaussian_kde
-from scipy.stats import norm
+from scipy.stats import gaussian_kde
 from sklearn.metrics import mean_squared_error
 import torch
 
@@ -715,7 +714,7 @@ def plot_model_performance(experiment_folder, n_ingredients=20):
             if "bad_runs" in path:
                 continue
             if "bag_model" in name:
-                model = torch.load(path).cuda()
+                model = torch.load(path, map_location=torch.device(net.DEVICE))
                 models.append(model)
                 # print(path)
             if "train_pred" in name:
