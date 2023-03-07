@@ -80,7 +80,6 @@ def main(max_day, ingredient_names, experiment_path):
 
     full_cdm = len(ingredient_names) > 20
 
-    # data = import.combined_round_data(path, max_n=11, sort=False)
     round_folders = sorted([f for f in os.listdir(experiment_path) if "Round" in f], key=lambda x: (len(x), x))[:max_day]
     print(round_folders)
 
@@ -159,7 +158,6 @@ def main(max_day, ingredient_names, experiment_path):
 
     print(list(data.columns))
     print(data.shape)
-    # print(data)
     print(max_day * 336)
 
     out_path = os.path.join(experiment_path, "experiment_data.csv")

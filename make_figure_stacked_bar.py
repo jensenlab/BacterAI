@@ -43,15 +43,7 @@ def plot_main_fig(
     max_n=None,
     show_rollout_proportion=False,
 ):
-    GROUP_WIDTH = 4
-    SPACER_WIDTH = 1.5
-    TOTAL_WIDTH = GROUP_WIDTH + SPACER_WIDTH
     N_GROUPS = n_ingredients
-
-    def _idx_to_pos(idx):
-        x = idx % GROUP_WIDTH
-        y = idx // GROUP_WIDTH
-        return (x, y)
 
     threshold = 0.25
     paths = []
@@ -95,28 +87,18 @@ def plot_main_fig(
         gridspec_kw=gridspec,
     )
 
-    point_opts = [
-        {"markersize": 4, "marker": "."},
-        {
-            "markerfacecolor": "none",
-            "markeredgewidth": 0.75,
-            "markersize": 4.5,
-            "marker": ".",
-        },
-    ]
     max_h = 0
     for graph_idx, (round_idx, results) in enumerate(all_results):
         print()
-        print(f"{graph_idx=}")
         results = results.reset_index(drop=True)
-        results["n_media_ingredients"] = (
-            n_ingredients - results["depth"]
-        )  # reverse from # removed to # added
-        tot = 0
 
+        # reverse from # removed to # added
+        results["n_media_ingredients"] = n_ingredients - results["depth"]
+        
+        tot = 0
         all_values = {}
         for kind in ["CORRECT", "INCORRECT"]:
-            for t, opts in zip(["FRONTIER", "BEYOND"], point_opts):
+            for t in ["FRONTIER", "BEYOND"]:
                 print(kind, t)
                 r = results[results["frontier_type"] == t]
 
@@ -221,7 +203,6 @@ def plot_main_fig(
             va="bottom",
         )
 
-        # proportion_rollouts = {i: 0 for i in range(0, N_GROUPS + 1)}
         if show_rollout_proportion:
             print(f"{stacked_heights=}")
             offset = bar_width / 2
@@ -241,9 +222,6 @@ def plot_main_fig(
                     linewidth=1,
                 )
 
-        print(f"{tot=}")
-
-        # major_ticks = np.arange(0, TOTAL_WIDTH * (N_GROUPS + 1), TOTAL_WIDTH) + 1.5
         major_ticks = np.arange(0, N_GROUPS + 1, 5)
         axs[graph_idx, 0].set_aspect("auto")
         axs[graph_idx, 0].set_xlim(-0.99, N_GROUPS + 0.99)
@@ -251,31 +229,17 @@ def plot_main_fig(
         axs[graph_idx, 0].set_xticklabels([])
         minor_locator = AutoMinorLocator(5)
         axs[graph_idx, 0].xaxis.set_minor_locator(minor_locator)
-        # minor_locator = AutoMinorLocator(5)
-        # axs[graph_idx, 0].yaxis.set_minor_locator(minor_locator)
-        # axs[graph_idx, 0].set_yticklabels([])
-        # axs[graph_idx, 0].set_ylabel(
-        #     f"Day {round_idx+1}", rotation=0, horizontalalignment="left"
-        # )
-        axs[graph_idx, 0].set_ylabel(f"Count")
-        # axs[graph_idx, 0].set_ylabel(f"Day {round_idx+1}")
-        # axs[graph_idx, 0].yaxis.set_label_coords(0.0, 0.8)
 
-        # axs[graph_idx, 0].spines["left"].set_visible(False)
+        axs[graph_idx, 0].set_ylabel(f"Count")
         axs[graph_idx, 0].spines["right"].set_visible(False)
         axs[graph_idx, 0].spines["top"].set_visible(False)
-        # axs[graph_idx, 0].tick_params(axis="y", which="both", length=0)
 
         if graph_idx == len(all_results) - 1:
             axs[graph_idx, 0].set_xticklabels(np.arange(0, N_GROUPS + 1, 5))
-        # if graph_idx != len(all_results) - 1:
-        #     axs[graph_idx, 0].tick_params(axis="x", which="both", length=0)
-        #     axs[graph_idx, 0].axes.get_xaxis().set_visible(False)
 
         metric_style = dict(
             fontsize=10,
             verticalalignment="center",
-            # bbox=dict(facecolor="white", alpha=0.5, linewidth=0),
         )
 
         train_data = all_train_data.get(round_idx, None)
@@ -319,7 +283,7 @@ def plot_main_fig(
         if test_data is not None:
             preds, y_true = test_data
             x_axis_points = np.arange(len(preds))
-            # print(data)
+
             mse = mean_squared_error(y_true, preds)
             acc = _get_acc(preds, y_true, threshold)
 
@@ -349,12 +313,7 @@ def plot_main_fig(
         if graph_idx == 0 and show_train:
             axs[graph_idx, 1].axis("off")
 
-        # if graph_idx == 3:
-        # axs[graph_idx, 1].set_ylabel("Fitness")
-
     for ax in axs[:, 1:].flatten():
-        # ax.set_aspect("equal")
-        # ax.axes.get_xaxis().set_visible(False)
         ax.set_xticks([])
         ax.set_xticklabels([])
         ax.set_ybound(-0.15, 1.15)
@@ -364,11 +323,8 @@ def plot_main_fig(
     if show_train:
         axs[-1, 1].set_xlabel(f"Train Set")
         axs[-1, 2].set_xlabel(f"Test Set")
-        # axs[-1, 1].axes.get_xaxis().set_visible(True)
-        # axs[-1, 2].axes.get_xaxis().set_visible(True)
     else:
         axs[-1, 1].set_xlabel(f"Test Set")
-        # axs[-1, 1].axes.get_xaxis().set_visible(True)
 
     for i, ax in enumerate(axs[:, 0]):
         ax.set_ybound(0, max_h)
@@ -410,12 +366,10 @@ def plot_main_fig(
     
     plt.subplots_adjust(wspace=0, hspace=0.1)
     plt.tight_layout(rect=[0, bot_legend_pad/height, 1, 1])
-    # plt.tight_layout()
 
     fig_path = os.path.join(experiment_folder, fig_name)
-    paths = [fig_path + suffix for suffix in (".png", ".svg")]
-    for p in paths:
-        plt.savefig(p, dpi=400)
+    for file_ext in (".png", ".svg"):
+        plt.savefig(f"{fig_path}{file_ext}", dpi=400)
 
     return paths
 
@@ -437,7 +391,7 @@ def plot_model_performance(experiment_folder, fig_name, n_ingredients, max_n=Non
     models_in_rounds = {}
     training_data_in_rounds = {}
     testing_data_in_rounds = {}
-    for root, dirs, files in os.walk(experiment_folder):
+    for root, _, files in os.walk(experiment_folder):
         models = []
         for name in files:
             path = os.path.join(root, name)
@@ -446,7 +400,6 @@ def plot_model_performance(experiment_folder, fig_name, n_ingredients, max_n=Non
             if "bag_model" in name:
                 model = torch.load(path, map_location=torch.device(net.DEVICE))
                 models.append(model)
-                # print(path)
             if "train_pred.csv" in name:
                 # This round's train_pred.csv has the data from all previous_rounds
                 # and is used to train this round's models, therefore, we have to
@@ -542,86 +495,6 @@ def plot_model_performance(experiment_folder, fig_name, n_ingredients, max_n=Non
     fig.tight_layout()
     fig.savefig(fig_path, dpi=400)
     return all_test_data, all_train_data
-
-def count(df, threshold, n_ingredients):
-    depth_groups = df.groupby(by=["depth"])
-    depth_counts = {}
-    for jdx, df2 in depth_groups:
-        n_total = len(df2)
-        n_correct = (df2["fitness"] >= df2["growth_pred"]).sum()
-        n_incorrect = (df2["fitness"] < df2["growth_pred"]).sum()
-
-        frontier = df2[df2["frontier_type"] == "FRONTIER"]
-        n_frontier = len(frontier)
-        n_frontier_grows = (frontier["fitness"] >= threshold).sum()
-
-        beyond = df2[df2["frontier_type"] == "BEYOND"]
-        n_beyond = len(beyond)
-        n_beyond_no_grows = (beyond["fitness"] < threshold).sum()
-
-        depth_counts[jdx] = {
-            "n_total": n_total,
-            "n_correct": n_correct,
-            "n_incorrect": n_incorrect,
-            "n_frontier": n_frontier,
-            "n_beyond": n_beyond,
-            "proportion_frontier_grow": n_frontier_grows / n_frontier,
-            "proportion_beyond_no_grows": n_beyond_no_grows / n_beyond,
-            "proportion_explored": n_total / comb(n_ingredients, jdx),
-        }
-
-    results = pd.DataFrame.from_dict(depth_counts, orient="index")
-    results.index.name = "depth"
-    return results
-
-def make_growth_distribution_hist(
-    bacterai_data, random_data, experiment_folder, n_bins
-):
-    fig, axs = plt.subplots(nrows=1, ncols=1, figsize=(10, 6))
-
-    width = 0.5
-
-    bins = np.arange(0, 1.01, 1 / n_bins)
-    rand, _ = np.histogram(random_data["fitness"], bins)
-    bact, _ = np.histogram(bacterai_data["fitness"], bins)
-
-    rand = rand / len(random_data)
-    bact = bact / len(bacterai_data)
-
-    x = np.arange(n_bins)
-    r1 = axs.bar(
-        x + width / 2,
-        rand,
-        width,
-        color="dodgerblue",
-    )
-    r2 = axs.bar(
-        x + 1.5 * width,
-        bact,
-        width,
-        color="k",
-    )
-    axs.set_ylabel("Count Density")
-    axs.set_xlabel("Fitness")
-    axs.bar_label(r1, padding=2, fmt="%.2f", fontsize=7.5)
-    axs.bar_label(r2, padding=2, fmt="%.2f", fontsize=7.5)
-
-    bin_labels = [f"{x:.2f}" for x in np.arange(0, 1.01, 1 / n_bins)]
-    print(bin_labels)
-    axs.set_xticks(np.arange(0, n_bins + 1, 1))
-    axs.set_xticklabels(bin_labels)
-    plt.xticks(rotation="vertical")
-    # axs.set_yscale('log')
-
-    # axs.xaxis.set_major_formatter(FormatStrFormatter('%.2f'))
-    # plt.gca().xaxis.set_major_formatter(StrMethodFormatter('{x:,.2f}'))
-    plt.legend(["Random", "BacterAI"])
-
-    fig_path = os.path.join(
-        experiment_folder, "summarize_simulation_fitness_order_plot_combined.png"
-    )
-    fig.tight_layout()
-    fig.savefig(fig_path, dpi=400)
 
 
 if __name__ == "__main__":

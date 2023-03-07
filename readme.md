@@ -1,6 +1,6 @@
 # BacterAI
 
-#### Jensen Lab, UIUC
+#### Jensen Lab, 2023
 
 Data for paper in `published_data/`
 

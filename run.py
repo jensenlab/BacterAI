@@ -10,7 +10,7 @@ import pandas as pd
 
 from constants import *
 from models import GPRModel, NeuralNetModel, ModelType
-from plot import plot_redos, plot_results
+from plot import plot_redos as plot_redos_, plot_results
 from scripts.size_n_to_m_conversion import fill_new_ingredients
 from sim import SimType, SimDirection, perform_simulations
 import utils
@@ -175,6 +175,13 @@ def process_results(
         elif "train_pred" in filename_low and "orig" not in filename_low:
             dataset_path = os.path.join(folder, filename)
 
+    if mapped_path is None:
+        raise "file 'mapped_data' not found!"
+    if batch_path is None:
+        raise "file 'batch_meta' not found!"
+    if dataset_path is None:
+        raise "file 'train_pred' not found!"
+
     new_dataset_path = os.path.join(new_folder, "train_pred.csv")
 
     # Merge results (mapped data) with predictions (batch data)
@@ -215,7 +222,7 @@ def process_results(
             prev_results = utils.normalize_ingredient_names(
                 pd.read_csv(prev_result_path, index_col=None)
             )
-            plot_redos(folder, prev_results, redo_results, ingredient_names)
+            plot_redos_(folder, prev_results, redo_results, ingredient_names)
 
     # Process results
     results.iloc[:, :n_ingredients] = results.iloc[:, :n_ingredients].astype(int)
