@@ -106,7 +106,6 @@ class GeneticSolver:
 
         return balanced_accuracy
 
-    # @decoratortimer(5)
     def apply_rule(self, rule, data):
         rule_as_idx = rule - 1
         i = 0
@@ -428,7 +427,6 @@ def plot_hit_miss_rates(solver, round_data, rule, n_ingredients):
         ax.set_xticks(np.arange(0, n_ingredients + 1))
         ax.set_xlabel("N ingredients removed")
 
-    # plt.suptitle(f"Experiment: {prev_folder}")
     plt.tight_layout()
     plt.savefig("rule_solver_counts.png", dpi=400)
 
