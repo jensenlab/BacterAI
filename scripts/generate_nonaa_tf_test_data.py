@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 
 sys.path.append("../")
-from global_vars import *
+from constants import *
 
 
 ## USER INPUTS

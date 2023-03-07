@@ -9,12 +9,10 @@ from torch.optim import Adam
 import optuna
 import pandas as pd
 import numpy as np
-from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 
-# DEVICE = "cpu"
-DEVICE = "cuda"
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 class DatasetAminoAcids(Dataset):

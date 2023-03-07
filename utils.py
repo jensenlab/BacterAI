@@ -4,7 +4,7 @@ import time
 import numpy as np
 import pandas as pd
 
-from global_vars import *
+from constants import *
 
 
 def seed_numpy_state(seed):

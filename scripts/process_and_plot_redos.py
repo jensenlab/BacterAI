@@ -5,7 +5,7 @@ import sys
 import pandas as pd
 
 sys.path.insert(0, os.path.abspath("."))
-import global_vars
+import constants
 import plot
 import utils
 
@@ -25,11 +25,11 @@ def print_info(args, ingredient_names):
 
 def main(args):
     if args.ingredients == "aa":
-        ingredient_names = global_vars.AA_SHORT
+        ingredient_names = constants.AA_SHORT
     elif args.ingredients == "non-aa":
-        ingredient_names = global_vars.BASE_NAMES
+        ingredient_names = constants.BASE_NAMES
     elif args.ingredients == "all":
-        ingredient_names = global_vars.AA_SHORT + global_vars.BASE_NAMES
+        ingredient_names = constants.AA_SHORT + constants.BASE_NAMES
     else:
         raise Exception(f"Error: invalid ingredients ({args.ingredients}).")
 

@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from global_vars import *
+from constants import *
 
 
 def plot_redos(folder, prev_results, redo_results, ingredients):

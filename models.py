@@ -8,7 +8,7 @@ import rpy2.robjects.numpy2ri as rpyn
 from rpy2.robjects.packages import STAP
 import torch
 
-from global_vars import *
+from constants import *
 import net
 
 
@@ -93,7 +93,7 @@ class NeuralNetModel(Model):
 
         for filename in os.listdir(models_path):
             if "bag_model" in filename:
-                model = torch.load(os.path.join(models_path, filename))
+                model = torch.load(os.path.join(models_path, filename), map_location=torch.device(net.DEVICE))
                 obj.models.append(model)
 
         obj.is_trained = True

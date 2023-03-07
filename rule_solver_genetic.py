@@ -1,20 +1,28 @@
 import collections
-import datetime
+from enum import Enum
 import os
 import time
+import datetime
+import multiprocessing
 
 import matplotlib.pyplot as plt
-import multiprocessing
 import numpy as np
 import pandas as pd
-from scipy.stats import poisson
-from sklearn.metrics import confusion_matrix, log_loss
-from sklearn.model_selection import KFold, train_test_split
+from sklearn.model_selection import train_test_split
+from tqdm import tqdm
 
-from global_vars import *
+from constants import *
 import utils
 
-VERBOSE = True
+VERBOSE = False
+N_PROCESSES = 10
+
+
+class CrossoverMethod(Enum):
+    SINGLE_CROSSOVER = 0
+    DOUBLE_CROSSOVER = 1
+    GROUP_CROSSOVER = 2
+    GROUP_RECOMBINATION = 3
 
 
 class GeneticSolver:
@@ -26,70 +34,88 @@ class GeneticSolver:
         rule_choices,
         population_size,
         data,
-        fitness_lambda=1,
+        summary_file_info,
+        ingredient_names,
+        no_test_train_split=False,
+        bias_zero_choice=True,
     ):
         self.run_name = run_name
         self.output_folder = output_folder
         self.n_groups = n_groups
-        self.rule_choices = rule_choices  # np.arange(21)
+        self.rule_choices = rule_choices.astype("int16")
         self.current_generation = np.random.choice(
             rule_choices, size=(population_size, self.n_groups * 4), replace=True
         )
 
         # np.array first 20 cols are input AAs (binary), last col is growth
-        self.train_data, self.test_data = train_test_split(data, test_size=0.25)
+        data = data.astype("int16")
+        if no_test_train_split:
+            self.train_data = data
+        else:
+            self.train_data, self.test_data = train_test_split(data, test_size=0.25)
 
         self.generation_stats = {"fitness_avg": [], "fitness_max": []}
         self.generation_n = 0
-        self.fitness_lambda = fitness_lambda
+        self.summary_file_info = summary_file_info
+        self.ingredient_names = ingredient_names
+
+        # mutation metrics
+        self.rule_len = self.n_groups * 4
+        self.mut_idxs = np.arange(self.rule_len, dtype="int16")
+        n_choices = len(self.rule_choices)
+        zero_bias = 0.75
+        mut_choice_bias_zero = [zero_bias] + [(1 - zero_bias) / (n_choices - 1)] * (
+            n_choices - 1
+        )
+        mut_choice_bias = [1 / n_choices] * n_choices
+        self.mut_bias = mut_choice_bias_zero if bias_zero_choice else mut_choice_bias
+        zero_mutation_bias = 0.25
+        self.mutation_probability = [zero_mutation_bias] + [
+            (1 - zero_mutation_bias) / self.rule_len
+        ] * self.rule_len
+        self.mut_choices = np.arange(0, self.rule_len + 1, dtype="int16")
 
     def fitness_score(self, rule, include_metrics=False, use_test_data=False):
-        if use_test_data:
-            data = self.test_data
-        else:
-            data = self.train_data
+        data = self.test_data if use_test_data else self.train_data
 
         results = self.apply_rule(rule, data)
 
         pred_grow = results == 1
         true_grow = data[:, -1] == 1
+
         tp = np.sum(np.logical_and(pred_grow, true_grow))
         tn = np.sum(np.logical_and(~pred_grow, ~true_grow))
         fp = np.sum(np.logical_and(pred_grow, ~true_grow))
         fn = np.sum(np.logical_and(~pred_grow, true_grow))
 
-        tpr = tp / (tp + fn)
-        tnr = tn / (tn + fp)
+        denom = tp + fn
+        tpr = 0 if denom == 0 else tp / denom
+        denom = tn + fp
+        tnr = 0 if denom == 0 else tn / denom
         balanced_accuracy = (tpr + tnr) / 2
-        acc = (tp + tn) / len(results)
-
-        # n_zero_percent = (rule == 0).sum() / len(rule)
-        # # lamb = 0.95
-        # score = (balanced_accuracy * self.fitness_lambda) + (
-        #     n_zero_percent * (1 - self.fitness_lambda)
-        # )
-        score = balanced_accuracy
-        # score = tp + tn - fp - fn
 
         if include_metrics:
+            acc = (tp + tn) / len(results)
             metrics = {
                 "TPR": tpr,
                 "TNR": tnr,
                 "accuracy": acc,
                 "balanced_accuracy": balanced_accuracy,
             }
-            return score, metrics
+            return balanced_accuracy, metrics
 
-        return score
+        return balanced_accuracy
 
     def apply_rule(self, rule, data):
-        rule_as_idxes = self.split_rule(rule - 1)
-
-        r = rule_as_idxes[0]
-        results = np.any(data[:, r[r >= 0]], axis=1)
-        for r in rule_as_idxes[1:]:
-            cols = r[r >= 0]
-            if cols.size > 0:
+        rule_as_idx = rule - 1
+        i = 0
+        cols = rule_as_idx[i : i + 4]
+        cols = cols[cols >= 0]
+        results = np.any(data[:, cols], axis=1)
+        for i in range(4, self.n_groups * 4 + 1, 4):
+            cols = rule_as_idx[i : i + 4]
+            cols = cols[cols >= 0]
+            if cols.size:
                 results = results & np.any(data[:, cols], axis=1)
 
         return results
@@ -112,7 +138,7 @@ class GeneticSolver:
         return rule
 
     def clean_rule(self, rule):
-        clean = np.zeros(self.n_groups * 4)
+        clean = np.zeros(self.n_groups * 4, dtype="int16")
         seen_group = set()
         for i in range(0, self.n_groups * 4, 4):
             unique = np.unique(rule[i : i + 4])
@@ -124,61 +150,45 @@ class GeneticSolver:
         return clean
 
     def perform_group_crossover(self, pair):
-        cross_idx = np.random.choice(np.arange(4), size=1, replace=False)[0] * 4
+        cross_idx = (
+            np.random.choice(np.arange(4, dtype="int16"), size=1, replace=False)[0] * 4
+        )
         pair[[0, 1], cross_idx : cross_idx + 4] = pair[
             [1, 0], cross_idx : cross_idx + 4
         ]
 
     def perform_group_recombination(self, pair):
-        before = pair.copy()
-        both_grouped = np.vstack(self.split_rule(pair.flatten()))
-        group_idxs = np.arange(len(both_grouped), dtype=int)
+        both_grouped = np.vstack(self.split_rule(pair.flatten()), dtype="int16")
+        group_idxs = np.arange(len(both_grouped), dtype="int16")
         np.random.shuffle(group_idxs)
         pair[0, :] = both_grouped[group_idxs[: len(group_idxs) // 2]].flatten()
         pair[1, :] = both_grouped[group_idxs[len(group_idxs) // 2 :]].flatten()
 
-    def perform_crossover(self, pair, double_crossover=False):
-        if double_crossover:
-            cross_idxs = np.random.choice(
-                np.arange(pair.shape[1]), size=2, replace=False
-            )
-            pair[[0, 1], cross_idxs[0] : cross_idxs[1]] = pair[
-                [1, 0], cross_idxs[0] : cross_idxs[1]
-            ]
-        else:
+    def perform_double_crossover(self, pair):
+        cross_idxs = np.random.choice(
+            np.arange(pair.shape[1], dtype="int16"), size=2, replace=False
+        )
+        pair[[0, 1], cross_idxs[0] : cross_idxs[1]] = pair[
+            [1, 0], cross_idxs[0] : cross_idxs[1]
+        ]
+
+    def perform_crossover(self, pair, cross_idx=None):
+        if cross_idx == None:
             cross_idx = np.random.choice(
-                np.arange(pair.shape[1]), size=1, replace=False
+                np.arange(pair.shape[1], dtype="int16"), size=1, replace=False
             )[0]
-            pair[[0, 1], :cross_idx] = pair[[1, 0], :cross_idx]
+        pair[[0, 1], :cross_idx] = pair[[1, 0], :cross_idx]
+        return pair
 
-    def perform_mutations(self, a, poisson_center=2, bias_zero_choice=False):
-        idxs = np.arange(a.shape[1])
-        rule_len = self.n_groups * 4
-        n_choices = len(self.rule_choices)
-        if bias_zero_choice:
-            zero_bias = 0.75
-            choice_bias = [zero_bias] + [(1 - zero_bias) / (n_choices - 1)] * (
-                n_choices - 1
-            )
-        else:
-            choice_bias = [1 / n_choices] * n_choices
-
-        # zero_mutation_bias = 0.5
-        zero_mutation_bias = 0.25
-        mutation_probability = [zero_mutation_bias] + [
-            (1 - zero_mutation_bias) / rule_len
-        ] * rule_len
-        choices = np.arange(0, rule_len + 1)
-        for row in a:
-            n_mutations = np.random.choice(choices, 1, p=mutation_probability)
-            mutation_idxs = np.random.choice(idxs, size=n_mutations, replace=False)
-            row[mutation_idxs] = np.random.choice(
-                self.rule_choices,
-                size=n_mutations,
-                replace=True,
-                p=choice_bias,
-            )
-        # print("mut after:", a)
+    def perform_mutations(self, single, n_mutations):
+        mutation_idxs = np.random.choice(self.mut_idxs, size=n_mutations, replace=False)
+        single[mutation_idxs] = np.random.choice(
+            self.rule_choices,
+            size=n_mutations,
+            replace=True,
+            p=self.mut_bias,
+        )
+        return single
 
     def get_elite(self, p, fitnesses):
         n = int(p * len(self.current_generation))
@@ -188,44 +198,55 @@ class GeneticSolver:
         elites = self.current_generation[elite_idxs, :]
         return elites
 
-    def _new_pair(self, pair, mu):
-        # self.perform_crossover(pair, double_crossover=True)
-        # self.perform_group_recombination(pair)
-        self.perform_crossover(pair)
-        # self.perform_group_crossover(pair)
-        # self.perform_mutations(pair, mu)
-        self.perform_mutations(pair, mu, bias_zero_choice=True)
+    def _new_pair(self, pair, method=CrossoverMethod.SINGLE_CROSSOVER):
+        if method == CrossoverMethod.SINGLE_CROSSOVER:
+            self.perform_crossover(pair)
+        elif method == CrossoverMethod.DOUBLE_CROSSOVER:
+            self.perform_double_crossover(pair)
+        elif method == CrossoverMethod.GROUP_CROSSOVER:
+            self.perform_group_crossover(pair)
+        elif method == CrossoverMethod.GROUP_RECOMBINATION:
+            self.perform_group_recombination(pair)
         return pair
 
-    def get_new_generation(self, n, fitnesses, mutation_mu):
+    def get_new_generation(self, n, fitnesses):
         selection_bias = utils.softmax(fitnesses)
-        new_generation = np.zeros((n, self.current_generation.shape[1]))
-
         selections = self.select_from_population(selection_bias, n)
-        with multiprocessing.Pool(processes=30) as pool:
-            results = pool.starmap(
-                self._new_pair,
-                [(selections[[i, i + 1], :], mutation_mu) for i in range(0, n, 2)],
-            )
+        n_pairs = len(selections) // 2
+        selection_pairs = np.split(selections, n_pairs)
 
-        new_generation = np.concatenate(results)
+        cross_idxs = np.random.choice(
+            np.arange(self.rule_len, dtype="int16"), size=n_pairs, replace=True
+        )
+        new_generation = list(map(self.perform_crossover, selection_pairs, cross_idxs))
+        new_generation = np.vstack(new_generation)
 
+        n_mutations = np.random.choice(
+            self.mut_choices, len(selections), p=self.mutation_probability
+        )
+        new_generation = list(map(self.perform_mutations, new_generation, n_mutations))
         return new_generation
 
     def select_from_population(self, p, n):
         selected_idxs = np.random.choice(
-            np.arange(len(self.current_generation)), size=n, replace=True, p=p
+            np.arange(len(self.current_generation), dtype="int16"),
+            size=n,
+            replace=True,
+            p=p,
         )
         selections = self.current_generation[selected_idxs, :]
-
         return selections
 
     def _build_summary_output(self, rule):
-        _, train_metrics = self.fitness_score(rule, include_metrics=True)
-        score, metrics = self.fitness_score(rule, include_metrics=True, use_test_data=True)
+        _, train_metrics = self.fitness_score(
+            rule, include_metrics=True, use_test_data=False
+        )
+        score, test_metrics = self.fitness_score(
+            rule, include_metrics=True, use_test_data=True
+        )
         rule_split = self.split_rule(rule)
 
-        add_rule = np.zeros(len(rule))
+        add_rule = np.zeros(len(rule), dtype="int16")
 
         add_scores = []
         remove_scores = []
@@ -240,20 +261,48 @@ class GeneticSolver:
             remove_score = self.fitness_score(remove_rule, use_test_data=True)
             remove_scores.append(remove_score)
 
-        rule_split = [
-            sorted([AA_SHORT[i - 1] for i in y if i != 0]) for y in rule_split
-        ]
+        rule_split = sorted(
+            [
+                sorted([self.ingredient_names[i - 1] for i in y if i != 0])
+                for y in rule_split
+            ],
+            key=len,
+        )
+        rule_split_filtered = [x for x in rule_split if len(x)]
+        rule_str = "".join([f"({' or '.join(group)})" for group in rule_split])
+        rule_str_filtered = "".join(
+            [f"({' or '.join(group)})" for group in rule_split_filtered]
+        )
+
+        metrics = {
+            "n_generations": self.generation_n,
+            "train_acc": train_metrics["accuracy"],
+            "train_bal_acc": train_metrics["balanced_accuracy"],
+            "train_tpr": train_metrics["TPR"],
+            "train_tnr": train_metrics["TNR"],
+            "test_acc": test_metrics["accuracy"],
+            "test_bal_acc": test_metrics["balanced_accuracy"],
+            "test_tpr": test_metrics["TPR"],
+            "test_tnr": test_metrics["TNR"],
+            "rule_str": rule_str_filtered,
+            "rule_raw_idx": rule.tolist(),
+        }
 
         output = [
             f"\n>> {self.run_name} ------------------------\n",
             f"Stopped after {self.generation_n-1} generations.\n",
+            f"Number of groups: {self.n_groups}\n",
             f"Final train accuracy: {train_metrics['accuracy']*100:.2f}%\n",
-            f"Final test accuracy: {metrics['accuracy']*100:.2f}%\n",
-            f"Final balanced accuracy: {metrics['balanced_accuracy']*100:.2f}%\n",
-            f"Final TPR: {metrics['TPR']*100:.2f}%\n",
-            f"Final TNR: {metrics['TNR']*100:.2f}%\n",
-            f"Best Rule: {rule.tolist()}:\n",
+            f"Final test accuracy: {test_metrics['accuracy']*100:.2f}%\n",
+            f"Final test balanced accuracy: {test_metrics['balanced_accuracy']*100:.2f}%\n",
+            f"Final TPR: {test_metrics['TPR']*100:.2f}%\n",
+            f"Final TNR: {test_metrics['TNR']*100:.2f}%\n",
+            f"\t{rule_str_filtered}\n\n",
+            f"Best Rule:\n",
+            f"\t{rule_str}\n\n",
+            f"\t{rule.tolist()}\n\n",
         ]
+
         for group, add_score, remove_score in zip(
             rule_split, add_scores, remove_scores
         ):
@@ -261,16 +310,20 @@ class GeneticSolver:
                 f"\t({' or '.join(group)}) - Added: {add_score*100:+.2f}%, Removed: {(remove_score-score)*100:+.2f}%\n"
             )
 
-        return output
+        for line in output:
+            print(line, end="")
+        return output, metrics
 
     def summarize_score(self, rule, clean_only=True):
         if not clean_only:
-            output = self._build_summary_output(rule)
+            output, _ = self._build_summary_output(rule)
         cleaned_rule = self.final_rule_clean(rule)
-        clean_output = self._build_summary_output(cleaned_rule)
+        clean_output, metrics = self._build_summary_output(cleaned_rule)
 
-        current_date = datetime.datetime.now().isoformat().replace(":", ".")
-        output_file = os.path.join(self.output_folder, "genetic_solver_output.txt")
+        output_file = os.path.join(
+            self.output_folder,
+            f"genetic_solver_output-{self.n_groups}_groups-{self.summary_file_info}.txt",
+        )
         if not os.path.exists(self.output_folder):
             os.makedirs(self.output_folder)
 
@@ -279,13 +332,15 @@ class GeneticSolver:
                 f.writelines(output)
             f.writelines(clean_output)
 
+        return metrics
+
     def solve(
         self,
         elite_p=0.20,
-        mutation_mu=2,
         max_generations=None,
         fitness_threshold=None,
         timeout_seconds=None,
+        tqdm_offset=0
     ):
         if (
             max_generations is None
@@ -296,29 +351,15 @@ class GeneticSolver:
 
         self.generation_n = 0
         starting_time = time.time()
-        while True:
-            if max_generations and self.generation_n > max_generations:
-                break
+        for _ in (pbar := tqdm(range(max_generations), position=tqdm_offset)):
             elapsed = time.time() - starting_time
-            if timeout_seconds and elapsed >= timeout_seconds:
-                break
 
-            # fitnesses = np.apply_along_axis(
-            #     self.fitness_score, 1, self.current_generation
-            # )
-            with multiprocessing.Pool(processes=30) as pool:
-                self.current_generation = np.vstack(
-                    pool.starmap(
-                        self.clean_rule,
-                        [(row,) for row in self.current_generation],
-                    )
-                )
-                fitnesses = np.array(
-                    pool.starmap(
-                        self.fitness_score,
-                        [(row,) for row in self.current_generation],
-                    )
-                )
+            self.current_generation = np.apply_along_axis(
+                self.clean_rule, 1, self.current_generation
+            )
+            fitnesses = np.apply_along_axis(
+                self.fitness_score, 1, self.current_generation
+            )
 
             avg_fitness = fitnesses.sum() / len(fitnesses)
             max_fitness = fitnesses.max()
@@ -327,9 +368,7 @@ class GeneticSolver:
 
             elites = self.get_elite(elite_p, fitnesses)
             n_remaining = len(self.current_generation) - len(elites)
-            new_generation = self.get_new_generation(
-                n_remaining, fitnesses, mutation_mu
-            )
+            new_generation = self.get_new_generation(n_remaining, fitnesses)
             new_generation = np.vstack((elites, new_generation))
             self.current_generation = new_generation
             if VERBOSE:
@@ -340,6 +379,7 @@ class GeneticSolver:
             self.generation_n += 1
             self.generation_stats["fitness_avg"].append(avg_fitness)
             self.generation_stats["fitness_max"].append(max_fitness)
+            pbar.set_description(f"{self.summary_file_info:<10} - Avg: {avg_fitness*100:.2f}%, Max: {max_fitness*100:.2f}%")
 
         best_idx = np.argmax(fitnesses)
         best_rule = self.current_generation[best_idx].astype(int)
@@ -347,23 +387,25 @@ class GeneticSolver:
         print(f"Time elapsed: {elapsed:.0f}s")
         print(f"Max fitness: {max_fitness:.5f}.")
 
-        self.summarize_score(best_rule)
+        metrics = self.summarize_score(best_rule)
 
-        return best_rule
+        return best_rule, metrics
 
 
-def plot_hit_miss_rates(solver, round_data, rule):
+def plot_hit_miss_rates(solver, round_data, rule, n_ingredients):
     print(len(round_data))
-    print(len(set(map(tuple, round_data.to_numpy()[:, :20]))))
+    print(len(set(map(tuple, round_data.to_numpy()[:, :n_ingredients]))))
 
-    round_data["n_ingredients"] = 20 - round_data.iloc[:, :20].sum(axis=1)
-    round_data["rule_pred"] = solver.apply_rule(rule, round_data.iloc[:, :20].to_numpy())
+    round_data["n_ingredients"] = n_ingredients - round_data.iloc[
+        :, :n_ingredients
+    ].sum(axis=1)
+    round_data["rule_pred"] = solver.apply_rule(
+        rule, round_data.iloc[:, :n_ingredients].to_numpy()
+    )
     round_data["fitness"] = round_data["fitness"].astype(bool)
     round_data["correct"] = round_data["fitness"] == round_data["rule_pred"]
 
-    fig, axs = plt.subplots(
-        nrows=2, ncols=2, sharex=False, sharey=True, figsize=(12, 10)
-    )
+    _, axs = plt.subplots(nrows=2, ncols=2, sharex=False, sharey=True, figsize=(12, 10))
 
     values = [(1, 1), (1, 0), (0, 1), (0, 0)]
     for ax, vals in zip(axs.flatten(), values):
@@ -382,19 +424,29 @@ def plot_hit_miss_rates(solver, round_data, rule):
     axs[1, 1].set_title("no grow incorrect counts")
 
     for ax in axs.flatten():
-        ax.set_xticks(np.arange(0, 21))
+        ax.set_xticks(np.arange(0, n_ingredients + 1))
         ax.set_xlabel("N ingredients removed")
 
-    # plt.suptitle(f"Experiment: {prev_folder}")
     plt.tight_layout()
     plt.savefig("rule_solver_counts.png", dpi=400)
 
 
-def solve(round_data, run_name, output_folder, n_groups = 7, threshold=0.25):
+def solve(
+    round_data,
+    run_name,
+    output_folder,
+    ingredient_names,
+    n_groups,
+    summary_file_info,
+    threshold=0.25,
+    max_generations=250,
+    tqdm_offset=0,
+):
     # Median all duplicated experiments since we repeat some
+    n_ingredients = len(ingredient_names)
     round_data = round_data.groupby(
-        list(round_data.columns[:20]), as_index=False
-    ).median()
+        list(round_data.columns[:n_ingredients]), as_index=False
+    ).agg({"fitness": "median"})
 
     fitness_data = round_data["fitness"].to_numpy()
     fitness_data[fitness_data >= threshold] = 1
@@ -403,88 +455,76 @@ def solve(round_data, run_name, output_folder, n_groups = 7, threshold=0.25):
     if "round_n" in round_data.columns:
         round_nums = round_data["round_n"]
 
-    round_data = round_data.iloc[:, :20]
-    round_data.columns = list(range(1, 21))
+    round_data = round_data.iloc[:, :n_ingredients]
+    round_data.columns = list(range(1, n_ingredients + 1))
     round_data["fitness"] = fitness_data
     if "round_n" in round_data.columns:
         round_data["round_n"] = round_nums
 
-    choices = np.arange(21)
+    choices = np.arange(n_ingredients + 1, dtype="int16")
     pop_size = 1000
     solver = GeneticSolver(
-        run_name, output_folder, n_groups, choices, pop_size, round_data.to_numpy()
+        run_name,
+        output_folder,
+        n_groups,
+        choices,
+        pop_size,
+        round_data.to_numpy(),
+        summary_file_info,
+        ingredient_names,
     )
-    rule = solver.solve(elite_p=0.25, mutation_mu=5, max_generations=250)
+    rule, metrics = solver.solve(elite_p=0.25, max_generations=max_generations, tqdm_offset=tqdm_offset)
+    # plot_hit_miss_rates(solver, round_data, rule, n_ingredients)
+    return metrics
 
-    # rule = np.array([0, 6, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
-    # plot_hit_miss_rates(solver, round_data, rule)
 
-
-def solve_kfold_regularization(round_data, run_name, threshold=0.25):
+def evaluate_rule(
+    rule,
+    round_data,
+    run_name,
+    output_folder,
+    n_ingredients,
+    threshold=0.25,
+    export_summary=True,
+):
     # Median all duplicated experiments since we repeat some
     round_data = round_data.groupby(
-        list(round_data.columns[:20]), as_index=False
+        list(round_data.columns[:n_ingredients]), as_index=False
     ).median()
 
     fitness_data = round_data["fitness"].to_numpy()
     fitness_data[fitness_data >= threshold] = 1
     fitness_data[fitness_data < threshold] = 0
 
-    round_data = round_data.iloc[:, :20]
-    round_data.columns = list(range(1, 21))
-    round_data["fitness"] = fitness_data
-    round_data = round_data.to_numpy()
-
-    fitness_lambdas = [1.0, 0.99, 0.975, 0.95, 0.9, 0.5]
-    kf = KFold(n_splits=len(fitness_lambdas), shuffle=True)
-    choices = np.arange(21)
-    pop_size = 1000
-    n_groups = 4
-
-    final_scores = {}
-    for lamb, (train_index, test_index) in zip(fitness_lambdas, kf.split(round_data)):
-        # split_train, split_test = round_data[train_index], X[test_index]
-        all_indexes = np.hstack((train_index, test_index))
-        split_data = round_data[all_indexes]
-        solver = GeneticSolver(
-            run_name,
-            n_groups,
-            choices,
-            pop_size,
-            split_data,
-            fitness_lambda=lamb,
-        )
-        rule = solver.solve(elite_p=0.25, mutation_mu=5, max_generations=100)
-        print(f"Finished Solving with Lambda: {lamb}")
-        print()
-
-
-def evaluate_rule(rule, round_data, run_name, output_folder, threshold=0.25):
-    # Median all duplicated experiments since we repeat some
-    round_data = round_data.groupby(
-        list(round_data.columns[:20]), as_index=False
-    ).median()
-
-    fitness_data = round_data["fitness"].to_numpy()
-    fitness_data[fitness_data >= threshold] = 1
-    fitness_data[fitness_data < threshold] = 0
-
-    round_data = round_data.iloc[:, :20]
-    round_data.columns = list(range(1, 21))
+    round_data = round_data.iloc[:, :n_ingredients]
+    round_data.columns = list(range(1, n_ingredients + 1))
     round_data["fitness"] = fitness_data
     round_data = round_data.to_numpy()
 
     train_set, test_set = train_test_split(round_data, test_size=0.25)
 
-    choices = np.arange(21)
+    choices = np.arange(n_ingredients + 1, dtype="int16")
     pop_size = 1000
     n_groups = 4
-    solver = GeneticSolver(run_name, output_folder, n_groups, choices, pop_size, train_set)
+    solver = GeneticSolver(
+        run_name, output_folder, n_groups, choices, pop_size, train_set
+    )
 
-    solver.summarize_score(rule)
+    if export_summary:
+        solver.summarize_score(rule)
 
 
-def main(folder, max_round_n, n_groups):
+def main(
+    folder,
+    ingredient_names,
+    max_round_n,
+    n_groups,
+    summary_file_info,
+    max_generations,
+    include_nots=False,
+    tqdm_offset=0,
+    **kwargs,
+):
     folders = [
         os.path.join(folder, i, "results_all.csv")
         for i in os.listdir(folder)
@@ -492,7 +532,6 @@ def main(folder, max_round_n, n_groups):
     ]
     folders = sorted(folders, key=lambda x: (len(x), x))[:max_round_n]
 
-    print(folders)
     round_data = []
     for i, f in enumerate(sorted(folders)):
         data = utils.normalize_ingredient_names(pd.read_csv(f, index_col=None))
@@ -500,94 +539,167 @@ def main(folder, max_round_n, n_groups):
         round_data.append(data)
 
     round_data = pd.concat(round_data, ignore_index=True)
-    # round_data.to_csv("roundata.csv", index=False)
     round_data["direction"] = "DOWN"
-    print(f"Round data: {round_data.shape[0]}")
+
+    if include_nots:
+        half_n = len(ingredient_names) // 2
+        og_data = round_data.iloc[:, :half_n].to_numpy()
+        not_data = pd.DataFrame(1 - og_data, columns=ingredient_names[half_n:])
+        round_data = pd.concat(
+            (round_data.iloc[:, :half_n], not_data, round_data.iloc[:, half_n:]), axis=1
+        )
+    
+    if VERBOSE:
+        print(f"Round data: {round_data.shape[0]}, {list(round_data.columns)}")
+
     run_name = f"{folder} - Round {max_round_n}"
     output_folder = os.path.join(folder, "rule_results")
-    solve(round_data, run_name, output_folder, n_groups)
-    # solve_kfold_regularization(round_data)
+    metrics = solve(
+        round_data=round_data,
+        run_name=run_name,
+        output_folder=output_folder,
+        ingredient_names=ingredient_names,
+        n_groups=n_groups,
+        summary_file_info=summary_file_info,
+        max_generations=max_generations,
+        tqdm_offset=tqdm_offset,
+    )
+    return metrics
 
 
-def main2(experiment_folder):
-    # experiment_folder = "experiments/07-26-2021_11"
-    # folder = "data/SMU_data/kk1"
-    # folder = "data/SMU_data/kk2"
-    # folder = "data/SMU_data/kk3"
-    # folder = "data/SMU_data/randoms"
-    # files = [os.path.join(folder, i) for i in os.listdir(folder)]
+from itertools import repeat
 
-    # files = ["data/SMU_data/standards/L1I-L2I SMU a438.csv", "data/SMU_data/standards/L1O-L2O SMU 3e31.csvs"]
-    # files = [
-    #     # "data/SMU_data/standards/L1IO-L2IO-Rand SMU UA159 69be.csv",
-    #     # "data/SMU_data/standards/L1IO-L2IO-Rand SMU UA159 (3) 9b54.csv",
-    #     "data/SMU_data/standards/L1I-L2I SMU a438.csv",
-    # ]
+def starmap_with_kwargs(pool, fn, kwargs_iter):
+    args_for_starmap = zip(repeat(fn), kwargs_iter)
+    return pool.starmap(apply_args_and_kwargs, args_for_starmap)
 
-    # round_data = [
-    #     utils.normalize_ingredient_names(pd.read_csv(f, index_col=None)) for f in files
-    # ]
-    # round_data = pd.concat(round_data, ignore_index=True)
-    # round_data = round_data.replace(
-    #     {"Anaerobic Chamber @ 37 C": "anaerobic", "5% CO2 @ 37 C": "aerobic"}
-    # )
-    # round_data = round_data[round_data["environment"] == "aerobic"]
-    # round_data["direction"] = "DOWN"
-    # round_data["solution_id_hex"] = None
-    # print(round_data.shape)
-    # round_data = round_data[round_data["good_data"] != False]
-    # print(round_data.shape)
-
-    # drops = [i for i in ["good_data", "reason", "reasons"] if i in round_data.columns]
-    # round_data = round_data.drop(columns=drops)
-    # round_data = round_data.reset_index(drop=True)
-    # round_data.to_csv("data.csv", index=False)
-    # round_data, _, _ = utils.process_mapped_data("data.csv")
-    # round_data["depth"] = round_data.iloc[:, :20].sum(axis=1)
-    # round_data = round_data[round_data["depth"] <= 2]
-
-    # print(round_data["depth"])
-    # print(round_data.shape)
-
-    # rule = np.array([0, 6, 7, 0, 0, 10, 11, 20, 0, 0, 0, 0, 0, 0, 0, 0])
-    round_data = utils.combined_round_data(experiment_folder, max_n=11)
-    round_data = round_data[list(round_data.columns)[:20] + ["fitness"]]
-    print(round_data)
-    
-    rule = np.array([0, 19, 0, 0, 0, 14, 0, 0, 0, 5, 11, 0, 0, 2, 0, 0, 0, 6, 7, 0, 0, 16, 0, 0, 0, 5, 20, 0])
-    evaluate_rule(rule, round_data, "SGO2_11", experiment_folder)
-
-    rule = np.array([0, 19, 0, 0, 0, 14, 0, 0, 0, 0, 11, 0, 0, 2, 0, 0, 0, 6, 7, 0, 0, 16, 0, 0, 0, 5, 20, 0])
-    evaluate_rule(rule, round_data, "SGO2_11-2", experiment_folder)
-
-    rule = np.array([0, 14, 0, 0, 0, 5, 11, 0, 0, 8, 20, 0, 0, 19, 0, 0, 0, 2, 0, 0, 0, 16, 0, 0, 0, 6, 7, 0, 0, 5, 20, 0])
-    evaluate_rule(rule, round_data, "SGO2_11-3", experiment_folder)
-    # solve(round_data)
-    # solve_kfold_regularization(round_data)
+def apply_args_and_kwargs(fn, kwargs):
+    return fn(**kwargs)
 
 
 if __name__ == "__main__":
-    VERBOSE = True
-    # experiment_folder = "experiments/04-07-2021 copy"
-    # experiment_folder = "experiments/04-30-2021_3/both"
-    # experiment_folder = "experiments/05-31-2021_7/"
-    # experiment_folder = "experiments/05-31-2021_8/"
-    # experiment_folder = "experiments/05-31-2021_9/"
-    # experiment_folder = "experiments/07-26-2021_10"
-    experiment_folder = "experiments/07-26-2021_11"
-    # experiment_folder = "experiments/08-20-2021_12"
+    MAX_GENERATIONS = 2000
 
-    # for i in range(1, 15):
-    #     print()
-    #     print(i, "-----------------------------")
-    #     main(experiment_folder, i, n_groups=7)
+    aa = AA_SHORT
+    aa_nots = AA_SHORT + AA_SHORT_NOTS
+    cdm = AA_SHORT + BASE_NAMES
+    cdm_nots = AA_SHORT + BASE_NAMES + AA_SHORT_NOTS + BASE_NAMES_NOTS
 
-    # for i in range(10, 12):
-    #     print()
-    #     print(i, "-----------------------------")
-    #     main(experiment_folder, 13, n_groups=i)
+    configs_kwargs = [
+        {
+            "folder": "experiments/2021-07-26_10",
+            "ingredient_names": aa,
+            "max_round_n": 13,
+            "n_groups": 20,
+            "include_nots": False,
+            "summary_file_info": "10_AA",
+            "max_generations": MAX_GENERATIONS,
+            "key": "SGO_AA_aerobic",
+        },
+        {
+            "folder": "experiments/2021-08-20_12",
+            "ingredient_names": aa,
+            "max_round_n": 11,
+            "n_groups": 20,
+            "include_nots": False,
+            "summary_file_info": "11_AA",
+            "max_generations": MAX_GENERATIONS,
+            "key": "SSA_AA_aerobic",
+        },
+        {
+            "folder": "experiments/2022-01-17_19",
+            "ingredient_names": aa,
+            "max_round_n": 4,
+            "n_groups": 20,
+            "include_nots": False,
+            "summary_file_info": "19_AA",
+            "max_generations": MAX_GENERATIONS,
+            "key": "SGO_AA_aerobic_TL",
+        },
+        {
+            "folder": "experiments/2022-02-08_24",
+            "ingredient_names": aa,
+            "max_round_n": 3,
+            "n_groups": 20,
+            "include_nots": False,
+            "summary_file_info": "24_AA",
+            "max_generations": MAX_GENERATIONS,
+            "key": "SSA_AA_anaerobic_TL",
+        },
+        {
+            "folder": "experiments/2022-04-18_25",
+            "ingredient_names": cdm,
+            "max_round_n": 7,
+            "n_groups": 20,
+            "include_nots": False,
+            "summary_file_info": "25_CDM",
+            "max_generations": MAX_GENERATIONS,
+            "key": "SSA_CDM_aerobic_TL",
+        },
+        # NOTS
+        {
+            "folder": "experiments/2021-07-26_10",
+            "ingredient_names": aa_nots,
+            "max_round_n": 13,
+            "n_groups": 20,
+            "include_nots": True,
+            "summary_file_info": "10_AA_NOT",
+            "max_generations": MAX_GENERATIONS,
+            "key": "SGO_AA_aerobic_NOTS",
+        },
+        {
+            "folder": "experiments/2021-08-20_12",
+            "ingredient_names": aa_nots,
+            "max_round_n": 11,
+            "n_groups": 20,
+            "include_nots": True,
+            "summary_file_info": "11_AA_NOT",
+            "max_generations": MAX_GENERATIONS,
+            "key": "SSA_AA_aerobic_NOTS",
+        },
+        {
+            "folder": "experiments/2022-01-17_19",
+            "ingredient_names": aa_nots,
+            "max_round_n": 4,
+            "n_groups": 20,
+            "include_nots": True,
+            "summary_file_info": "19_AA_NOT",
+            "max_generations": MAX_GENERATIONS,
+            "key": "SGO_AA_aerobic_TL_NOTS",
+        },
+        {
+            "folder": "experiments/2022-02-08_24",
+            "ingredient_names": aa_nots,
+            "max_round_n": 3,
+            "n_groups": 20,
+            "include_nots": True,
+            "summary_file_info": "24_AA_NOT",
+            "max_generations": MAX_GENERATIONS,
+            "key": "SSA_AA_anaerobic_TL_NOTS",
+        },
+        {
+            "folder": "experiments/2022-04-18_25",
+            "ingredient_names": cdm_nots,
+            "max_round_n": 7,
+            "n_groups": 20,
+            "include_nots": True,
+            "summary_file_info": "25_CDM_NOT",
+            "max_generations": MAX_GENERATIONS*2,
+            "key": "SSA_CDM_aerobic_TL_NOTS",
+        },
+    ]
 
-    # main(experiment_folder, 13, n_groups=7)
-    # main(experiment_folder, 4, n_groups=7)
+    current_date = datetime.datetime.now().strftime("%Y_%m_%d-%I_%M_%S_%p")
+    export_filename = f"rule_solver_results_{current_date}.csv"
 
-    main2(experiment_folder)
+    for i, configs_kwarg in enumerate(configs_kwargs):
+        configs_kwarg["tqdm_offset"] = i
+
+    with multiprocessing.Pool(processes=N_PROCESSES) as pool:
+        results = starmap_with_kwargs(pool, main, configs_kwargs)
+    
+    results_accum = {}
+    for k, r in zip(configs_kwargs, results):
+        results_accum[k["key"]] = r
+        results = pd.DataFrame.from_dict(results_accum, orient="index")
+        results.to_csv(export_filename)
