@@ -1,6 +1,9 @@
-# BacterAI
+<p align="center">
+    <img src="https://user-images.githubusercontent.com/4694385/225218387-ff83524a-bdcc-4751-b2c7-0fab567f50eb.png" alt="bacterai_logo_2000" style="width: 60%;">
+</p>
 
-#### Jensen Lab, 2023
+## BacterAI
+### Jensen Lab, 2023
 
 Data for paper in `published_data/`
 
