@@ -1,4 +1,4 @@
-# Data and Models from Dama, et al., 2023.
+# Data and models from Dama, et al., 2023.
 
 Each folder contains the data (`experiment_data.csv`) and folders with the trained neural networks for an experiment in the BacterAI paper.
 
