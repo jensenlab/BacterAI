@@ -1,5 +1,26 @@
+import utils
+
+SEED = 0
+NP_RAND_STATE = utils.seed_numpy_state(SEED)
+
+def chunks(a, n):
+    """ Yield successive n-sized chunks from a."""
+
+    for i in range(0, len(a), n):
+        yield a[i : i + n]
+
+
 import argparse
-import datetime
+
+import utils
+
+SEED = 0
+NP_RAND_STATE = utils.seed_numpy_state(SEED)
+
+import utils
+
+SEED = 0
+NP_RAND_STATE = utils.seed_numpy_state(SEED)
 import json
 import os
 
