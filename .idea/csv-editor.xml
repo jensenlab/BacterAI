@@ -10,6 +10,27 @@
             </Attribute>
           </value>
         </entry>
+        <entry key="\data\iSMU-extrapolated\initial_data\train_set_both.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="\data\iSMU-extrapolated\initial_data\train_set_in.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
+        <entry key="\data\iSMU-extrapolated\initial_data\train_set_out.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
       </map>
     </option>
   </component>
