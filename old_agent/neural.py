@@ -26,6 +26,7 @@ from tensorflow.python.keras.engine import compile_utils
 
 # import model
 import utils
+from tqdm import trange
 
 # tf.get_logger().setLevel("ERROR")
 
@@ -172,7 +173,7 @@ class PredictNet:
             if a == None:
                 layers.append(tf.keras.layers.LeakyReLU(alpha=self.leaky_relu))
 
-            if self.include_dropout and idx != len(layer_order):
+            if self.include_dropout and idx != len(self.layer_order) - 1:
                 layers.append(
                     tf.keras.layers.Dropout(
                         self.dropout_percent, noise_shape=None, seed=None
@@ -842,9 +843,12 @@ def standard_train_scheme(experiment_dir, design_file_name, train_sizes, n_test)
 
 
 def generate_training_data():
+    import model  # Add the import statement for the "model" module
+
     m = model.load_cobra("models/iSMUv01_CDM_LOO_v2.xml")
     max_n = 10000
     with open("CDM_leave_out_validation_01.csv", mode="a") as file:
+
         writer = csv.writer(file, delimiter=",")
         for _ in trange(max_n):
             # n = random.randint(0, len(model.KO_RXN_IDS))
@@ -881,7 +885,7 @@ def load_data(filepath, starting_index=1, max_n=None):
     return data, data_labels
 
 
-def get_stats(y_true, results, epoch, loss_name):
+def get_stats(self, y_true, results, epoch, loss_name):
     y_true[y_true >= self.growth_cutoff] = 1
     y_true[y_true < self.growth_cutoff] = 0
     results[results >= self.growth_cutoff] = 1

@@ -7,12 +7,12 @@ import pandas as pd
 from constants import *
 
 
-def seed_numpy_state(seed):
+def seed_numpy_state(seed) -> object:
     return np.random.RandomState(np.random.MT19937(np.random.SeedSequence(seed)))
 
 
 def process_mapped_data(path, ingredients=AA_SHORT):
-    """Processes DeepPhenotyping data. It normalizes the
+    """Processes Deep Phenotyping data. It normalizes the
     change in OD (delta OD) to their plate controls' mean delta OD.
     """
 
@@ -123,6 +123,12 @@ def combined_round_data(experiment_folder, max_n=None, sort=True):
     paths = []
     for root, dirs, files in os.walk(experiment_folder):
         models = []
+        for name in dirs:
+            path = os.path.join(root, name)
+            if "bad_runs" in path:
+                continue
+            if "results_all" in name:
+                paths.append(path)
         for name in files:
             path = os.path.join(root, name)
             if "bad_runs" in path:
@@ -138,7 +144,7 @@ def combined_round_data(experiment_folder, max_n=None, sort=True):
         print(path)
         results = normalize_ingredient_names(pd.read_csv(path, index_col=None))
         if sort:
-            results = results.sort_values(by="growth_pred").reset_index(drop=True)
+            results = results.sort_values(by="growth_predict").reset_index(drop=True)
         if "is_redo" in results.columns:
             results = results[~results["is_redo"]]
         # results["round"] = idx + 1
@@ -150,4 +156,30 @@ def combined_round_data(experiment_folder, max_n=None, sort=True):
 
 if __name__ == "__main__":
     m = softmax(np.array([0.1, 0.8, 0.6, 1, 0.9]), 0.2)
+    print(m, m.sum())
+    m = softmax(np.array([0.1, 0.8, 0.6, 1, 0.9]), 0.5)
+    print(m, m.sum())
+    m = softmax(np.array([0.1, 0.8, 0.6, 1, 0.9]), 0.8)
+    print(m, m.sum())
+    m = softmax(np.array([0.1, 0.8, 0.6, 1, 0.9]), 0.9)
+    print(m, m.sum())
+    m = softmax(np.array([0.1, 0.8, 0.6, 1, 0.9]))
+    print(m, m.sum())
+    m = softmax(np.array([0.1, 0.8, 0.6, 1, 0.9]), 1)
+    print(m, m.sum())
+    m = softmax(np.array([0.1, 0.8, 0.6, 1, 0.9]), 2)
+    print(m, m.sum())
+    m = softmax(np.array([0.1, 0.8, 0.6, 1, 0.9]))
+    print(m, m.sum())
+    m = softmax(np.array([0.1, 0.8, 0.6, 1, 0.9]), 0.2)
+    print(m, m.sum())
+    m = softmax(np.array([0.1, 0.8, 0.6, 1, 0.9]), 0.5)
+    print(m, m.sum())
+    m = softmax(np.array([0.1, 0.8, 0.6, 1, 0.9]))
+    print(m, m.sum())
+    m = softmax(np.array([0.1, 0.8, 0.6, 1, 0.9]))
+    print(m, m.sum())
+    m = softmax(np.array([0.1, 0.8, 0.6, 1, 0.9]))
+    print(m, m.sum())
+    m = softmax(np.array([0.1, 0.8, 0.6, 1, 0.9]))
     print(m, m.sum())
