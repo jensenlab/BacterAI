@@ -158,6 +158,12 @@ class Model:
         model = cobra.io.read_sbml_model(model_path)
         return model
 
+
+    def reactions_to_knockout(remove_arr, CDM_RXN_IDS):
+        # Define the reactions_to_knockout function here
+        # ...
+        pass
+
     def random_reactions(self, num_to_remove=5):
         # num_to_remove - int: number of reactions to remove (set to 0)
 
@@ -166,7 +172,8 @@ class Model:
         )
         remove_arr = np.ones(len(CDM_RXN_IDS))
         remove_arr[remove_indexes] = 0
-        return reactions_to_knockout(remove_arr, CDM_RXN_IDS), remove_arr
+        return self.reactions_to_knockout(remove_arr, CDM_RXN_IDS), remove_arr
+
 
     def get_reactions_of_interest(self):
         # Return a list of reactions and their bounds

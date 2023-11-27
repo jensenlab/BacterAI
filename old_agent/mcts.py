@@ -472,7 +472,7 @@ class MCTS(object):
             ing = np.array(self.ingredient_names)
             state = np.isin(ing, state).astype(int).reshape((1, -1))
         elif not isinstance(state, np.ndarray):
-            raise Error("Invalid state, must be type list or np.ndarray")
+            raise ValueError("Invalid state, must be type list or np.ndarray")
 
         size = len(self.ingredient_names)
         if available_actions is None:
