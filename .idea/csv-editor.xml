@@ -31,6 +31,13 @@
             </Attribute>
           </value>
         </entry>
+        <entry key="\files\CDM_reagents_2x_NH4_tempest_optimized.csv">
+          <value>
+            <Attribute>
+              <option name="separator" value="," />
+            </Attribute>
+          </value>
+        </entry>
       </map>
     </option>
   </component>
