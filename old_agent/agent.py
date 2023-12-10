@@ -17,7 +17,6 @@ import scipy.stats
 # Suppress Tensorflow logs
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = "3"
 import tensorflow as tf
-from termcolor import colored
 from tqdm import tqdm
 
 import neural
