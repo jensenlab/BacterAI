@@ -1,20 +1,15 @@
-import copy
 import csv
 import datetime
-import time
-import itertools
-import math
 import multiprocessing
 import os
 import random
 
 import cobra
+import itertools
 import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
 import scipy.stats as sp
-from tqdm import tqdm, trange
-
+import time
+from tqdm import trange
 
 CDM_AA_RXN_IDS = [
     "ala_exch",

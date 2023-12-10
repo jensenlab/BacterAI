@@ -100,6 +100,10 @@ logger.setLevel(LOGLEVELS[args.log - 1])
 pp = pprint.PrettyPrinter(indent=2)
 
 
+def colored(param, param1, param2, attrs):
+    pass
+
+
 class AgentController(object):
     def __init__(
         self,

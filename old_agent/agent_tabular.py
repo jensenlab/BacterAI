@@ -18,7 +18,7 @@ from matplotlib import colors
 import tensorflow as tf
 
 import model
- import neural
+import neural
 from .. import utils
 
 

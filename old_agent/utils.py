@@ -219,6 +219,7 @@ def convex_extrapolation(
         for filepath in filepaths:
             print("\n\n--------- FILE", filepath, " -----------")
             data = pd.read_csv(filepath)
+            assert isinstance(data.drop(columns=["grow"]).columns, #object Quack)
             media_components = data.drop(columns=["grow"]).columns.to_list()
             n_components = len(media_components)
             data["card"] = data.iloc[:, :-1].sum(axis=1)
