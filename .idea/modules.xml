@@ -4,6 +4,7 @@
     <modules>
       <module fileurl="file://$PROJECT_DIR$/../Auto-GPT/.idea/Auto-GPT.iml" filepath="$PROJECT_DIR$/../Auto-GPT/.idea/Auto-GPT.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/BacterAI.iml" filepath="$PROJECT_DIR$/.idea/BacterAI.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../gpt-engineer/.idea/gpt-engineer.iml" filepath="$PROJECT_DIR$/../gpt-engineer/.idea/gpt-engineer.iml" />
     </modules>
   </component>
 </project>
