@@ -8,6 +8,7 @@
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="module" module-name="Auto-GPT" />
     <orderEntry type="module" module-name="gpt-engineer" />
+    <orderEntry type="module" module-name="MiniGPT-4" />
   </component>
   <component name="PyDocumentationSettings">
     <option name="format" value="PLAIN" />
