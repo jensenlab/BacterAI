@@ -6,6 +6,7 @@
       <module fileurl="file://$PROJECT_DIR$/.idea/BacterAI.iml" filepath="$PROJECT_DIR$/.idea/BacterAI.iml" />
       <module fileurl="file://$PROJECT_DIR$/../MiniGPT-4/.idea/MiniGPT-4.iml" filepath="$PROJECT_DIR$/../MiniGPT-4/.idea/MiniGPT-4.iml" />
       <module fileurl="file://$PROJECT_DIR$/../gpt-engineer/.idea/gpt-engineer.iml" filepath="$PROJECT_DIR$/../gpt-engineer/.idea/gpt-engineer.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../lahludwig/.idea/lahludwig.iml" filepath="$PROJECT_DIR$/../lahludwig/.idea/lahludwig.iml" />
     </modules>
   </component>
 </project>

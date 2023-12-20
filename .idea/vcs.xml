@@ -6,5 +6,6 @@
     <mapping directory="$PROJECT_DIR$/../Auto-GPT/tests/Auto-GPT-test-cassettes" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/../MiniGPT-4" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/../gpt-engineer" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/../lahludwig" vcs="Git" />
   </component>
 </project>
